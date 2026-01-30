@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surfers For Autism</title>
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Favicons for browser tab -->
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+  <!-- Optional: theme color for mobile browser -->
+  <meta name="theme-color" content="#0a75ad">
+
+  <!-- Add some basic styling -->
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f2f9ff; color: #0a75ad; }
+    header { text-align: center; margin-bottom: 20px; }
+    img.logo { width: 120px; margin-bottom: 10px; }
+    .container { max-width: 500px; margin: auto; }
+    select, input[type="text"], button { width: 100%; padding: 10px; margin: 5px 0; font-size: 16px; }
+    #status { margin-top: 10px; font-weight: bold; }
+    #checkin-count { margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <!-- Visible logo -->
+    <img src="icon-192.png" alt="SFA Logo" class="logo">
+    <h1>Surfers For Autism</h1>
+  </header>
+
+  <div class="container">
+    <!-- Staff login section -->
+    <div id="login-section">
+      <input type="text" id="staffPin" placeholder="Enter staff PIN">
+      <button id="loginButton">Login</button>
+      <div id="login-status"></div>
+    </div>
+
+    <!-- Event selection -->
+    <div id="event-section" style="display:none;">
+      <select id="eventSelect">
+        <option value="">Loading events…</option>
+      </select>
+
+      <!-- Attendee check-in -->
+      <input type="text" id="attendeeName" placeholder="Enter attendee name">
+      <button id="checkinButton">Check In</button>
+
+      <div id="status"></div>
+      <div id="checkin-count"></div>
+    </div>
+  </div>
+
+  <!-- App JS -->
+  <script src="app.js"></script>
+
+  <!-- Register service worker for offline support -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("sw.js")
+          .then(reg => console.log("Service Worker registered", reg))
+          .catch(err => console.error("Service Worker registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>
