@@ -9,6 +9,7 @@ Backend for the Surfers For Autism progressive web app.
 - Duplicate participant prevention (409 Conflict)
 - Registration open/close controls
 - Participant capacity enforced using live database COUNT queries (no stored counters)
+- Add GET /events/{slug}/participants
 
 ## Tech Stack
 - FastAPI
