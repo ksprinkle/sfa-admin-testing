@@ -18,6 +18,7 @@ from api.crud.events import update_event
 from api.schemas.participants import ParticipantCreate, ParticipantOut
 from api.crud.participants import create_participant
 from api.crud.participants import get_participant_count
+from api.crud.participants import get_participants_for_event
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -125,7 +126,28 @@ def get_event(
         featured_image=event.featured_image,
     )
 
-    
+@router.get("/{slug}/participants", response_model=list[ParticipantOut])
+def list_event_participants(
+    slug: str,
+    db: Session = Depends(get_db),
+):
+    event = get_event_by_slug(db, slug, is_admin=False)
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    participants = get_participants_for_event(db, event.id)
+
+    return [
+        ParticipantOut(
+            id=str(p.id),
+            first_name=p.first_name,
+            last_name=p.last_name,
+            email=p.email,
+        )
+        for p in participants
+    ]
+   
 
 @router.post("", response_model=EventOut, status_code=201)
 def create_event_endpoint(
