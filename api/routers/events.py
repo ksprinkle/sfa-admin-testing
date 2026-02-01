@@ -17,6 +17,7 @@ from api.schemas.events import EventUpdate
 from api.crud.events import update_event
 from api.schemas.participants import ParticipantCreate, ParticipantOut
 from api.crud.participants import create_participant
+from api.crud.participants import get_participant_count
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -74,6 +75,9 @@ def get_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
+    # ✅ DEFINE count (no enforcement here)
+    participant_count = get_participant_count(db, event.id)
+
     return EventOut(
         id=event.id,
         title=event.title,
@@ -107,7 +111,7 @@ def get_event(
                 event.participant_open
                 and (
                     event.participant_capacity is None
-                    or event.participant_count < event.participant_capacity
+                    or participant_count < event.participant_capacity
                 )
             ),
             "volunteer_available": (
@@ -120,6 +124,8 @@ def get_event(
         },
         featured_image=event.featured_image,
     )
+
+    
 
 @router.post("", response_model=EventOut, status_code=201)
 def create_event_endpoint(
@@ -194,7 +200,14 @@ def update_event_endpoint(
         raise HTTPException(status_code=404, detail="Event not found")
 
     event = update_event(db, event, event_in)
-
+    participant_count = get_participant_count(db, event.id)
+    
+    if (
+    event.participant_capacity is not None
+    and participant_count >= event.participant_capacity
+):
+        raise HTTPException(status_code=400, detail="Event is full")
+        
     return EventOut(
         id=event.id,
         title=event.title,
@@ -255,12 +268,13 @@ def signup_participant(
     if not event.participant_open:
         raise HTTPException(status_code=400, detail="Participant registration is closed")
 
-    #Following commente out for testing purposes
-    #if (
-       # event.participant_capacity is not None
-       # and event.participant_count >= event.participant_capacity
-   # ):
-        #raise HTTPException(status_code=400, detail="Event is full")
+    participant_count = get_participant_count(db, event.id)
+
+    if (
+        event.participant_capacity is not None
+        and participant_count >= event.participant_capacity
+    ):
+        raise HTTPException(status_code=400, detail="Event is full")
 
     participant = create_participant(db, event, participant_in)
 
