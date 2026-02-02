@@ -19,10 +19,11 @@ from api.schemas.participants import ParticipantCreate, ParticipantOut
 from api.crud.participants import create_participant
 from api.crud.participants import get_participant_count
 from api.crud.participants import get_participants_for_event
+from api.schemas.events import EventOut, EventListOut
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
-@router.get("", response_model=list[EventOut])
+@router.get("", response_model=list[EventListOut])
 def list_events(
     db: Session = Depends(get_db),
     admin: bool = Depends(is_admin),
@@ -31,18 +32,17 @@ def list_events(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
 ):
-
     events = get_upcoming_events(
-    db,
-    is_admin=admin,
-    state=state,
-    event_type=event_type,
-    start_date=start_date,
-    end_date=end_date,
-)
+        db,
+        is_admin=admin,
+        state=state,
+        event_type=event_type,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     return [
-        EventOut(
+        EventListOut(
             id=e.id,
             title=e.title,
             slug=e.slug,
@@ -61,7 +61,6 @@ def list_events(
                 "longitude": e.longitude,
                 "beach_accessibility": e.beach_accessibility,
             },
-            # ...other fields...
         )
         for e in events
     ]
