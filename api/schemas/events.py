@@ -41,7 +41,7 @@ class EventOut(BaseModel):
     end_time: Optional[time]
     timezone: str
 
-    location: EventLocation
+    location: dict
     capacity: EventCapacity
     registration: EventRegistration
 
@@ -50,6 +50,20 @@ class EventOut(BaseModel):
     registration: EventRegistration
     availability: EventAvailability
     featured_image: Optional[str]
+
+class EventListOut(BaseModel):
+    id: UUID
+    title: str
+    slug: str
+    event_type: str
+    status: str
+    start_date: date
+    end_date: Optional[date]
+    start_time: Optional[time]
+    end_time: Optional[time]
+    timezone: str
+
+    location: EventLocation
 
 class Config:
         from_attributes = True 

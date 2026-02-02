@@ -49,14 +49,26 @@ def get_upcoming_events(
 ):
     query = db.query(Event)
 
+    if state:
+        state = state.strip().lower()
+
+    if event_type:
+        event_type = event_type.strip().lower()
+
     if not is_admin:
         query = query.filter(Event.status == "published")
 
     if state:
-        query = query.filter(Event.state == state)
+        query = query.filter(
+            Event.state.isnot(None),
+            Event.state.ilike(state)
+        )
 
     if event_type:
-        query = query.filter(Event.event_type == event_type)
+        query = query.filter(
+            Event.event_type.isnot(None),
+            Event.event_type.ilike(event_type)
+        )
 
     if start_date:
         query = query.filter(Event.start_date >= start_date)
@@ -64,7 +76,9 @@ def get_upcoming_events(
     if end_date:
         query = query.filter(Event.start_date <= end_date)
 
+    # ✅ RETURN MUST ALWAYS EXECUTE
     return query.order_by(Event.start_date.asc()).all()
+
 
 def get_event_by_slug(db: Session, slug: str, is_admin: bool = False):
     query = db.query(Event).filter(Event.slug == slug)
