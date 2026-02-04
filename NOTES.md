@@ -6,13 +6,18 @@
 - Add DELETE /events/{slug}/participants/{id}
 
 # Optional/Depends on goals
-- Make participant list endpoint admin-only (optional)
 Why:  Useful if participant lists contain sensitive info
 But you haven’t defined auth yet beyond x-admin
 Can be done in 2 lines later
 
 # Next Ideas
 - Add pagination or sorting
-- Add participant counts to the event list view
 - Wire participant list into frontend
+- Auto-generate slugs from event titles (generate once, never auto-update)
 
+# When you come back Next time
+- Good, non-exhausting next options would be:
+- reviewing the backend structure together
+- planning frontend data needs
+- sketching cancellation logic (no code)
+- or auto-slug generation (calm, deliberate)
