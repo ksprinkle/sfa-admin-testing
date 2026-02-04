@@ -41,29 +41,44 @@ def list_events(
         end_date=end_date,
     )
 
-    return [
-        EventListOut(
-            id=e.id,
-            title=e.title,
-            slug=e.slug,
-            event_type=e.event_type,
-            status=e.status,
-            start_date=e.start_date,
-            end_date=e.end_date,
-            start_time=e.start_time,
-            end_time=e.end_time,
-            timezone=e.timezone,
-            location={
-                "venue": e.venue,
-                "city": e.city,
-                "state": e.state,
-                "latitude": e.latitude,
-                "longitude": e.longitude,
-                "beach_accessibility": e.beach_accessibility,
-            },
+    event_list = []
+
+    for e in events:
+        participant_count = get_participant_count(db, e.id)
+
+        event_list.append(
+            EventListOut(
+                id=e.id,
+                title=e.title,
+                slug=e.slug,
+                event_type=e.event_type,
+                status=e.status,
+                start_date=e.start_date,
+                end_date=e.end_date,
+                start_time=e.start_time,
+                end_time=e.end_time,
+                timezone=e.timezone,
+                location={
+                    "venue": e.venue,
+                    "city": e.city,
+                    "state": e.state,
+                    "latitude": e.latitude,
+                    "longitude": e.longitude,
+                    "beach_accessibility": e.beach_accessibility,
+                },
+                participant_count=participant_count,
+                participant_capacity=e.participant_capacity,
+                participant_available=(
+                    e.participant_open
+                    and (
+                        e.participant_capacity is None
+                        or participant_count < e.participant_capacity
+                    )
+                ),
+            )
         )
-        for e in events
-    ]
+
+    return event_list
     
 @router.get("/{slug}", response_model=EventOut)
 def get_event(

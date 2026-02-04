@@ -62,8 +62,10 @@ class EventListOut(BaseModel):
     start_time: Optional[time]
     end_time: Optional[time]
     timezone: str
-
     location: EventLocation
+    participant_count: int
+    participant_capacity: Optional[int]
+    participant_available: bool
 
 class Config:
         from_attributes = True 
