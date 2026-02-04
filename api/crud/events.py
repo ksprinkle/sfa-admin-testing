@@ -46,7 +46,10 @@ def get_upcoming_events(
     event_type: str | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
 ):
+
     query = db.query(Event)
 
     if state:
@@ -76,8 +79,17 @@ def get_upcoming_events(
     if end_date:
         query = query.filter(Event.start_date <= end_date)
 
-    # ✅ RETURN MUST ALWAYS EXECUTE
-    return query.order_by(Event.start_date.asc()).all()
+    # RETURN MUST ALWAYS EXECUTE
+    query = query.order_by(Event.start_date.asc())
+
+    if offset is not None:
+        query = query.offset(offset)
+
+    if limit is not None:
+        query = query.limit(limit)
+
+    return query.all()
+
 
 
 def get_event_by_slug(db: Session, slug: str, is_admin: bool = False):
