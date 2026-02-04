@@ -42,6 +42,7 @@ def get_participants_for_event(db: Session, event_id: int):
     return (
         db.query(Participant)
         .filter(Participant.event_id == event_id)
-        .order_by(Participant.created_at.asc())
+        .order_by(Participant.id.asc())
+
         .all()
     )

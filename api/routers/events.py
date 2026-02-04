@@ -31,7 +31,10 @@ def list_events(
     event_type: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
 ):
+
     events = get_upcoming_events(
         db,
         is_admin=admin,
@@ -39,7 +42,10 @@ def list_events(
         event_type=event_type,
         start_date=start_date,
         end_date=end_date,
+        limit=limit,
+        offset=offset,
     )
+
 
     event_list = []
 
@@ -141,10 +147,14 @@ def get_event(
     )
 
 @router.get("/{slug}/participants", response_model=list[ParticipantOut])
-def list_event_participants(
+def list_participants(
     slug: str,
     db: Session = Depends(get_db),
+    admin: bool = Depends(is_admin),
 ):
+    if not admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     event = get_event_by_slug(db, slug, is_admin=False)
 
     if not event:
