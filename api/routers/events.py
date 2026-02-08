@@ -33,6 +33,7 @@ def list_events(
     end_date: Optional[date] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
+    sort: Optional[str] = "start_date",
 ):
 
     events = get_upcoming_events(
@@ -44,6 +45,7 @@ def list_events(
         end_date=end_date,
         limit=limit,
         offset=offset,
+        sort=sort,
     )
 
 

@@ -48,6 +48,7 @@ def get_upcoming_events(
     end_date: date | None = None,
     limit: int | None = None,
     offset: int | None = None,
+    sort: str | None = "start_date",
 ):
 
     query = db.query(Event)
@@ -80,7 +81,11 @@ def get_upcoming_events(
         query = query.filter(Event.start_date <= end_date)
 
     # RETURN MUST ALWAYS EXECUTE
-    query = query.order_by(Event.start_date.asc())
+    if sort == "start_date_desc":
+        query = query.order_by(Event.start_date.desc())
+    else:
+        query = query.order_by(Event.start_date.asc())
+
 
     if offset is not None:
         query = query.offset(offset)
