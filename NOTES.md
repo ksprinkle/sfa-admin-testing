@@ -11,7 +11,6 @@ But you haven’t defined auth yet beyond x-admin
 Can be done in 2 lines later
 
 # Next Ideas
-- Add pagination or sorting
 - Wire participant list into frontend
 - Auto-generate slugs from event titles (generate once, never auto-update)
 
