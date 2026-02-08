@@ -15,8 +15,7 @@ Can be done in 2 lines later
 - Auto-generate slugs from event titles (generate once, never auto-update)
 
 # When you come back Next time
-- Good, non-exhausting next options would be:
-- reviewing the backend structure together
-- planning frontend data needs
-- sketching cancellation logic (no code)
-- or auto-slug generation (calm, deliberate)
+- reviewing the API as a whole
+- planning frontend data consumption
+- designing cancellation logic (no code yet)
+- auto-slug generation (calm + deliberate)
