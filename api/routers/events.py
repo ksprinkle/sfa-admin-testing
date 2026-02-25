@@ -6,7 +6,6 @@ from api.models.events import Event
 from api.schemas.events import EventOut
 from fastapi import HTTPException
 from api.crud.events import get_event_by_slug
-from api.security import is_admin
 from api.schemas.events import EventCreate
 from api.crud.events import create_event
 from datetime import date
@@ -20,13 +19,14 @@ from api.crud.participants import create_participant
 from api.crud.participants import get_participant_count
 from api.crud.participants import get_participants_for_event
 from api.schemas.events import EventOut, EventListOut
+from api.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
 @router.get("", response_model=list[EventListOut])
 def list_events(
     db: Session = Depends(get_db),
-    admin: bool = Depends(is_admin),
+    admin: bool = Depends(require_admin),
     state: Optional[str] = None,
     event_type: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -92,7 +92,7 @@ def list_events(
 def get_event(
     slug: str,
     db: Session = Depends(get_db),
-    admin: bool = Depends(is_admin),
+    admin: bool = Depends(require_admin),
 ):
     event: Event | None = get_event_by_slug(db, slug, is_admin=admin)
     if not event:
@@ -152,7 +152,7 @@ def get_event(
 def list_participants(
     slug: str,
     db: Session = Depends(get_db),
-    admin: bool = Depends(is_admin),
+    admin: bool = Depends(require_admin),
 ):
     if not admin:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -179,7 +179,7 @@ def list_participants(
 def create_event_endpoint(
     event_in: EventCreate,
     db: Session = Depends(get_db),
-    admin: bool = Depends(is_admin),
+    admin: bool = Depends(require_admin),
 ):
     if not admin:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -237,7 +237,7 @@ def update_event_endpoint(
     slug: str,
     event_in: EventUpdate,
     db: Session = Depends(get_db),
-    admin: bool = Depends(is_admin),
+    admin: bool = Depends(require_admin),
 ):
     if not admin:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -332,3 +332,14 @@ def signup_participant(
         last_name=participant.last_name,
         email=participant.email,
     )
+
+# DEV ENDPOINT TO PROMOTE CURRENT USER TO ADMIN - REMOVE BEFORE PRODUCTION
+#@router.post("/dev/promote-me")
+#def promote_me(
+#    db: Session = Depends(get_db),
+#    current_user = Depends(get_current_user)
+#):
+#    current_user.role = "admin"
+#    db.commit()
+#    db.refresh(current_user)
+#    return current_user

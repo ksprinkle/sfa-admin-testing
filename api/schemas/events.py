@@ -124,3 +124,46 @@ class EventUpdate(BaseModel):
     vendor_open: Optional[bool] = None
 
     featured_image: Optional[str] = None
+
+from uuid import UUID
+from datetime import date, time
+from typing import Optional
+
+
+class AdminEventListOut(BaseModel):
+    id: UUID
+    title: str
+    slug: str
+    event_type: str
+    status: str
+    start_date: date
+    end_date: Optional[date]
+    start_time: Optional[time]
+    end_time: Optional[time]
+    timezone: str
+
+    class Config:
+        from_attributes = True
+
+from pydantic import BaseModel
+from uuid import UUID
+from typing import Optional
+
+
+class AdminEventSummary(BaseModel):
+    event_id: UUID
+    title: str
+    status: str
+
+    participant_count: int
+    participant_capacity: Optional[int]
+    participant_remaining: Optional[int]
+    participant_fill_percent: Optional[float]
+
+    volunteer_count: int
+    volunteer_capacity: Optional[int]
+    volunteer_remaining: Optional[int]
+    volunteer_fill_percent: Optional[float]
+
+    class Config:
+        from_attributes = True

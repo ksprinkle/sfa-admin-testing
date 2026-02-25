@@ -11,6 +11,12 @@ Backend for the Surfers For Autism progressive web app.
 - Participant capacity enforced using live database  COUNT queries (no stored counters)
 - Add GET /events/{slug}/participants
 - Robust event search with optional, case-insensitive filters and safe list serialization
+Real JWT authentication
+OAuth2 password flow working
+/auth/me endpoint
+Role-based protection with require_admin
+No more x-admin headers
+No more fake admin logic
 
   
 ## Tech Stack
