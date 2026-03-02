@@ -11,8 +11,7 @@ from api.schemas.events import EventCreate
 
 def create_event(db: Session, event_in: EventCreate):
     event = Event(
-        **event_in.dict(),
-        participant_count=0,
+        **event_in.model_dump(),
         volunteer_count=0,
     )
 

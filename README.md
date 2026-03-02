@@ -17,7 +17,13 @@ OAuth2 password flow working
 Role-based protection with require_admin
 No more x-admin headers
 No more fake admin logic
-
+1️⃣ Pagination
+2️⃣ Status filtering
+3️⃣ Soft delete
+4️⃣ Participant overview
+5️⃣ Event summary
+6️⃣ Check-in system
+7️⃣ Check-in filtering
   
 ## Tech Stack
 - FastAPI

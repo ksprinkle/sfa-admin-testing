@@ -41,15 +41,12 @@ class EventOut(BaseModel):
     end_time: Optional[time]
     timezone: str
 
-    location: dict
+    location: dict  # we can improve this later
     capacity: EventCapacity
     registration: EventRegistration
-
-    featured_image: Optional[str]
-
-    registration: EventRegistration
     availability: EventAvailability
-    featured_image: Optional[str]
+
+    featured_image: Optional[str] = None
 
 class EventListOut(BaseModel):
     id: UUID

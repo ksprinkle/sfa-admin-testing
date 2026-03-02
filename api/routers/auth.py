@@ -83,3 +83,14 @@ def update_user_role(
     db.refresh(user)
 
     return user
+
+#Self-promotion endpoint for testing purposes only. In production, this should be removed or protected with additional checks.
+@router.post("/dev/promote-me")
+def promote_me(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    current_user.role = "admin"
+    db.commit()
+    db.refresh(current_user)
+    return {"message": "Role updated to admin"}

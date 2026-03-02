@@ -16,7 +16,7 @@ from api.schemas.events import EventUpdate
 from api.crud.events import update_event
 from api.schemas.participants import ParticipantCreate, ParticipantOut
 from api.crud.participants import create_participant
-from api.crud.participants import get_participant_count
+from api.crud.participants import get_confirmed_participant_count
 from api.crud.participants import get_participants_for_event
 from api.schemas.events import EventOut, EventListOut
 from api.dependencies import get_current_user, require_admin
@@ -26,7 +26,6 @@ router = APIRouter(prefix="/events", tags=["Events"])
 @router.get("", response_model=list[EventListOut])
 def list_events(
     db: Session = Depends(get_db),
-    admin: bool = Depends(require_admin),
     state: Optional[str] = None,
     event_type: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -38,7 +37,6 @@ def list_events(
 
     events = get_upcoming_events(
         db,
-        is_admin=admin,
         state=state,
         event_type=event_type,
         start_date=start_date,
@@ -52,7 +50,7 @@ def list_events(
     event_list = []
 
     for e in events:
-        participant_count = get_participant_count(db, e.id)
+        participant_count = get_confirmed_participant_count(db, e.id)
 
         event_list.append(
             EventListOut(
@@ -99,7 +97,7 @@ def get_event(
         raise HTTPException(status_code=404, detail="Event not found")
 
     # ✅ DEFINE count (no enforcement here)
-    participant_count = get_participant_count(db, event.id)
+    participant_count = get_confirmed_participant_count(db, event.id)
 
     return EventOut(
         id=event.id,
@@ -247,8 +245,8 @@ def update_event_endpoint(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    event = update_event(db, event, event_in)
-    participant_count = get_participant_count(db, event.id)
+    event = current_user = Depends(require_admin)(db, event, event_in)
+    participant_count = get_confirmed_participant_count(db, event.id)
     
     if (
     event.participant_capacity is not None
@@ -308,7 +306,7 @@ def signup_participant(
     participant_in: ParticipantCreate,
     db: Session = Depends(get_db),
 ):
-    event = get_event_by_slug(db, slug, is_admin=False)
+    event = get_event_by_slug(db, slug, is_admin=True)
 
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -316,30 +314,81 @@ def signup_participant(
     if not event.participant_open:
         raise HTTPException(status_code=400, detail="Participant registration is closed")
 
-    participant_count = get_participant_count(db, event.id)
+    confirmed_count = get_confirmed_participant_count(db, event.id)
+
+    is_waitlisted = False
 
     if (
         event.participant_capacity is not None
-        and participant_count >= event.participant_capacity
+        and confirmed_count >= event.participant_capacity
     ):
-        raise HTTPException(status_code=400, detail="Event is full")
+        is_waitlisted = True
 
-    participant = create_participant(db, event, participant_in)
-
-    return ParticipantOut(
-        id=str(participant.id),
-        first_name=participant.first_name,
-        last_name=participant.last_name,
-        email=participant.email,
+    participant = create_participant(
+        db,
+        event,
+        participant_in,
+        is_waitlisted=is_waitlisted,
     )
 
-# DEV ENDPOINT TO PROMOTE CURRENT USER TO ADMIN - REMOVE BEFORE PRODUCTION
-#@router.post("/dev/promote-me")
-#def promote_me(
-#    db: Session = Depends(get_db),
-#    current_user = Depends(get_current_user)
-#):
-#    current_user.role = "admin"
-#    db.commit()
-#    db.refresh(current_user)
-#    return current_user
+    db.commit()
+    db.refresh(participant)
+
+    return participant
+
+def build_event_out(event: Event) -> EventOut:
+    participant_count = len([
+        p for p in event.participants
+        if not p.is_waitlisted
+    ])
+
+    return EventOut(
+        id=event.id,
+        title=event.title,
+        slug=event.slug,
+        event_type=event.event_type,
+        status=event.status,
+        start_date=event.start_date,
+        end_date=event.end_date,
+        start_time=event.start_time,
+        end_time=event.end_time,
+        timezone=event.timezone,
+        location={
+            "venue": event.venue,
+            "city": event.city,
+            "state": event.state,
+            "latitude": event.latitude,
+            "longitude": event.longitude,
+            "beach_accessibility": event.beach_accessibility,
+        },
+        capacity={
+            "participant_capacity": event.participant_capacity,
+            "volunteer_capacity": event.volunteer_capacity,
+        },
+        registration={
+            "participant_open": event.participant_open,
+            "volunteer_open": event.volunteer_open,
+            "vendor_open": event.vendor_open,
+        },
+        availability={
+            "participant_count": participant_count,
+            "participant_available": (
+                event.participant_open
+                and (
+                    event.participant_capacity is None
+                    or participant_count < event.participant_capacity
+                )
+            ),
+        },
+    )
+
+#DEV ENDPOINT TO PROMOTE CURRENT USER TO ADMIN - REMOVE BEFORE PRODUCTION
+@router.post("/dev/promote-me")
+def promote_me(
+   db: Session = Depends(get_db),
+   current_user = Depends(get_current_user)
+):
+   current_user.role = "admin"
+   db.commit()
+   db.refresh(current_user)
+   return current_user
