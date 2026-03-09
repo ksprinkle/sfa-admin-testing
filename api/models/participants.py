@@ -22,6 +22,9 @@ class Participant(Base):
 
     is_waitlisted = Column(Boolean, default=False)
 
+    waiver_signed = Column(Boolean, default=False)
+    waiver_verified = Column(Boolean, default=False)
+    
     checked_in = Column(Boolean, default=False)
     checked_in_at = Column(DateTime, nullable=True)
 

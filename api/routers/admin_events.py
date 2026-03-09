@@ -469,8 +469,11 @@ def check_in_participant(
         Participant.id == participant_id
     ).first()
 
-    if not participant:
-        raise HTTPException(status_code=404, detail="Participant not found")
+    if not participant.waiver_verified:
+        raise HTTPException(
+            status_code=400,
+            detail="Waiver not verified"
+        )
 
     participant.checked_in = True
     db.commit()
