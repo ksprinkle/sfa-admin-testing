@@ -1,16 +1,18 @@
-const API_BASE = "http://localhost:8000"
+const API = "http://localhost:8000"
 
-function getAuthHeaders() {
+function authHeaders() {
   const token = localStorage.getItem("token")
+
   return {
-    "Authorization": `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json"
   }
 }
 
+import { apiFetch } from "./api"
+
 export async function fetchEvents() {
-  const res = await fetch(`${API_BASE}/events`, {
-    headers: getAuthHeaders()
-  })
+  const res = await apiFetch("/admin/events/")
 
   if (!res.ok) {
     throw new Error("Failed to fetch events")
@@ -20,20 +22,62 @@ export async function fetchEvents() {
 }
 
 export async function fetchEventParticipants(eventId) {
-  const token = localStorage.getItem("token")
-
-  const res = await fetch(
-    `http://localhost:8000/admin/events/${eventId}/participants?checked_in=false`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    }
-  )
+  const res = await apiFetch(`/admin/events/${eventId}/participants`)
 
   if (!res.ok) {
     throw new Error("Failed to fetch participants")
   }
+
+  return res.json()
+}
+
+export async function deleteEvent(eventId) {
+  const res = await apiFetch(`/admin/events/${eventId}`, {
+    method: "DELETE"
+  })
+
+  if (!res.ok) {
+    throw new Error("Failed to delete event")
+  }
+
+  return res.json()
+}
+
+export async function archiveEvent(eventId) {
+  const res = await apiFetch(`/admin/events/${eventId}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      status: "archived"
+    })
+  })
+
+  if (!res.ok) {
+    throw new Error("Failed to archive event")
+  }
+
+  return res.json()
+}
+export async function createEvent(data) {
+  const res = await apiFetch("/admin/events/", {
+    method: "POST",
+    body: JSON.stringify(data)
+  })
+
+  if (!res.ok) {
+    throw new Error("Failed to create event")
+  }
+
+  return res.json()
+}
+export async function fetchAllParticipants() {
+  const res = await apiFetch("/admin/events/participants")
+  return res.json()
+}
+export async function checkInParticipant(participantId) {
+
+  const res = await apiFetch(`/admin/participants/${participantId}/checkin`, {
+    method: "POST"
+  })
 
   return res.json()
 }

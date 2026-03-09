@@ -392,3 +392,4 @@ def promote_me(
    db.commit()
    db.refresh(current_user)
    return current_user
+

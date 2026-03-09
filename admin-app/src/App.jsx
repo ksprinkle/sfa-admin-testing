@@ -5,6 +5,10 @@ import Dashboard from "./pages/Dashboard"
 import Events from "./pages/Events"
 import Participants from "./pages/Participants"
 import Login from "./pages/Login"
+import EventDetail from "./pages/EventDetail"
+import CreateEvent from "./pages/CreateEvent"
+import EditEvent from "./pages/EditEvent"
+import CheckIn from "./pages/CheckIn"
 
 function App() {
   const location = useLocation()
@@ -27,15 +31,24 @@ function App() {
     <div className="min-h-screen bg-warmbg pb-20">
       {token && <TopBar title={getTitle()} />}
 
-      <Routes>
-        {!token ? (
-          <Route path="*" element={<Login />} />
-        ) : (
-          <>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/events" element={<Events />} />
-            <Route path="/participants" element={<Participants />} />
-          </>
+     <Routes>
+    {!token ? (
+      <Route path="*" element={<Login />} />
+    ) : (
+      <>
+        <Route path="/" element={<Dashboard />} />
+
+        <Route path="/events">
+          <Route index element={<Events />} />
+          <Route path="new" element={<CreateEvent />} />
+          <Route path=":eventId" element={<EventDetail />} />
+          <Route path=":eventId/checkin" element={<CheckIn />} />
+          <Route path=":eventId/edit" element={<EditEvent />} />
+        </Route>
+
+        <Route path="/participants" element={<Participants />} />
+
+      </>
         )}
       </Routes>
 

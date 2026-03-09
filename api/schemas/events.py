@@ -138,7 +138,10 @@ class AdminEventListOut(BaseModel):
     start_time: Optional[time]
     end_time: Optional[time]
     timezone: str
-
+    participant_count: int
+    waitlist_count: int
+    checked_in_count: int
+    
     class Config:
         from_attributes = True
 

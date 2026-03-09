@@ -103,3 +103,61 @@ def get_event_by_slug(db: Session, slug: str, is_admin: bool = False):
         query = query.filter(Event.status == "published")
 
     return query.first()
+from sqlalchemy.orm import Session
+from api.models.events import Event
+from api.models.participants import Participant
+
+
+def promote_waitlist(db: Session, event: Event):
+    """
+    Promote waitlisted participants if capacity allows.
+    Promotes in order of signup (created_at ascending).
+    """
+
+    # Unlimited capacity → promote everyone
+    if event.participant_capacity is None:
+        waitlisted = (
+            db.query(Participant)
+            .filter(
+                Participant.event_id == event.id,
+                Participant.is_waitlisted == True,
+            )
+            .order_by(Participant.created_at.asc())
+            .all()
+        )
+
+        for p in waitlisted:
+            p.is_waitlisted = False
+
+        return
+
+    # Count confirmed
+    confirmed_count = (
+        db.query(Participant)
+        .filter(
+            Participant.event_id == event.id,
+            Participant.is_waitlisted == False,
+        )
+        .count()
+    )
+
+    available_spots = event.participant_capacity - confirmed_count
+
+    if available_spots <= 0:
+        return
+
+    waitlisted = (
+        db.query(Participant)
+        .filter(
+            Participant.event_id == event.id,
+            Participant.is_waitlisted == True,
+        )
+        .order_by(Participant.created_at.asc())
+        .all()
+    )
+
+    for p in waitlisted:
+        if available_spots <= 0:
+            break
+        p.is_waitlisted = False
+        available_spots -= 1

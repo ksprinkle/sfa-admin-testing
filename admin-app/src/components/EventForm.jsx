@@ -1,0 +1,102 @@
+import { useState, useEffect } from "react"
+
+function EventForm({ initialData = {}, onSubmit, onCancel }) {
+
+  const [form, setForm] = useState({
+    title: "",
+    start_date: "",
+    city: "",
+    state: "",
+    participant_capacity: "",
+    ...initialData
+  })
+
+  useEffect(() => {
+  if (Object.keys(initialData).length > 0) {
+    setForm(initialData)
+  }
+}, [initialData])
+
+  function handleChange(e) {
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value
+    })
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    onSubmit(form)
+  }
+
+  return (
+
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
+
+      <input
+        name="title"
+        placeholder="Event Title"
+        value={form.title ?? ""}
+        onChange={handleChange}
+        className="w-full border rounded p-2"
+        required
+      />
+
+      <input
+        type="date"
+        name="start_date"
+        value={form.start_date ?? ""}
+        onChange={handleChange}
+        className="w-full border rounded p-2"
+        required
+      />
+
+      <input
+        name="city"
+        placeholder="City"
+        value={form.city ?? ""}
+        onChange={handleChange}
+        className="w-full border rounded p-2"
+      />
+
+      <input
+        name="state"
+        placeholder="State"
+        value={form.state ?? ""}
+        onChange={handleChange}
+        className="w-full border rounded p-2"
+      />
+
+      <input
+        type="number"
+        name="participant_capacity"
+        placeholder="Participant Capacity"
+        value={form.participant_capacity ?? ""}
+        onChange={handleChange}
+        className="w-full border rounded p-2"
+      />
+
+      <div className="flex gap-3">
+
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 border rounded"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="submit"
+          className="bg-ocean text-white px-4 py-2 rounded"
+        >
+          Save Event
+        </button>
+
+      </div>
+
+    </form>
+  )
+}
+
+export default EventForm

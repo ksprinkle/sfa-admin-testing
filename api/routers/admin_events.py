@@ -7,6 +7,7 @@ from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
 from api.schemas.events import AdminEventListOut, EventOut, EventUpdate
+from sqlalchemy.orm import joinedload
 
 router = APIRouter(
     prefix="/admin/events",
@@ -28,12 +29,70 @@ def list_all_events(
     if status:
         query = query.filter(Event.status == status)
 
-    return (
-        query
-        .offset(skip)
-        .limit(limit)
-        .all()
+    events = query.offset(skip).limit(limit).all()
+
+    return [
+    AdminEventListOut(
+        id=e.id,
+        title=e.title,
+        slug=e.slug,
+        event_type=e.event_type,
+        status=e.status,
+        start_date=e.start_date,
+        end_date=e.end_date,
+        start_time=e.start_time,
+        end_time=e.end_time,
+        timezone=e.timezone,
+        location={
+            "venue": e.venue,
+            "city": e.city,
+            "state": e.state,
+            "latitude": e.latitude,
+            "longitude": e.longitude,
+            "beach_accessibility": e.beach_accessibility,
+        },
+        capacity={
+            "participants": e.participant_capacity,
+            "volunteers": e.volunteer_capacity,
+        },
+        registration={
+            "participant_open": e.participant_open,
+            "volunteer_open": e.volunteer_open,
+            "vendor_open": e.vendor_open,
+        },
+        availability={
+            "participant_available": (
+                e.participant_open
+                and (
+                    e.participant_capacity is None
+                    or len([p for p in e.participants if not p.is_waitlisted]) < e.participant_capacity
+                )
+            ),
+            "volunteer_available": (
+                e.volunteer_open
+                and (
+                    e.volunteer_capacity is None
+                    or e.volunteer_capacity > 0
+                )
+            ),
+        },
+        featured_image=e.featured_image,
+
+        participant_count=len(
+            [p for p in e.participants if not p.is_waitlisted]
+        ),
+
+        waitlist_count=len(
+            [p for p in e.participants if p.is_waitlisted]
+        ),
+
+        checked_in_count=len(
+            [p for p in e.participants if p.checked_in]
+        ),
     )
+    for e in events
+]
+
 
 
 # 🔹 Update event
@@ -58,7 +117,12 @@ def update_event(
 
     db.commit()
     db.refresh(event)
+    from api.crud.events import promote_waitlist
 
+    promote_waitlist(db, event)
+    db.commit()
+    db.refresh(event)
+    
     # Compute derived values AFTER refresh
     participant_count = len([
         p for p in event.participants
@@ -111,7 +175,7 @@ def update_event(
     },
     featured_image=event.featured_image,
 )
-# 🔹 Delete event
+# 🔹 Delete Participant
 @router.delete("/{event_id}/participants/{participant_id}")
 def remove_participant(
     event_id: UUID,
@@ -145,6 +209,21 @@ def remove_participant(
 
     return {"message": "Participant removed"}
    
+@router.delete("/{event_id}")
+def delete_event(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    event = db.query(Event).filter(Event.id == event_id).first()
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    db.delete(event)
+    db.commit()
+
+    return {"message": "Event deleted"}
 
 from api.models.participants import Participant
 from api.schemas.participants import ParticipantOut
@@ -249,3 +328,152 @@ def check_in_participant(
         "message": "Participant checked in",
         "checked_in_at": participant.checked_in_at
     }
+@router.get("/participants")
+def list_all_participants(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+
+    participants = (
+        db.query(Participant)
+        .options(joinedload(Participant.event))
+        .all()
+    )
+
+    return [
+        {
+            "id": p.id,
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "email": p.email,
+            "checked_in": p.checked_in,
+            "is_waitlisted": p.is_waitlisted,
+            "event_title": p.event.title if p.event else None,
+        }
+        for p in participants
+    ]
+@router.get("/{event_id}", response_model=AdminEventListOut)
+def get_event(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    event = db.query(Event).filter(Event.id == event_id).first()
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    participant_count = len(
+        [p for p in event.participants if not p.is_waitlisted]
+    )
+
+    waitlist_count = len(
+        [p for p in event.participants if p.is_waitlisted]
+    )
+
+    checked_in_count = len(
+        [p for p in event.participants if p.checked_in]
+    )
+
+    return AdminEventListOut(
+        id=event.id,
+        title=event.title,
+        slug=event.slug,
+        event_type=event.event_type,
+        status=event.status,
+        start_date=event.start_date,
+        end_date=event.end_date,
+        start_time=event.start_time,
+        end_time=event.end_time,
+        timezone=event.timezone,
+        location={
+            "venue": event.venue,
+            "city": event.city,
+            "state": event.state,
+            "latitude": event.latitude,
+            "longitude": event.longitude,
+            "beach_accessibility": event.beach_accessibility,
+        },
+        capacity={
+            "participants": event.participant_capacity,
+            "volunteers": event.volunteer_capacity,
+        },
+        registration={
+            "participant_open": event.participant_open,
+            "volunteer_open": event.volunteer_open,
+            "vendor_open": event.vendor_open,
+        },
+        availability={
+            "participant_available": (
+                event.participant_open
+                and (
+                    event.participant_capacity is None
+                    or participant_count < event.participant_capacity
+                )
+            ),
+            "volunteer_available": (
+                event.volunteer_open
+                and (
+                    event.volunteer_capacity is None
+                    or event.volunteer_capacity > 0
+                )
+            ),
+        },
+        featured_image=event.featured_image,
+        participant_count=participant_count,
+        waitlist_count=waitlist_count,
+        checked_in_count=checked_in_count,
+    )
+from uuid import UUID
+from fastapi import HTTPException
+from api.models.participants import Participant
+
+@router.post("/participants/{participant_id}/checkin")
+def check_in_participant(
+    participant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    participant = db.query(Participant).filter(
+        Participant.id == participant_id
+    ).first()
+
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    participant.checked_in = True
+
+    db.commit()
+    db.refresh(participant)
+
+    return {
+        "status": "checked_in",
+        "participant_id": participant.id
+    }
+from uuid import UUID
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from api.db.session import get_db
+from api.dependencies import require_admin
+from api.models.participants import Participant
+
+
+@router.post("/{participant_id}/checkin")
+def check_in_participant(
+    participant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    participant = db.query(Participant).filter(
+        Participant.id == participant_id
+    ).first()
+
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    participant.checked_in = True
+    db.commit()
+    db.refresh(participant)
+
+    return {"status": "checked_in"}
