@@ -24,13 +24,14 @@ class Participant(Base):
 
     waiver_signed = Column(Boolean, default=False)
     waiver_verified = Column(Boolean, default=False)
+    waiver_signed_at = Column(DateTime, nullable=True)
     
     checked_in = Column(Boolean, default=False)
     checked_in_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
-    event = relationship("Event", backref="participants")
+    event = relationship("Event", back_populates="participants")
 
     __table_args__ = (
         UniqueConstraint(

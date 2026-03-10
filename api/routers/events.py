@@ -20,7 +20,12 @@ from api.crud.participants import get_confirmed_participant_count
 from api.crud.participants import get_participants_for_event
 from api.schemas.events import EventOut, EventListOut
 from api.dependencies import get_current_user, require_admin
-
+from api.utils.event_counts import (
+    surfer_count,
+    waitlist_count,
+    volunteer_count,
+    checked_in_count,
+)
 router = APIRouter(prefix="/events", tags=["Events"])
 
 @router.get("", response_model=list[EventListOut])
@@ -217,14 +222,14 @@ def create_event_endpoint(
                 event.participant_open
                 and (
                     event.participant_capacity is None
-                    or event.participant_count < event.participant_capacity
+                    or surfer_count(event) < event.participant_capacity
                 )
             ),
             "volunteer_available": (
                 event.volunteer_open
                 and (
                     event.volunteer_capacity is None
-                    or event.volunteer_count < event.volunteer_capacity
+                    or volunteer_count(event) < event.volunteer_capacity
                 )
             ),
         },
@@ -245,7 +250,7 @@ def update_event_endpoint(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    event = current_user = Depends(require_admin)(db, event, event_in)
+    event = update_event(db, event, event_in)
     participant_count = get_confirmed_participant_count(db, event.id)
     
     if (

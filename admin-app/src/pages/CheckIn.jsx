@@ -22,7 +22,7 @@ export default function CheckIn() {
 
   async function handleCheckIn(id) {
 
-    await checkInParticipant(id)
+    await checkInParticipant(eventId, id)
 
     setParticipants(prev =>
       prev.map(p =>

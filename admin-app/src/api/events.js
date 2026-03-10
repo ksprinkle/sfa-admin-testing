@@ -73,11 +73,16 @@ export async function fetchAllParticipants() {
   const res = await apiFetch("/admin/events/participants")
   return res.json()
 }
-export async function checkInParticipant(participantId) {
+export async function checkInParticipant(eventId, participantId) {
 
-  const res = await apiFetch(`/admin/participants/${participantId}/checkin`, {
-    method: "POST"
-  })
+  const res = await apiFetch(
+    `/admin/events/${eventId}/participants/${participantId}/checkin`,
+    { method: "PATCH" }
+  )
+
+  if (!res.ok) {
+    throw new Error("Failed to check in participant")
+  }
 
   return res.json()
 }

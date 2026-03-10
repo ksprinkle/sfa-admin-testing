@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from datetime import date, time
 from uuid import UUID
 from typing import Optional
-
+from pydantic import field_validator
 
 class EventLocation(BaseModel):
     venue: Optional[str]
@@ -88,7 +88,13 @@ class EventCreate(BaseModel):
 
     participant_capacity: Optional[int] = None
     volunteer_capacity: Optional[int] = None
-
+    @field_validator("participant_capacity", "volunteer_capacity")
+    @classmethod
+    def convert_zero_to_none(cls, v):
+        if v == 0:
+            return None
+        return v
+    
     participant_open: bool = False
     volunteer_open: bool = False
     vendor_open: bool = False
@@ -115,7 +121,13 @@ class EventUpdate(BaseModel):
 
     participant_capacity: Optional[int] = None
     volunteer_capacity: Optional[int] = None
-
+    @field_validator("participant_capacity", "volunteer_capacity")
+    @classmethod
+    def convert_zero_to_none(cls, v):
+        if v == 0:
+            return None
+        return v
+    
     participant_open: Optional[bool] = None
     volunteer_open: Optional[bool] = None
     vendor_open: Optional[bool] = None

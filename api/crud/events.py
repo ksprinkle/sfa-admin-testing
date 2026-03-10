@@ -9,14 +9,40 @@ from api.models.events import Event
 from api.schemas.events import EventCreate
 
 
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException
+from slugify import slugify
+
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException
+from slugify import slugify
+from api.utils.slug import generate_unique_slug
+
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException
+from api.utils.slug import generate_unique_slug
+
+
 def create_event(db: Session, event_in: EventCreate):
+
+    slug = generate_unique_slug(db, Event, event_in.title)
+
     event = Event(
-        **event_in.model_dump(),
-        volunteer_count=0,
+        **event_in.model_dump(exclude={"slug"}),
+        slug=slug,
     )
 
     db.add(event)
-    db.commit()
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Error creating event"
+        )
+
     db.refresh(event)
     return event
 
@@ -35,8 +61,14 @@ def update_event(db: Session, event: Event, event_in: EventUpdate):
 
     db.commit()
     db.refresh(event)
-    return event
 
+    # ALWAYS run waitlist promotion after update
+    promote_waitlist(db, event)
+
+    db.commit()
+    db.refresh(event)
+
+    return event
 
 def get_upcoming_events(
     db: Session,
@@ -113,6 +145,7 @@ def promote_waitlist(db: Session, event: Event):
     Promote waitlisted participants if capacity allows.
     Promotes in order of signup (created_at ascending).
     """
+    print("PROMOTE WAITLIST TRIGGERED")
 
     # Unlimited capacity → promote everyone
     if event.participant_capacity is None:
@@ -129,7 +162,13 @@ def promote_waitlist(db: Session, event: Event):
         for p in waitlisted:
             p.is_waitlisted = False
 
+        db.flush()  # Flush changes to DB before commit
+        db.commit()  # Commit here to save changes before refreshing event
+        db.refresh(event)  # Refresh event to get updated participant counts
+
+        print("UNLIMITED CAPACITY PROMOTION")
         return
+        
 
     # Count confirmed
     confirmed_count = (
