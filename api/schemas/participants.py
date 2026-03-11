@@ -3,6 +3,8 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+from pydantic import BaseModel
+from typing import Literal
 
 class ParticipantCreate(BaseModel):
     first_name: str
@@ -24,5 +26,23 @@ class ParticipantOut(BaseModel):
     checked_in: bool
     checked_in_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+class Config:
+    from_attributes = True
+
+class ParticipantAction(BaseModel):
+    action: Literal[
+        "checkin",
+        "undo_checkin",
+        "promote",
+        "move_to_waitlist",
+        "verify_waiver",
+        "remove"
+    ]
+class AdminParticipantListOut(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    email: str
+    checked_in: bool
+    is_waitlisted: bool
+    event_title: str | None

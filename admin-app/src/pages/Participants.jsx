@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { fetchAllParticipants } from "../api/events"
+import { fetchAllParticipants, checkInParticipant } from "../api/events"
 
 export default function Participants() {
 
@@ -20,6 +20,22 @@ export default function Participants() {
     load()
   }, [])
 
+async function handleCheckIn(participantId) {
+  try {
+    await checkInParticipant(participantId)
+
+    setParticipants(prev =>
+      prev.map(p =>
+        p.id === participantId
+          ? { ...p, checked_in: true }
+          : p
+      )
+    )
+  } catch (err) {
+    console.error(err)
+    alert("Failed to check in participant")
+  }
+}
   return (
 
     <div className="p-6">
@@ -60,6 +76,7 @@ export default function Participants() {
               <th className="p-4">Event</th>
               <th className="p-4">Status</th>
             </tr>
+            
           </thead>
 
           <tbody>
@@ -108,7 +125,18 @@ export default function Participants() {
                   )}
 
                 </td>
-
+                <td>
+                {p.checked_in ? (
+                  <span className="text-green-600 font-semibold">Checked In</span>
+                ) : (
+                  <button
+                    className="bg-blue-500 text-white px-2 py-1 rounded"
+                    onClick={() => handleCheckIn(p.id)}
+                  >
+                    Check In
+                  </button>
+                )}
+              </td>
               </tr>
 
             ))}

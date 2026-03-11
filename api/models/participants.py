@@ -32,7 +32,8 @@ class Participant(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     event = relationship("Event", back_populates="participants")
-
+    notes = Column(String, nullable=True)
+    
     __table_args__ = (
         UniqueConstraint(
             "event_id",
@@ -40,3 +41,4 @@ class Participant(Base):
             name="uq_event_participant_email"
         ),
     )
+   

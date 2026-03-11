@@ -4,9 +4,15 @@ from api.db.session import get_db
 from api.dependencies import get_current_user
 from api.models.user import User
 from api.security import hash_password, verify_password, create_access_token
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import Depends, HTTPException
+from api.schemas.users import UserResponse
+from api.dependencies import require_admin
+from api.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+#TODO: Add email validation, password strength checks, and rate limiting for login attempts.
 @router.post("/register")
 def register(email: str, password: str, db: Session = Depends(get_db)):
 
@@ -26,9 +32,7 @@ def register(email: str, password: str, db: Session = Depends(get_db)):
 
     return {"message": "User created successfully"}
 
-from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import Depends
-
+#TODO: Implement refresh tokens and token revocation for better security.
 @router.post("/login")
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -49,20 +53,7 @@ def login(
         "token_type": "bearer"
     }
 
-from api.schemas.users import UserResponse
-
-@router.get("/me", response_model=UserResponse)
-def get_me(current_user = Depends(get_current_user)):
-    return current_user
-    
-from api.dependencies import require_admin
-from api.schemas.users import UserResponse
-from sqlalchemy.orm import Session
-from fastapi import Depends, HTTPException
-from api.db.session import get_db
-from api.models.user import User
-
-
+#TODO: Add endpoint for users to update their own password and email, with appropriate validation and security checks.
 @router.put("/admin/users/{user_id}/role", response_model=UserResponse)
 def update_user_role(
     user_id: str,
@@ -84,13 +75,20 @@ def update_user_role(
 
     return user
 
-#Self-promotion endpoint for testing purposes only. In production, this should be removed or protected with additional checks.
-@router.post("/dev/promote-me")
-def promote_me(
+#TODO: Implement an endpoint for users to view and update their own profile information, with appropriate authentication and validation.
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user = Depends(get_current_user)):
+    return current_user
+
+#TODO: Add endpoint for users to update their own password and email, with appropriate validation and security checks.
+#DEV ENDPOINT TO PROMOTE CURRENT USER TO ADMIN - REMOVE BEFORE PRODUCTION
+if settings.DEBUG:
+    @router.post("/dev/promote-me")
+    def promote_me(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
-):
-    current_user.role = "admin"
-    db.commit()
-    db.refresh(current_user)
-    return {"message": "Role updated to admin"}
+    current_user = Depends(get_current_user)
+    ):
+        current_user.role = "admin"
+        db.commit()
+        db.refresh(current_user)
+        return current_user 

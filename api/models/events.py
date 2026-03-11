@@ -48,7 +48,6 @@ class Event(Base):
     select(func.count(Participant.id))
     .where(
         Participant.event_id == id,
-        Participant.role == "surfer",
         Participant.is_waitlisted == False
     )
     .correlate_except(Participant)
@@ -58,7 +57,6 @@ class Event(Base):
     select(func.count(Participant.id))
     .where(
         Participant.event_id == id,
-        Participant.role == "surfer",
         Participant.is_waitlisted == True
     )
     .correlate_except(Participant)
@@ -76,8 +74,7 @@ class Event(Base):
     volunteer_count = column_property(
     select(func.count(Participant.id))
     .where(
-        Participant.event_id == id,
-        Participant.role == "volunteer"
+        Participant.event_id == id
     )
     .correlate_except(Participant)
     .scalar_subquery()

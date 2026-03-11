@@ -28,6 +28,7 @@ from api.utils.event_counts import (
 )
 router = APIRouter(prefix="/events", tags=["Events"])
 
+# PUBLIC List upcoming events with optional filters and participant counts
 @router.get("", response_model=list[EventListOut])
 def list_events(
     db: Session = Depends(get_db),
@@ -90,7 +91,8 @@ def list_events(
         )
 
     return event_list
-    
+
+# PUBLIC Get event details by slug (with participant count)    
 @router.get("/{slug}", response_model=EventOut)
 def get_event(
     slug: str,
@@ -151,160 +153,7 @@ def get_event(
         featured_image=event.featured_image,
     )
 
-@router.get("/{slug}/participants", response_model=list[ParticipantOut])
-def list_participants(
-    slug: str,
-    db: Session = Depends(get_db),
-    admin: bool = Depends(require_admin),
-):
-    if not admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    event = get_event_by_slug(db, slug, is_admin=False)
-
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    participants = get_participants_for_event(db, event.id)
-
-    return [
-        ParticipantOut(
-            id=str(p.id),
-            first_name=p.first_name,
-            last_name=p.last_name,
-            email=p.email,
-        )
-        for p in participants
-    ]
-   
-
-@router.post("", response_model=EventOut, status_code=201)
-def create_event_endpoint(
-    event_in: EventCreate,
-    db: Session = Depends(get_db),
-    admin: bool = Depends(require_admin),
-):
-    if not admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    event = create_event(db, event_in)
-
-    return EventOut(
-        id=event.id,
-        title=event.title,
-        slug=event.slug,
-        event_type=event.event_type,
-        status=event.status,
-        start_date=event.start_date,
-        end_date=event.end_date,
-        start_time=event.start_time,
-        end_time=event.end_time,
-        timezone=event.timezone,
-        location={
-            "venue": event.venue,
-            "city": event.city,
-            "state": event.state,
-            "latitude": event.latitude,
-            "longitude": event.longitude,
-            "beach_accessibility": event.beach_accessibility,
-        },
-        capacity={
-            "participants": event.participant_capacity,
-            "volunteers": event.volunteer_capacity,
-        },
-        registration={
-            "participant_open": event.participant_open,
-            "volunteer_open": event.volunteer_open,
-            "vendor_open": event.vendor_open,
-        },
-        availability={
-            "participant_available": (
-                event.participant_open
-                and (
-                    event.participant_capacity is None
-                    or surfer_count(event) < event.participant_capacity
-                )
-            ),
-            "volunteer_available": (
-                event.volunteer_open
-                and (
-                    event.volunteer_capacity is None
-                    or volunteer_count(event) < event.volunteer_capacity
-                )
-            ),
-        },
-        featured_image=event.featured_image,
-    )
-@router.put("/{slug}", response_model=EventOut)
-def update_event_endpoint(
-    slug: str,
-    event_in: EventUpdate,
-    db: Session = Depends(get_db),
-    admin: bool = Depends(require_admin),
-):
-    if not admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    event = get_event_by_slug(db, slug, is_admin=True)
-
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    event = update_event(db, event, event_in)
-    participant_count = get_confirmed_participant_count(db, event.id)
-    
-    if (
-    event.participant_capacity is not None
-    and participant_count >= event.participant_capacity
-):
-        raise HTTPException(status_code=400, detail="Event is full")
-        
-    return EventOut(
-        id=event.id,
-        title=event.title,
-        slug=event.slug,
-        event_type=event.event_type,
-        status=event.status,
-        start_date=event.start_date,
-        end_date=event.end_date,
-        start_time=event.start_time,
-        end_time=event.end_time,
-        timezone=event.timezone,
-        location={
-            "venue": event.venue,
-            "city": event.city,
-            "state": event.state,
-            "latitude": event.latitude,
-            "longitude": event.longitude,
-            "beach_accessibility": event.beach_accessibility,
-        },
-        capacity={
-            "participants": event.participant_capacity,
-            "volunteers": event.volunteer_capacity,
-        },
-        registration={
-            "participant_open": event.participant_open,
-            "volunteer_open": event.volunteer_open,
-            "vendor_open": event.vendor_open,
-        },
-        availability={
-            "participant_available": (
-                event.participant_open
-                and (
-                    event.participant_capacity is None
-                    or event.participant_count < event.participant_capacity
-                )
-            ),
-            "volunteer_available": (
-                event.volunteer_open
-                and (
-                    event.volunteer_capacity is None
-                    or event.volunteer_count < event.volunteer_capacity
-                )
-            ),
-        },
-        featured_image=event.featured_image,
-    )
+# PUBLIC participant signup for an event (with waitlist handling)
 @router.post("/{slug}/participants", response_model=ParticipantOut, status_code=201)
 def signup_participant(
     slug: str,
@@ -387,14 +236,32 @@ def build_event_out(event: Event) -> EventOut:
         },
     )
 
-#DEV ENDPOINT TO PROMOTE CURRENT USER TO ADMIN - REMOVE BEFORE PRODUCTION
-@router.post("/dev/promote-me")
-def promote_me(
-   db: Session = Depends(get_db),
-   current_user = Depends(get_current_user)
+# ADMIN-ONLY List participants for an event (with waitlist status)
+@router.get("/{slug}/participants", response_model=list[ParticipantOut])
+def list_participants(
+    slug: str,
+    db: Session = Depends(get_db),
+    admin: bool = Depends(require_admin),
 ):
-   current_user.role = "admin"
-   db.commit()
-   db.refresh(current_user)
-   return current_user
+    if not admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    event = get_event_by_slug(db, slug, is_admin=False)
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    participants = get_participants_for_event(db, event.id)
+
+    return [
+        ParticipantOut(
+            id=str(p.id),
+            first_name=p.first_name,
+            last_name=p.last_name,
+            email=p.email,
+        )
+        for p in participants
+    ]
+   
+
 
