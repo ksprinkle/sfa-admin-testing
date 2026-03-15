@@ -45,4 +45,5 @@ class AdminParticipantListOut(BaseModel):
     email: str
     checked_in: bool
     is_waitlisted: bool
+    waiver_verified: bool
     event_title: str | None

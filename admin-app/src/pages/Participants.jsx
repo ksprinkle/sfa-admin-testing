@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
-import { fetchAllParticipants, checkInParticipant } from "../api/events"
+import { fetchAllParticipants, checkInParticipant, promoteParticipant, 
+  removeParticipant, verifyWaiver } from "../api/events"
+import ParticipantActionsDropdown from "../components/ParticipantActionsDropdown"
 
 export default function Participants() {
 
@@ -36,6 +38,56 @@ async function handleCheckIn(participantId) {
     alert("Failed to check in participant")
   }
 }
+
+async function handleRemove(participantId) {
+  if (!confirm("Remove this participant from the event?")) return
+
+  try {
+    await removeParticipant(participantId)
+
+    setParticipants(prev =>
+      prev.filter(p => p.id !== participantId)
+    )
+  } catch (err) {
+    console.error(err)
+    alert("Failed to remove participant")
+  }
+}
+
+async function handlePromote(participantId) {
+  try {
+    await promoteParticipant(participantId)
+
+    setParticipants(prev =>
+      prev.map(p =>
+        p.id === participantId
+          ? { ...p, is_waitlisted: false }
+          : p
+      )
+    )
+  } catch (err) {
+    console.error(err)
+    alert("Failed to promote participant")
+  }
+}
+
+async function handleVerifyWaiver(participantId) {
+  try {
+    await verifyWaiver(participantId)
+
+    setParticipants(prev =>
+      prev.map(p =>
+        p.id === participantId
+          ? { ...p, waiver_verified: true }
+          : p
+      )
+    )
+  } catch (err) {
+    console.error(err)
+    alert("Failed to verify waiver")
+  }
+}
+
   return (
 
     <div className="p-6">
@@ -44,6 +96,7 @@ async function handleCheckIn(participantId) {
         Participants
       </h1>
       
+{/* Search bar with count of filtered participants */ }   
       <div className="mb-4 text-center sticky top-0 bg-warmbg z-10 pb-2">
 
         <input
@@ -65,6 +118,8 @@ async function handleCheckIn(participantId) {
             )}   
       </div>
     </div>
+
+{/* Table of participants with columns for name, email, event, status, and actions */}
       <div className="bg-white rounded-xl shadow">
 
         <table className="w-full">
@@ -83,6 +138,7 @@ async function handleCheckIn(participantId) {
 
             {filteredParticipants.map(p => (
 
+// Each row is highlighted if checked in, and has hover effect otherwise
               <tr
                 key={p.id}
                 className={`border-b transition ${
@@ -102,6 +158,7 @@ async function handleCheckIn(participantId) {
                   {p.event_title}
                 </td>
 
+{/* Status column with colored badges for checked in, waitlisted, and registered */}
                 <td className="p-4">
 
                   {p.checked_in ? (
@@ -125,17 +182,16 @@ async function handleCheckIn(participantId) {
                   )}
 
                 </td>
+                
+{/* Actions column with buttons to check in, promote, or remove participant */}
                 <td>
-                {p.checked_in ? (
-                  <span className="text-green-600 font-semibold">Checked In</span>
-                ) : (
-                  <button
-                    className="bg-blue-500 text-white px-2 py-1 rounded"
-                    onClick={() => handleCheckIn(p.id)}
-                  >
-                    Check In
-                  </button>
-                )}
+                <ParticipantActionsDropdown
+                  participant={p}
+                  onVerifyWaiver={handleVerifyWaiver}
+                  onCheckIn={handleCheckIn}
+                  onPromote={handlePromote}
+                  onRemove={handleRemove}
+                />
               </td>
               </tr>
 

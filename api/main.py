@@ -14,7 +14,7 @@ from api.routers import auth
 from api.routers import admin_events
 from api.routers import admin_participants
 
-app = FastAPI()
+app = FastAPI(redirect_slashes=False)
 # Force OpenAPI schema to rebuild on reload, otherwise it may not reflect changes in the code
 app.openapi_schema = None
 

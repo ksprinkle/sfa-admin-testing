@@ -105,22 +105,6 @@ def list_all_participants(
         for p in participants
     ]
 
-@router.get("/event/{event_id}", response_model=List[ParticipantOut])
-def list_event_participants(
-    event_id: UUID,
-    checked_in: bool | None = None,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_admin),
-):
-    query = db.query(Participant).filter(
-        Participant.event_id == event_id
-    )
-
-    if checked_in is not None:
-        query = query.filter(Participant.checked_in == checked_in)
-
-    return query.all()
-
 @router.patch("/{participant_id}/checkin")
 def check_in_participant(
     participant_id: UUID,

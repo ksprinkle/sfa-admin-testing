@@ -10,6 +10,7 @@ from api.models.events import Event
 from api.schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
 from api.crud.events import create_event as crud_create_event
 from sqlalchemy.orm import joinedload
+from api.schemas.participants import ParticipantOut
 from api.utils.event_builder import build_admin_event
 from api.models.participants import Participant
 from api.schemas.events import AdminEventSummary
@@ -186,7 +187,22 @@ def delete_event(
 
     return {"message": "Event deleted"}
 
+# 🔹 List participants for an event (admin view)
+@router.get("/{event_id}/participants", response_model=List[ParticipantOut])
+def list_event_participants(
+    event_id: UUID,
+    checked_in: bool | None = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    query = db.query(Participant).filter(
+        Participant.event_id == event_id
+    )
 
+    if checked_in is not None:
+        query = query.filter(Participant.checked_in == checked_in)
+
+    return query.all()
 
 
 

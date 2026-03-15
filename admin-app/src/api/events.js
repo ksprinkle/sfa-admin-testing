@@ -61,8 +61,8 @@ export async function deleteEvent(eventId) {
   return res.json()
 }
 
-  export async function fetchEventParticipants(eventId) {
-  const res = await apiFetch(`/admin/participants/event/${eventId}`)
+ export async function fetchEventParticipants(eventId) {
+  const res = await apiFetch(`/admin/events/${eventId}/participants`)
 
   if (!res.ok) {
     throw new Error("Failed to fetch participants")
@@ -72,7 +72,7 @@ export async function deleteEvent(eventId) {
 }
 
  export async function fetchAllParticipants() {
-  const res = await apiFetch("/admin/participants")
+  const res = await apiFetch("/admin/participants/")
 
   if (!res.ok) {
     throw new Error("Failed to fetch participants")
@@ -89,6 +89,50 @@ export async function checkInParticipant(participantId) {
 
   if (!res.ok) {
     throw new Error("Failed to check in participant")
+  }
+
+  return res.json()
+}
+
+export async function promoteParticipant(participantId) {
+  const res = await apiFetch(
+    `/admin/participants/${participantId}/promote`,
+    { method: "PATCH" }
+  )
+
+  if (!res.ok) {
+    throw new Error("Failed to promote participant")
+  }
+
+  return res.json()
+}
+
+export async function removeParticipant(participantId) {
+  const res = await apiFetch(
+    `/admin/participants/${participantId}`,
+    { method: "DELETE" }
+  )
+
+  if (!res.ok) {
+    throw new Error("Failed to remove participant")
+  }
+
+  return res.json()
+}
+
+export async function verifyWaiver(participantId) {
+  const res = await apiFetch(
+    `/admin/participants/${participantId}/action`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        action: "verify_waiver"
+      })
+    }
+  )
+
+  if (!res.ok) {
+    throw new Error("Failed to verify waiver")
   }
 
   return res.json()
