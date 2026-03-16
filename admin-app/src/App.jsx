@@ -31,26 +31,25 @@ function App() {
     <div className="min-h-screen bg-warmbg pb-20">
       {token && <TopBar title={getTitle()} />}
 
-     <Routes>
-    {!token ? (
-      <Route path="*" element={<Login />} />
-    ) : (
-      <>
-        <Route path="/" element={<Dashboard />} />
+    <Routes>
+      {!token ? (
+        <Route path="*" element={<Login />} />
+      ) : (
+        <>
+          <Route path="/" element={<Dashboard />} />
 
-        <Route path="/events">
-          <Route index element={<Events />} />
-          <Route path="new" element={<CreateEvent />} />
-          <Route path=":eventId" element={<EventDetail />} />
-          <Route path=":eventId/checkin" element={<CheckIn />} />
-          <Route path=":eventId/edit" element={<EditEvent />} />
-        </Route>
+          <Route path="/events">
+            <Route index element={<Events />} />
+            <Route path="new" element={<CreateEvent />} />
+            <Route path=":eventId" element={<EventDetail />} />
+            <Route path=":eventId/checkin" element={<CheckIn />} />
+            <Route path=":eventId/edit" element={<EditEvent />} />
+          </Route>
 
-        <Route path="/participants" element={<Participants />} />
-
-      </>
-        )}
-      </Routes>
+          <Route path="/participants" element={<Participants />} />
+        </>
+      )}
+    </Routes>
 
       {token && <BottomNav />}
     </div>

@@ -1,12 +1,25 @@
 import { useEffect, useState, useMemo } from "react"
 import { fetchEvents, fetchEventParticipants } from "../api/events"
+import { useNavigate } from "react-router-dom";
 
 function Dashboard() {
   const [events, setEvents] = useState([])
   const [event, setEvent] = useState(null)
   const [participants, setParticipants] = useState([])
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate();
 
+  // For now, just show the first published event and its stats. 
+  // In the future we can add a dropdown to select different events, or show aggregate stats across all events. 
+  const handleViewRoster = (eventId) => {
+  navigate(`/events/${eventId}`);
+};
+
+  const handleCheckIn = (eventId) => {
+  navigate(`/events/${eventId}/checkin`);
+};
+
+// Load events and participants on mount
   useEffect(() => {
     async function loadData() {
       try {
@@ -85,14 +98,18 @@ function Dashboard() {
       <StatCard label="Total Participants" value={totalParticipants} color="text-ocean" />
     </div>
 
-    <div>
+    <div
+      onClick={() => navigate(`/events/${event.id}`)}
+      className="cursor-pointer hover:bg-gray-100 transition rounded-lg p-2"
+    >
       <h2 className="text-lg font-semibold text-ocean">
         Live Event
-        </h2>
-        <p className="text-sm text-gray-600">
-          {event.title} • {event.start_date}
-        </p>
-      </div>
+      </h2>
+
+      <p className="text-sm text-gray-600">
+        {event.title} • {event.start_date}
+      </p>
+    </div>
 
       <div className="grid grid-cols-2 gap-4">
         <StatCard label="Confirmed" value={confirmed.length} color="text-ocean" />
@@ -124,14 +141,22 @@ function Dashboard() {
         </div>
       )}
 
-      <div className="space-y-3">
-        <button className="w-full bg-ocean text-white rounded-lg py-3">
-          Check In Participants
-        </button>
+      <div className="flex gap-4 mt-6">
 
-        <button className="w-full bg-white border border-ocean text-ocean rounded-lg py-3">
+        <button
+          onClick={() => handleViewRoster(event.id)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
+        >
           View Full Roster
         </button>
+
+        <button
+          onClick={() => handleCheckIn(event.id)}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700"
+        >
+          Check In
+        </button>
+
       </div>
 
     </div>

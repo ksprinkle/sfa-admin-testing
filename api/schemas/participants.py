@@ -1,5 +1,5 @@
 from pyclbr import Class
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -40,10 +40,18 @@ class ParticipantAction(BaseModel):
     ]
 class AdminParticipantListOut(BaseModel):
     id: UUID
+    event_id: UUID
     first_name: str
     last_name: str
     email: str
-    checked_in: bool
+    role: str
+    is_minor: bool
     is_waitlisted: bool
+    checked_in: bool
+    checked_in_at: datetime | None
+
+    waiver_signed: bool
     waiver_verified: bool
-    event_title: str | None
+    waiver_signed_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)

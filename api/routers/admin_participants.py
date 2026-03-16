@@ -100,6 +100,7 @@ def list_all_participants(
             "email": p.email,
             "checked_in": p.checked_in,
             "is_waitlisted": p.is_waitlisted,
+            "waiver_verified": p.waiver_verified,
             "event_title": p.event.title if p.event else None,
         }
         for p in participants

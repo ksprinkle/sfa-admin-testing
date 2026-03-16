@@ -10,7 +10,7 @@ from api.models.events import Event
 from api.schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
 from api.crud.events import create_event as crud_create_event
 from sqlalchemy.orm import joinedload
-from api.schemas.participants import ParticipantOut
+from api.schemas.participants import AdminParticipantListOut, ParticipantOut
 from api.utils.event_builder import build_admin_event
 from api.models.participants import Participant
 from api.schemas.events import AdminEventSummary
@@ -131,7 +131,6 @@ def event_summary(
 @router.get("/", response_model=List[AdminEventListOut])
 def list_all_events(
     skip: int = 0,
-    limit: int = 10,
     status: str | None = None,
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
@@ -141,7 +140,7 @@ def list_all_events(
     if status:
         query = query.filter(Event.status == status)
 
-    events = query.offset(skip).limit(limit).all()
+    events = query.order_by(Event.start_date.asc()).all()
 
     return [build_admin_event(e) for e in events]
 
@@ -188,7 +187,7 @@ def delete_event(
     return {"message": "Event deleted"}
 
 # 🔹 List participants for an event (admin view)
-@router.get("/{event_id}/participants", response_model=List[ParticipantOut])
+@router.get("/{event_id}/participants", response_model=List[AdminParticipantListOut])
 def list_event_participants(
     event_id: UUID,
     checked_in: bool | None = None,
@@ -204,7 +203,12 @@ def list_event_participants(
 
     return query.all()
 
-
+@router.get("/participants", response_model=List[AdminParticipantListOut])
+def list_all_participants(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    return db.query(Participant).all()
 
 
 

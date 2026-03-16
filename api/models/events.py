@@ -18,7 +18,7 @@ class Event(Base):
 
     event_type = Column(String, nullable=False)
     status = Column(String, default="draft")  # draft | published | archived
-
+    
     start_date = Column(Date, nullable=False)
     end_date = Column(Date)
     start_time = Column(Time)
