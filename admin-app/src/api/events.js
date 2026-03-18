@@ -137,3 +137,6 @@ export async function verifyWaiver(participantId) {
 
   return res.json()
 }
+
+export const fetchEventSummary = (eventId) =>
+  apiFetch(`/admin/events/${eventId}/summary`);

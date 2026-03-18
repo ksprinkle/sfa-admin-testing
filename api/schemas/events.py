@@ -165,7 +165,7 @@ class AdminEventListOut(BaseModel):
     capacity: EventCapacity
     registration: EventRegistration
     availability: EventAvailability
-
+    sessions: list = []
     featured_image: Optional[str]
 
     participant_count: int

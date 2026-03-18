@@ -1,21 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from api.db.session import DATABASE_URL, engine
 from api.db.base import Base
-
 from sqlalchemy import create_engine
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import models so SQLAlchemy registers them
 from api.models import events, participants
 
-app = FastAPI()
+# Import routers
+from api.routers import events as events_router
+from api.routers import auth
+from api.routers import admin_events
+from api.routers import admin_participants
 
-origins = [
-    "http://localhost:5173",
-]
-
-from fastapi.middleware.cors import CORSMiddleware
+app = FastAPI(redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,32 +25,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Import routers
-from api.routers import events as events_router
-from api.routers import auth
-from api.routers import admin_events
-from api.routers import admin_participants
 
+app.include_router(admin_participants.router, prefix="/admin", tags=["Admin Participants"])
+app.include_router(admin_events.router)
+app.include_router(events_router.router)
+app.include_router(auth.router)
 
-app = FastAPI(redirect_slashes=False)
+origins = [
+    "http://localhost:5173",
+]
+
 # Force OpenAPI schema to rebuild on reload, otherwise it may not reflect changes in the code
 app.openapi_schema = None
 
 engine = create_engine(DATABASE_URL, echo=True)
 
 Base.metadata.create_all(bind=engine)
-app.include_router(admin_participants.router, prefix="/admin", tags=["Admin Participants"])
-app.include_router(admin_events.router)
-app.include_router(events_router.router)
-app.include_router(auth.router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.get("/")
 def root():

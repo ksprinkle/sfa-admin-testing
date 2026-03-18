@@ -25,6 +25,8 @@ class Event(Base):
     end_time = Column(Time)
     timezone = Column(String, default="America/New_York")
 
+    sessions = relationship("Session", back_populates="event")
+    
     venue = Column(String)
     city = Column(String)
     state = Column(String)

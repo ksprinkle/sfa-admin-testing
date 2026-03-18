@@ -84,6 +84,7 @@ def event_summary(
     waitlisted = 0
     checked_in = 0
     volunteers = 0
+    waivers_missing = 0
 
     for p in participants:
         if p.is_waitlisted:
@@ -93,7 +94,9 @@ def event_summary(
 
         if p.checked_in:
             checked_in += 1
-
+        if not p.waiver_verified:
+            waivers_missing += 1
+        
     participant_remaining = None
     participant_fill_percent = None
     volunteer_remaining = None
@@ -116,6 +119,7 @@ def event_summary(
         "participant_count": surfers,
         "waitlist_count": waitlisted,
         "checked_in_count": checked_in,
+        "waivers_missing": waivers_missing,
 
         "participant_capacity": event.participant_capacity,
         "participant_remaining": participant_remaining,
@@ -187,7 +191,7 @@ def delete_event(
     return {"message": "Event deleted"}
 
 # 🔹 List participants for an event (admin view)
-@router.get("/{event_id}/participants", response_model=List[AdminParticipantListOut])
+@router.get("/{event_id}/participants",)
 def list_event_participants(
     event_id: UUID,
     checked_in: bool | None = None,

@@ -16,10 +16,10 @@ from api.schemas.participants import ParticipantAction
 from sqlalchemy import func
 
 router = APIRouter(
-    prefix="/admin/participants",
+    prefix="/participants",
     tags=["Admin Participants"],
 )
-
+#🔹 Participant actions (check-in, verify waiver, move to waitlist, promote, remove)
 @router.post("/{participant_id}/action")
 def participant_action(
     participant_id: UUID,
@@ -72,67 +72,6 @@ def participant_action(
     db.refresh(participant)
 
     return {"message": f"{action.action} successful"}
-
-@router.get("/", response_model=List[AdminParticipantListOut])
-def list_all_participants(
-    search: str | None = None,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_admin),
-):
-
-    query = db.query(Participant).options(joinedload(Participant.event))
-
-    if search:
-        search = f"%{search.lower()}%"
-        query = query.filter(
-            func.lower(Participant.first_name).like(search) |
-            func.lower(Participant.last_name).like(search) |
-            func.lower(Participant.email).like(search)
-        )
-
-    participants = query.all()
-
-    return [
-        {
-            "id": p.id,
-            "first_name": p.first_name,
-            "last_name": p.last_name,
-            "email": p.email,
-            "checked_in": p.checked_in,
-            "is_waitlisted": p.is_waitlisted,
-            "waiver_verified": p.waiver_verified,
-            "event_title": p.event.title if p.event else None,
-        }
-        for p in participants
-    ]
-
-@router.patch("/{participant_id}/checkin")
-def check_in_participant(
-    participant_id: UUID,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_admin),
-):
-    participant = (
-    db.query(Participant)
-    .filter(Participant.id == participant_id)
-    .first()
-)
-
-    if not participant.waiver_verified:
-        raise HTTPException(
-            status_code=400,
-            detail="Waiver not verified"
-        )
-    participant.checked_in = True
-    participant.checked_in_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(participant)
-
-    return {
-        "message": "Participant checked in",
-        "checked_in_at": participant.checked_in_at
-    }
 
 #  Promote from Waitlist
 @router.patch("/{participant_id}/promote")
@@ -196,3 +135,66 @@ def remove_participant(
         promote_from_waitlist(db, event)
 
     return {"message": "Participant removed"}
+
+#🔹 List all participants with optional search
+@router.get("/",)
+def list_all_participants(
+    search: str | None = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+
+    query = db.query(Participant).options(joinedload(Participant.event))
+
+    if search:
+        search = f"%{search.lower()}%"
+        query = query.filter(
+            func.lower(Participant.first_name).like(search) |
+            func.lower(Participant.last_name).like(search) |
+            func.lower(Participant.email).like(search)
+        )
+
+    participants = query.all()
+
+    return [
+        {
+            "id": p.id,
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "email": p.email,
+            "checked_in": p.checked_in,
+            "is_waitlisted": p.is_waitlisted,
+            "waiver_verified": p.waiver_verified,
+            "event_title": p.event.title if p.event else None,
+        }
+        for p in participants
+    ]
+
+#🔹 List participants for an event (admin view)
+@router.patch("/{participant_id}/checkin")
+def check_in_participant(
+    participant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    participant = (
+    db.query(Participant)
+    .filter(Participant.id == participant_id)
+    .first()
+)
+
+    if not participant.waiver_verified:
+        raise HTTPException(
+            status_code=400,
+            detail="Waiver not verified"
+        )
+    participant.checked_in = True
+    participant.checked_in_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(participant)
+
+    return {
+        "message": "Participant checked in",
+        "checked_in_at": participant.checked_in_at
+    }

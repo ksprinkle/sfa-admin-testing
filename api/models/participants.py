@@ -12,7 +12,10 @@ class Participant(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=True)
 
+    session = relationship("Session")
+    
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     email = Column(String, nullable=False)

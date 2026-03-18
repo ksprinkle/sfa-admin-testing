@@ -40,18 +40,12 @@ class ParticipantAction(BaseModel):
     ]
 class AdminParticipantListOut(BaseModel):
     id: UUID
-    event_id: UUID
     first_name: str
     last_name: str
     email: str
-    role: str
-    is_minor: bool
-    is_waitlisted: bool
     checked_in: bool
-    checked_in_at: datetime | None
-
-    waiver_signed: bool
+    is_waitlisted: bool
     waiver_verified: bool
-    waiver_signed_at: datetime | None
+    event_title: str | None
 
     model_config = ConfigDict(from_attributes=True)
