@@ -7,11 +7,15 @@ from pydantic import BaseModel
 from typing import Literal
 
 class ParticipantCreate(BaseModel):
+    event_id: UUID
     first_name: str
     last_name: str
     email: EmailStr
-    role: str
+    role: str = "participant"
     is_minor: bool = False
+
+    class Config:
+        from_attributes = True
 
 
 class ParticipantOut(BaseModel):

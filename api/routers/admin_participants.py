@@ -14,11 +14,45 @@ from api.models.participants import Participant
 from datetime import datetime
 from api.schemas.participants import ParticipantAction
 from sqlalchemy import func
+from api.schemas.participants import ParticipantCreate, ParticipantOut
 
 router = APIRouter(
     prefix="/participants",
     tags=["Admin Participants"],
 )
+
+#@router.get("/test")
+#def test():
+#    print("🔥 ADMIN PARTICIPANTS HIT")
+#    return {"ok": True}
+
+from fastapi import HTTPException
+
+@router.post("/", response_model=ParticipantOut)
+def create_participant(
+    data: ParticipantCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    try:
+        participant = Participant(
+            event_id=data.event_id,
+            session_id=None,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            email=data.email,
+            role=data.role,
+            is_minor=data.is_minor,
+        )
+
+        db.add(participant)
+        db.commit()
+        db.refresh(participant)
+        return participant
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 #🔹 Participant actions (check-in, verify waiver, move to waitlist, promote, remove)
 @router.post("/{participant_id}/action")
 def participant_action(

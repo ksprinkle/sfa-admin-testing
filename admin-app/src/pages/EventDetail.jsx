@@ -43,6 +43,13 @@ function EventDetail() {
   const waitlist = participants.filter(p => p.is_waitlisted).length
   const checkedIn = participants.filter(p => p.checked_in).length
   const missingWaivers = participants.filter(p => !p.waiver_verified).length
+  const sessionMap = {}
+
+  participants.forEach(p => {
+    const key = p.session_id || "unassigned"
+    if (!sessionMap[key]) sessionMap[key] = []
+    sessionMap[key].push(p)
+  })
 
   return (
     <div className="p-6 space-y-6">
@@ -82,7 +89,34 @@ function EventDetail() {
         ✔ Start Event Check-In
       </button>
 
-      <ParticipantTable participants={participants} />
+      {Object.entries(sessionMap).map(([sessionId, group], idx) => (
+        <div key={sessionId} className="mb-6">
+
+          <h3 className="text-lg font-semibold mb-2">
+            Session {idx + 1} ({group.length} / 15)
+          </h3>
+
+          <table className="w-full text-sm border">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {group.map(p => (
+                <tr key={p.id}>
+                  <td>{p.first_name} {p.last_name}</td>
+                  <td>{p.email}</td>
+                  <td>{p.is_waitlisted ? "Waitlisted" : "Confirmed"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+        </div>
+      ))}
 
     </div>
   )
