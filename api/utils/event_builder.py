@@ -1,5 +1,5 @@
-from api.schemas.events import AdminEventListOut
-from api.utils.event_counts import (
+from schemas.events import AdminEventListOut
+from utils.event_counts import (
     surfer_count,
     waitlist_count,
     volunteer_count,

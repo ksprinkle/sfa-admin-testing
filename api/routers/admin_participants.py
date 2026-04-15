@@ -1,20 +1,21 @@
-from api.models.participants import Participant
-from api.schemas.participants import AdminParticipantListOut, ParticipantOut
+from models.participants import Participant
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from api.crud.participants import promote_from_waitlist
-from api.db.session import get_db
-from api.dependencies import require_admin
-from api.models import events
-from api.models.events import Event
+from crud.participants import promote_from_waitlist
+from db.session import get_db
+from dependencies import require_admin
+from models import events
+from models.events import Event
 from sqlalchemy.orm import joinedload
-from api.models.participants import Participant
 from datetime import datetime
-from api.schemas.participants import ParticipantAction
+from schemas.participants import ParticipantAction
 from sqlalchemy import func
-from api.schemas.participants import ParticipantCreate, ParticipantOut
+from schemas.participants import ParticipantCreate, ParticipantOut
+from fastapi import Query
+from models.sessions import Session as EventSession
+from schemas.participants import SessionUpdate
 
 router = APIRouter(
     prefix="/participants",
@@ -232,3 +233,42 @@ def check_in_participant(
         "message": "Participant checked in",
         "checked_in_at": participant.checked_in_at
     }
+#🔹 Update participant session assignment    
+from pydantic import BaseModel
+from fastapi import Body
+from uuid import UUID
+
+class SessionUpdate(BaseModel):
+    session_id: UUID
+
+@router.patch("/{participant_id}/session")
+def update_participant_session(
+    participant_id: UUID,
+    payload: SessionUpdate,
+    db: Session = Depends(get_db)
+):
+    session = db.query(EventSession).filter(EventSession.id == payload.session_id).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    participant = db.query(Participant).filter(Participant.id == participant_id).first()
+
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    # Already in session → no-op
+    if participant.session_id == payload.session_id:
+        return {"success": True}
+
+    count = db.query(Participant).filter(
+        Participant.session_id == payload.session_id
+    ).count()
+
+    if count >= 15:
+        raise HTTPException(status_code=400, detail="Session is full")
+
+    participant.session_id = session.id
+    db.commit()
+
+    return {"success": True}

@@ -53,3 +53,6 @@ class AdminParticipantListOut(BaseModel):
     event_title: str | None
 
     model_config = ConfigDict(from_attributes=True)
+
+class SessionUpdate(BaseModel):
+    session_id: UUID

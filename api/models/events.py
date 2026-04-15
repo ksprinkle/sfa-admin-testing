@@ -2,11 +2,11 @@ import uuid
 from sqlalchemy import Column, String, Date, Time, Boolean, Integer, Float, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from api.db.base import Base
+from db.base import Base
 from sqlalchemy.orm import relationship
 from sqlalchemy import select, func
 from sqlalchemy.orm import column_property
-from api.models.participants import Participant
+from models.participants import Participant
 
 class Event(Base):
     __tablename__ = "events"

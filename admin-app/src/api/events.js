@@ -2,15 +2,6 @@ import { apiFetch } from "./api"
 
 const API = "http://localhost:8000"
 
-function authHeaders() {
-  const token = localStorage.getItem("token")
-
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json"
-  }
-}
-
 export async function createEvent(data) {
   const res = await apiFetch("/admin/events/", {
     method: "POST",
@@ -70,6 +61,8 @@ export async function deleteEvent(eventId) {
 
   return res.json()
 }
+
+
 
  export async function fetchAllParticipants() {
   const res = await apiFetch("/admin/participants/")
@@ -140,3 +133,26 @@ export async function verifyWaiver(participantId) {
 
 export const fetchEventSummary = (eventId) =>
   apiFetch(`/admin/events/${eventId}/summary`);
+
+export async function updateParticipantSession(participantId, sessionId) {
+  const res = await apiFetch(
+    `/admin/participants/${participantId}/session`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+      }),
+    }
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    console.error("Server error:", text)
+    throw new Error("Failed to update session")
+  }
+
+  return res.json()
+}

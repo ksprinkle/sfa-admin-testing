@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 
 function EventForm({ initialData = {}, onSubmit, onCancel }) {
 
@@ -11,11 +11,9 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
     ...initialData
   })
 
-  useEffect(() => {
-  if (Object.keys(initialData).length > 0) {
-    setForm(initialData)
-  }
-}, [initialData])
+  // Initialization includes `initialData`; remove synchronous setState-in-effect
+  // to satisfy the linter. If the parent needs to update the form after mount,
+  // it should either remount this component or pass a different key.
 
   function handleChange(e) {
     setForm({

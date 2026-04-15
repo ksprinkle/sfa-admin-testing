@@ -24,6 +24,55 @@ export default function Events() {
     loadEvents()
   }, [])
 
+  async function handleDelete(event) {
+
+    const confirmed = event.participant_count || 0
+    const waitlisted = event.waitlist_count || 0
+    const totalParticipants = confirmed + waitlisted
+
+    const warning =
+      totalParticipants > 0
+        ? "⚠️ WARNING: This event has active registrations.\n\n"
+        : ""
+
+    const message = `
+    Delete Event: ${event.title}
+
+    ${warning}${confirmed} confirmed participant${confirmed === 1 ? "" : "s"}
+    ${waitlisted} on waitlist
+    ${totalParticipants} total registrations
+
+    Are you sure you want to permanently delete this event?
+    This action cannot be undone.
+    `
+
+    if (!confirm(message)) return
+
+    try {
+      await deleteEvent(event.id)
+
+      setEvents(prev => prev.filter(e => e.id !== event.id))
+
+    } catch (err) {
+      console.error("Delete failed", err)
+    }
+  }
+
+  async function handleArchive(eventId) {
+    try {
+      await archiveEvent(eventId)
+
+      setEvents(prev =>
+        prev.map(e =>
+          e.id === eventId ? { ...e, status: "archived" } : e
+        )
+      )
+
+    } catch (err) {
+      console.error("Archive failed", err)
+    }
+  }
+
   if (loading) {
     return <div className="p-6">Loading events...</div>
   }
@@ -130,11 +179,11 @@ export default function Events() {
         className="p-4 text-right w-24"
         onClick={(e) => e.stopPropagation()}
       >
-        <EventActionsDropdown
-          onEdit={() => navigate(`/events/${event.id}/edit`)}
-          onArchive={() => handleArchive(event.id)}
-          onDelete={() => handleDelete(event)}
-        />
+            <EventActionsDropdown
+              onEdit={() => navigate(`/events/${event.id}/edit`)}
+              onArchive={() => handleArchive(event.id)}
+              onDelete={() => handleDelete(event)}
+            />
       </td>
     </tr>
   )
@@ -149,52 +198,5 @@ export default function Events() {
   </div>
 )
 }
-    async function handleDelete(event) {
+ 
 
-      const confirmed = event.participant_count || 0
-      const waitlisted = event.waitlist_count || 0
-      const totalParticipants = confirmed + waitlisted
-
-      const warning =
-        totalParticipants > 0
-          ? "⚠️ WARNING: This event has active registrations.\n\n"
-          : ""
-
-      const message = `
-    Delete Event: ${event.title}
-
-    ${warning}${confirmed} confirmed participant${confirmed === 1 ? "" : "s"}
-    ${waitlisted} on waitlist
-    ${totalParticipants} total registrations
-
-    Are you sure you want to permanently delete this event?
-    This action cannot be undone.
-    `
-
-      if (!confirm(message)) return
-
-      try {
-        await deleteEvent(event.id)
-
-        setEvents(prev => prev.filter(e => e.id !== event.id))
-
-      } catch (err) {
-        console.error("Delete failed", err)
-      }
-    }
-
-      async function handleArchive(eventId) {
-    try {
-      await archiveEvent(eventId)
-
-      setEvents(prev =>
-        prev.map(e =>
-          e.id === eventId ? { ...e, status: "archived" } : e
-        )
-      )
-
-    } catch (err) {
-      console.error("Archive failed", err)
-    }
-  }
-  

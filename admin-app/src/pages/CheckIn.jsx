@@ -12,13 +12,15 @@ export default function CheckIn() {
   const searchRef = useRef(null)
 
   useEffect(() => {
-    loadParticipants()
-  }, [])
-
-  async function loadParticipants() {
-    const data = await fetchEventParticipants(eventId)
-    setParticipants(data)
-  }
+    (async () => {
+      try {
+        const data = await fetchEventParticipants(eventId)
+        setParticipants(data)
+      } catch (err) {
+        console.error("Failed to load participants", err)
+      }
+    })()
+  }, [eventId])
 
   async function handleCheckIn(id) {
 

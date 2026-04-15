@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState } from "react"
 import { fetchEvents, fetchEventSummary } from "../api/events"
 import { useNavigate } from "react-router-dom";
 
@@ -11,7 +11,7 @@ function Dashboard() {
   const [confirmed, setConfirmed] = useState(0)
   const [waitlisted, setWaitlisted] = useState(0)
   const [checkedIn, setCheckedIn] = useState(0)
-  const [waiversMissing, setWaiversMissing] = useState(0)
+  const [_waiversMissing, setWaiversMissing] = useState(0)
 
   // For now, just show the first published event and its stats. 
   // In the future we can add a dropdown to select different events, or show aggregate stats across all events. 

@@ -1,13 +1,8 @@
 from sqlalchemy.orm import Session
 from datetime import date
-from api.models.events import Event
+from models.events import Event
 
-from sqlalchemy.orm import Session
-from datetime import date
-from api.models.events import Event
-
-from api.schemas.events import EventCreate
-
+from schemas.events import EventCreate
 
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
@@ -16,11 +11,11 @@ from slugify import slugify
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from slugify import slugify
-from api.utils.slug import generate_unique_slug
+from utils.slug import generate_unique_slug
 
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
-from api.utils.slug import generate_unique_slug
+from utils.slug import generate_unique_slug
 
 
 def create_event(db: Session, event_in: EventCreate):
@@ -49,8 +44,8 @@ def create_event(db: Session, event_in: EventCreate):
 
 from sqlalchemy.orm import Session
 from datetime import date
-from api.models.events import Event
-from api.schemas.events import EventUpdate
+from models.events import Event
+from schemas.events import EventUpdate
 
 
 def update_event(db: Session, event: Event, event_in: EventUpdate):
@@ -136,8 +131,8 @@ def get_event_by_slug(db: Session, slug: str, is_admin: bool = False):
 
     return query.first()
 from sqlalchemy.orm import Session
-from api.models.events import Event
-from api.models.participants import Participant
+from models.events import Event
+from models.participants import Participant
 
 
 def promote_waitlist(db: Session, event: Event):

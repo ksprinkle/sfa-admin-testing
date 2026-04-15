@@ -1,8 +1,8 @@
 import { useState } from "react"
 
-function ParticipantTable({ participants }) {
+function ParticipantTable({ participants, onCheckIn }) {
 
-  const [rows, setRows] = useState(participants)
+  const [rows] = useState(participants)
   const [search, setSearch] = useState("")
 
   const filteredParticipants = rows.filter(p =>
@@ -120,7 +120,7 @@ function ParticipantTable({ participants }) {
                 ) : (
 
                   <button
-                    onClick={() => handleCheckIn(p.id)}
+                    onClick={() => onCheckIn?.(p.id)}
                     className="bg-teal-600 text-white px-3 py-1 rounded text-sm hover:bg-teal-700"
                   >
                     Check In

@@ -20,6 +20,7 @@ function Login() {
 
       navigate("/")
     } catch (err) {
+      console.error(err)
       setError("Login failed")
     }
   }

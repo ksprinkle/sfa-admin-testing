@@ -1,18 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.db.session import DATABASE_URL, engine
-from api.db.base import Base
+from db.session import DATABASE_URL, engine
+from db.base import Base
 from sqlalchemy import create_engine
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import models so SQLAlchemy registers them
-from api.models import events, participants
+from models import events, participants
 
 # Import routers
-from api.routers import events as events_router
-from api.routers import auth
-from api.routers import admin_events
-from api.routers import admin_participants
+from routers import events as events_router
+from routers import auth
+from routers import admin_events
+from routers import admin_participants
 
 app = FastAPI(redirect_slashes=False)
 
