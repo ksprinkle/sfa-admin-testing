@@ -13,6 +13,7 @@ class ParticipantCreate(BaseModel):
     email: EmailStr
     role: str = "participant"
     is_minor: bool = False
+    priority: int = 0
 
     class Config:
         from_attributes = True
@@ -27,6 +28,7 @@ class ParticipantOut(BaseModel):
     role: str
     is_minor: bool
     is_waitlisted: bool
+    priority: int
     checked_in: bool
     checked_in_at: Optional[datetime]
 

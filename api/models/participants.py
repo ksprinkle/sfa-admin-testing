@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, UniqueConstraint, DateTime
+from sqlalchemy import Column, String, Boolean, ForeignKey, UniqueConstraint, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -24,6 +24,8 @@ class Participant(Base):
     is_minor = Column(Boolean, default=False)
 
     is_waitlisted = Column(Boolean, default=False)
+
+    priority = Column(Integer, default=0, nullable=False)  # Lower number = higher priority
 
     waiver_signed = Column(Boolean, default=False)
     waiver_verified = Column(Boolean, default=False)

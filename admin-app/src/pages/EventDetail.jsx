@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { fetchEventParticipants, updateParticipantSession } from "../api/events"
+import { fetchEventParticipants, updateParticipantSession, updateParticipantPriority } from "../api/events"
 
 import {
   DndContext,
@@ -23,6 +23,7 @@ function EventDetail() {
   const [activeId, setActiveId] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
   const [activeTransform, setActiveTransform] = useState(null)
+  const [dragError, setDragError] = useState(null)
 
   // ✅ stable sensors setup
   const sensors = useSensors(
@@ -53,11 +54,17 @@ function EventDetail() {
   }, [eventId])
 
   
-  // ✅ stable ordering
+  // ✅ stable ordering by session and natural name order
   const sortedParticipants = [...participants].sort((a, b) => {
     if (a.session_id !== b.session_id) {
       return a.session_id.localeCompare(b.session_id)
     }
+
+    const lastNameComparison = a.last_name.localeCompare(b.last_name)
+    if (lastNameComparison !== 0) {
+      return lastNameComparison
+    }
+
     return a.first_name.localeCompare(b.first_name)
   })
 
@@ -69,12 +76,24 @@ function EventDetail() {
     }, {})
   )
 
+  const isSessionFull = (sessionId) => {
+    const count = participants.filter(p => p.session_id === sessionId).length
+    return count >= 15
+  }
+
+  const getSessionStatus = (sessionId) => {
+    const count = participants.filter(p => p.session_id === sessionId).length
+    if (count >= 15) return { status: 'Full', emoji: '🔴', color: 'text-red-500' }
+    if (count >= 13) return { status: 'Almost Full', emoji: '🟡', color: 'text-yellow-500' }
+    return { status: 'Open', emoji: '🟢', color: 'text-green-500' }
+  }
+
   // ✅ stable move logic extracted to a function
   async function handleMoveParticipant(id, targetSessionId) {
     setParticipants(prev =>
       prev.map(p =>
         String(p.id) === String(id)
-          ? { ...p, session_id: targetSessionId }
+          ? { ...p, session_id: targetSessionId, is_waitlisted: false }
           : p
       )
     )
@@ -85,6 +104,7 @@ function EventDetail() {
   // ✅ stable drag handlers with proper multi-select logic
   function handleDragStart(event) {
     setActiveId(String(event.active.id))
+    setDragError(null)
   }
 
   // ✅ stable drag end logic with proper multi-select handling
@@ -104,6 +124,14 @@ function EventDetail() {
       ? selectedIds
       : [activeId]
 
+    // Check if target session has capacity
+    const currentInSession = participants.filter(p => p.session_id === targetSessionId).length
+    if (currentInSession + idsToMove.length > 15) {
+      // Session would exceed capacity
+      setDragError("Cannot move to full session")
+      return
+    }
+
     try {
       for (const id of idsToMove) {
         await handleMoveParticipant(id, targetSessionId)
@@ -115,7 +143,6 @@ function EventDetail() {
     setSelectedIds([])
   }
 
- // ✅ stable component with proper droppable logic
   function DroppableSession({ sessionId, children }) {
     const { setNodeRef } = useDroppable({
       id: `session-${sessionId}`,
@@ -124,8 +151,11 @@ function EventDetail() {
     return (
       <div
         ref={setNodeRef}
-        className="bg-white rounded-xl border p-4 min-h-[120px]"
+        className={`bg-white rounded-xl border p-4 min-h-[120px] ${isSessionFull(sessionId) ? 'border-red-500 bg-red-100' : ''}`}
       >
+        {isSessionFull(sessionId) && (
+          <div className="text-red-500 font-bold text-center mb-2">FULL</div>
+        )}
         {children}
       </div>
     )
@@ -197,6 +227,48 @@ function EventDetail() {
         <div className="text-xs text-gray-500">
           {p.email}
         </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-xs flex items-center gap-1">
+            <span
+              className={`inline-flex h-2.5 w-2.5 rounded-full ${
+                p.priority === 1
+                  ? "bg-red-500"
+                  : p.priority === 2
+                  ? "bg-yellow-400"
+                  : "bg-gray-300"
+              }`}
+            />
+            Priority: {p.priority}
+          </span>
+          <div className="flex space-x-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                updateParticipantPriority(p.id, p.priority - 1).then(() => {
+                  setParticipants(prev => prev.map(part => 
+                    part.id === p.id ? { ...part, priority: part.priority - 1 } : part
+                  ))
+                })
+              }}
+              className="text-xs bg-gray-200 px-1 rounded hover:bg-gray-300"
+            >
+              ↓
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                updateParticipantPriority(p.id, p.priority + 1).then(() => {
+                  setParticipants(prev => prev.map(part => 
+                    part.id === p.id ? { ...part, priority: part.priority + 1 } : part
+                  ))
+                })
+              }}
+              className="text-xs bg-gray-200 px-1 rounded hover:bg-gray-300"
+            >
+              ↑
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -233,8 +305,8 @@ function EventDetail() {
             return (
               <DroppableSession key={sessionId} sessionId={sessionId}>
                 <div className="flex justify-between mb-2">
-                  <h3 className="font-semibold">Session {idx + 1}</h3>
-                  <span>{group.length} / 15</span>
+                  <h3 className="font-semibold">Session {idx + 1} {getSessionStatus(sessionId).emoji}</h3>
+                  <span className={getSessionStatus(sessionId).color}>{group.length} / 15</span>
                 </div>
 
                 <div className="space-y-2">
@@ -300,6 +372,12 @@ function EventDetail() {
         </DragOverlay>
 
       </DndContext>
+
+      {dragError && (
+        <div className="mt-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+          {dragError}
+        </div>
+      )}
     </div>
   )
 }

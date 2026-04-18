@@ -35,7 +35,12 @@ async function handleCheckIn(participantId) {
     )
   } catch (err) {
     console.error(err)
-    alert("Failed to check in participant")
+    const errorMessage = err.message || "Failed to check in participant"
+    if (errorMessage.includes("Waiver not verified")) {
+      alert("Cannot check in participant. Waiver receipt must be verified prior to check-in.")
+    } else {
+      alert(errorMessage)
+    }
   }
 }
 
@@ -45,12 +50,12 @@ async function handleRemove(participantId) {
   try {
     await removeParticipant(participantId)
 
-    setParticipants(prev =>
-      prev.filter(p => p.id !== participantId)
-    )
+    const data = await fetchAllParticipants()
+    setParticipants(data)
   } catch (err) {
     console.error(err)
-    alert("Failed to remove participant")
+    const errorMessage = err.message || "Failed to remove participant"
+    alert(errorMessage)
   }
 }
 
@@ -67,7 +72,8 @@ async function handlePromote(participantId) {
     )
   } catch (err) {
     console.error(err)
-    alert("Failed to promote participant")
+    const errorMessage = err.message || "Failed to promote participant"
+    alert(errorMessage)
   }
 }
 
@@ -84,7 +90,8 @@ async function handleVerifyWaiver(participantId) {
     )
   } catch (err) {
     console.error(err)
-    alert("Failed to verify waiver")
+    const errorMessage = err.message || "Failed to verify waiver"
+    alert(errorMessage)
   }
 }
 

@@ -8,7 +8,7 @@ from dependencies import require_admin
 from models import events
 from models.events import Event
 from schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
-from crud.events import create_event as crud_create_event
+from crud.events import create_event as crud_create_event, update_event as crud_update_event
 from sqlalchemy.orm import joinedload
 from schemas.participants import AdminParticipantListOut, ParticipantOut
 from utils.event_builder import build_admin_event
@@ -166,8 +166,6 @@ def update_event(
 
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-
-    from api.crud.events import update_event as crud_update_event
 
     event = crud_update_event(db, event, update_data)
     

@@ -4,11 +4,17 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
+import os
+import sys
+
+# Add the API package path so Alembic can load the same top-level imports used by the app.
+project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "api"))
+sys.path.insert(0, project_dir)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-from api.db.session import DATABASE_URL
+from db.session import DATABASE_URL
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # Interpret the config file for Python logging.
@@ -21,14 +27,8 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 
-from api.db.base import Base
-import pkgutil
-import importlib
-import api.models
-
-# Automatically import all model modules
-for module in pkgutil.iter_modules(api.models.__path__):
-    importlib.import_module(f"api.models.{module.name}")
+from db.base import Base
+import models
 
 target_metadata = Base.metadata
 

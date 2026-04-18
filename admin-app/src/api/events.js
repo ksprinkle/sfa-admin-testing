@@ -81,7 +81,8 @@ export async function checkInParticipant(participantId) {
   )
 
   if (!res.ok) {
-    throw new Error("Failed to check in participant")
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to check in participant")
   }
 
   return res.json()
@@ -94,7 +95,8 @@ export async function promoteParticipant(participantId) {
   )
 
   if (!res.ok) {
-    throw new Error("Failed to promote participant")
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to promote participant")
   }
 
   return res.json()
@@ -107,7 +109,8 @@ export async function removeParticipant(participantId) {
   )
 
   if (!res.ok) {
-    throw new Error("Failed to remove participant")
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to remove participant")
   }
 
   return res.json()
@@ -125,7 +128,8 @@ export async function verifyWaiver(participantId) {
   )
 
   if (!res.ok) {
-    throw new Error("Failed to verify waiver")
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to verify waiver")
   }
 
   return res.json()
@@ -152,6 +156,29 @@ export async function updateParticipantSession(participantId, sessionId) {
     const text = await res.text()
     console.error("Server error:", text)
     throw new Error("Failed to update session")
+  }
+
+  return res.json()
+}
+
+export async function updateParticipantPriority(participantId, priority) {
+  const res = await apiFetch(
+    `/admin/participants/${participantId}/priority`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        priority,
+      }),
+    }
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    console.error("Server error:", text)
+    throw new Error("Failed to update priority")
   }
 
   return res.json()

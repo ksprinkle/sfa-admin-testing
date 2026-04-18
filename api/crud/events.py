@@ -1,21 +1,13 @@
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, datetime, timedelta
 from models.events import Event
-
+from models.sessions import Session as EventSession
 from schemas.events import EventCreate
-
-from sqlalchemy.exc import IntegrityError
-from fastapi import HTTPException
-from slugify import slugify
-
-from sqlalchemy.exc import IntegrityError
-from fastapi import HTTPException
-from slugify import slugify
-from utils.slug import generate_unique_slug
-
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from utils.slug import generate_unique_slug
+from crud.participants import promote_from_waitlist
+import math
 
 
 def create_event(db: Session, event_in: EventCreate):
@@ -28,6 +20,24 @@ def create_event(db: Session, event_in: EventCreate):
     )
 
     db.add(event)
+
+    # Auto-create sessions if participant_capacity is set
+    if event.participant_capacity and event.start_date and event.start_time:
+        num_sessions = math.ceil(event.participant_capacity / 15)
+        base_time = datetime.combine(event.start_date, event.start_time)
+
+        for i in range(num_sessions):
+            start_time = base_time + timedelta(hours=i)
+            end_time = start_time + timedelta(hours=1)
+
+            session = EventSession(
+                event_id=event.id,
+                name=f"Session {i+1}",
+                start_time=start_time,
+                end_time=end_time,
+                capacity=15,
+            )
+            db.add(session)
 
     try:
         db.commit()
@@ -144,26 +154,12 @@ def promote_waitlist(db: Session, event: Event):
 
     # Unlimited capacity → promote everyone
     if event.participant_capacity is None:
-        waitlisted = (
-            db.query(Participant)
-            .filter(
-                Participant.event_id == event.id,
-                Participant.is_waitlisted == True,
-            )
-            .order_by(Participant.created_at.asc())
-            .all()
-        )
+        while promote_from_waitlist(db, event):
+            continue
 
-        for p in waitlisted:
-            p.is_waitlisted = False
-
-        db.flush()  # Flush changes to DB before commit
-        db.commit()  # Commit here to save changes before refreshing event
-        db.refresh(event)  # Refresh event to get updated participant counts
-
+        db.refresh(event)
         print("UNLIMITED CAPACITY PROMOTION")
         return
-        
 
     # Count confirmed
     confirmed_count = (
@@ -180,18 +176,6 @@ def promote_waitlist(db: Session, event: Event):
     if available_spots <= 0:
         return
 
-    waitlisted = (
-        db.query(Participant)
-        .filter(
-            Participant.event_id == event.id,
-            Participant.is_waitlisted == True,
-        )
-        .order_by(Participant.created_at.asc())
-        .all()
-    )
-
-    for p in waitlisted:
-        if available_spots <= 0:
+    for _ in range(available_spots):
+        if not promote_from_waitlist(db, event):
             break
-        p.is_waitlisted = False
-        available_spots -= 1

@@ -11,7 +11,7 @@ function Dashboard() {
   const [confirmed, setConfirmed] = useState(0)
   const [waitlisted, setWaitlisted] = useState(0)
   const [checkedIn, setCheckedIn] = useState(0)
-  const [_waiversMissing, setWaiversMissing] = useState(0)
+  const [waiversMissing, setWaiversMissing] = useState(0)
 
   // For now, just show the first published event and its stats. 
   // In the future we can add a dropdown to select different events, or show aggregate stats across all events. 
@@ -23,14 +23,13 @@ function Dashboard() {
   navigate(`/events/${eventId}/checkin`);
 };
 
-useEffect(() => {
-  async function loadData() {
+  const loadData = async () => {
     try {
       const events = await fetchEvents()
       setEvents(events)
 
-      // pick first published event
-      const active = events.find(e => e.status === "published")
+      // pick first published event, fallback to the next event by date
+      const active = events.find(e => e.status?.toLowerCase() === "published") || events[0] || null
       console.log(events)
 
       if (!active) {
@@ -55,8 +54,16 @@ useEffect(() => {
     }
   }
 
+useEffect(() => {
   loadData()
 }, [])
+
+  // Refresh data when returning to dashboard
+  useEffect(() => {
+    const handleFocus = () => loadData()
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
 
   if (loading) {
     return <div className="p-4">Loading...</div>
@@ -73,11 +80,11 @@ useEffect(() => {
   const totalEvents = events.length
 
   const publishedEvents = events.filter(
-    e => e.status === "published"
+    e => e.status?.toLowerCase() === "published"
   ).length
 
   const draftEvents = events.filter(
-    e => e.status === "draft"
+    e => e.status?.toLowerCase() === "draft"
   ).length
 
   const totalParticipants = events.reduce(
@@ -104,10 +111,16 @@ useEffect(() => {
 
     <div
       onClick={() => navigate(`/events/${event.id}`)}
-      className="cursor-pointer hover:bg-gray-100 transition rounded-lg p-2"
+      className="cursor-pointer hover:bg-gray-100 transition rounded-lg p-2 relative"
     >
+      <button
+        onClick={(e) => { e.stopPropagation(); loadData(); }}
+        className="absolute top-2 right-2 text-sm bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
+      >
+        ↻ Refresh
+      </button>
       <h2 className="text-lg font-semibold text-ocean">
-        Live Event
+        {event.status?.toLowerCase() === "published" ? "Live Event" : "Next event"}
       </h2>
 
       <p className="text-sm text-gray-600">
@@ -115,11 +128,12 @@ useEffect(() => {
       </p>
     </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <StatCard label="Confirmed" value={confirmed} color="text-ocean" />
         <StatCard label="Waitlisted" value={waitlisted} color="text-warning" />
         <StatCard label="Checked In" value={checkedIn} color="text-success" />
         <StatCard label="Volunteers" value={event.volunteer_count ?? 0} color="text-ocean" />
+        <StatCard label="Waivers Missing" value={waiversMissing} color="text-danger" />
       </div>
 
       <div className="bg-white rounded-xl shadow p-4 space-y-3">
@@ -136,6 +150,23 @@ useEffect(() => {
 
         <p className="text-xs text-gray-500">
           {confirmed} of {event.participant_capacity} spots filled
+        </p>
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-4 space-y-3">
+        <p className="text-sm font-medium text-gray-700">
+          Check-In Progress
+        </p>
+
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-green-500"
+            style={{ width: `${confirmed > 0 ? (checkedIn / confirmed) * 100 : 0}%` }}
+          />
+        </div>
+
+        <p className="text-xs text-gray-500">
+          {checkedIn} of {confirmed} confirmed participants checked in
         </p>
       </div>
 
