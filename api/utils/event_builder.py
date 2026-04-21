@@ -59,7 +59,11 @@ def build_admin_event(event):
 
         featured_image=event.featured_image,
 
-        participant_count=event.surfer_count,
+        # Match summary logic: checked-in participants are always confirmed
+        participant_count=len([
+            p for p in event.participants
+            if p.checked_in or (p.role == "surfer" and not p.is_waitlisted)
+        ]),
         waitlist_count=event.waitlist_count,
         checked_in_count=event.checked_in_count,
     )

@@ -9,12 +9,14 @@ from models.events import Event
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 from schemas.participants import ParticipantAction, ParticipantCreate, ParticipantOut, SessionUpdate
+from ws_manager import manager
+import json
 from sqlalchemy import func
 from models.sessions import Session as EventSession
 from services.session_service import get_next_available_session
 
 router = APIRouter(
-    prefix="/participants",
+    prefix="/admin/participants",
     tags=["Admin Participants"],
 )
 
@@ -121,46 +123,60 @@ def participant_action(
         raise HTTPException(status_code=404, detail="Participant not found")
 
     if action.action == "checkin":
-
         if not participant.waiver_verified:
             raise HTTPException(
                 status_code=400,
                 detail="Waiver not verified"
             )
-
         participant.checked_in = True
         participant.checked_in_at = datetime.utcnow()
 
     elif action.action == "undo_checkin":
-
         participant.checked_in = False
         participant.checked_in_at = None
 
     elif action.action == "verify_waiver":
-
         participant.waiver_verified = True
 
     elif action.action == "move_to_waitlist":
-
         participant.is_waitlisted = True
         participant.session_id = None
         db.commit()
-
         promote_from_waitlist(db, participant.event, exclude_participant_id=participant.id)
+        # Broadcast update
+        import asyncio
+        asyncio.create_task(manager.broadcast(json.dumps({
+            "type": "participant_update",
+            "participant_id": str(participant.id),
+            "action": "move_to_waitlist"
+        })))
         return {"message": "Participant moved to waitlist"}
 
     elif action.action == "promote":
-
         participant.is_waitlisted = False
 
     elif action.action == "remove":
-
         db.delete(participant)
         db.commit()
+        # Broadcast update
+        import asyncio
+        asyncio.create_task(manager.broadcast(json.dumps({
+            "type": "participant_update",
+            "participant_id": str(participant_id),
+            "action": "remove"
+        })))
         return {"message": "Participant removed"}
 
     db.commit()
     db.refresh(participant)
+
+    # Broadcast update
+    import asyncio
+    asyncio.create_task(manager.broadcast(json.dumps({
+        "type": "participant_update",
+        "participant_id": str(participant.id),
+        "action": action.action
+    })))
 
     return {"message": f"{action.action} successful"}
 
@@ -254,6 +270,7 @@ def list_all_participants(
             "is_waitlisted": p.is_waitlisted,
             "waiver_verified": p.waiver_verified,
             "event_title": p.event.title if p.event else None,
+            "priority": p.priority,
         }
         for p in participants
     ]
@@ -287,8 +304,9 @@ def check_in_participant(
         "checked_in_at": participant.checked_in_at
     }
 #🔹 Update participant session assignment    
+
 @router.patch("/{participant_id}/session")
-def update_participant_session(
+async def update_participant_session(
     participant_id: UUID,
     payload: SessionUpdate,
     db: DBSession = Depends(get_db),
@@ -321,11 +339,20 @@ def update_participant_session(
     participant.is_waitlisted = False
     db.commit()
 
+    # Broadcast update
+    await manager.broadcast(json.dumps({
+        "type": "participant_update",
+        "participant_id": str(participant.id),
+        "action": "update_session",
+        "session_id": str(session.id)
+    }))
+
     return {"success": True}
 
 #🔹 Update participant priority
+
 @router.patch("/{participant_id}/priority")
-def update_participant_priority(
+async def update_participant_priority(
     participant_id: UUID,
     priority: int,
     db: DBSession = Depends(get_db),
@@ -336,7 +363,17 @@ def update_participant_priority(
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
 
-    participant.priority = priority
+    # Clamp priority between 1 and 3 (0 = unset)
+    clamped = max(0, min(3, priority))
+    participant.priority = clamped
     db.commit()
+
+    # Broadcast update
+    await manager.broadcast(json.dumps({
+        "type": "participant_update",
+        "participant_id": str(participant.id),
+        "action": "update_priority",
+        "priority": clamped
+    }))
 
     return {"success": True}

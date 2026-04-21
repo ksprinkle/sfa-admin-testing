@@ -9,7 +9,7 @@ from security import SECRET_KEY, ALGORITHM
 
 
 # This MUST match your login endpoint
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def get_current_user(

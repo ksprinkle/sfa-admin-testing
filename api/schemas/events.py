@@ -45,6 +45,7 @@ class EventOut(BaseModel):
     availability: EventAvailability
 
     featured_image: Optional[str] = None
+    no_show_minutes: Optional[int] = None
 
 class EventListOut(BaseModel):
     id: UUID
@@ -92,6 +93,7 @@ class EventBase(BaseModel):
     vendor_open: Optional[bool] = None
 
     featured_image: Optional[str] = None
+    no_show_minutes: Optional[int] = None
 
     @field_validator("participant_capacity", "volunteer_capacity")
     @classmethod
@@ -113,6 +115,8 @@ class EventCreate(EventBase):
     participant_open: bool = False
     volunteer_open: bool = False
     vendor_open: bool = False
+
+    no_show_minutes: Optional[int] = 15
 
     @field_validator("participant_capacity", "volunteer_capacity")
     @classmethod
@@ -142,6 +146,7 @@ class EventUpdate(EventBase):
     vendor_open: Optional[bool] = None
 
     featured_image: Optional[str] = None
+    no_show_minutes: Optional[int] = None
 
 from uuid import UUID
 from datetime import date, time
@@ -186,6 +191,10 @@ class AdminEventSummary(BaseModel):
     status: str
     
     participant_count: int
+    waitlist_count: int
+    checked_in_count: int
+    waivers_missing: int
+    
     participant_capacity: Optional[int]
     participant_remaining: Optional[int]
     participant_fill_percent: Optional[float]

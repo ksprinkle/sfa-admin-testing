@@ -1,5 +1,6 @@
-from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
+from uuid import UUID
 from sqlalchemy.orm import Session
 from typing import List
 from crud.participants import promote_from_waitlist
@@ -14,13 +15,36 @@ from schemas.participants import AdminParticipantListOut, ParticipantOut
 from utils.event_builder import build_admin_event
 from models.participants import Participant
 from schemas.events import AdminEventSummary
-from uuid import UUID
 from datetime import datetime
+from services.no_show_service import get_no_show_candidates, promote_no_show_slots
 
 router = APIRouter(
     prefix="/admin/events",
     tags=["Admin Events"],
 )
+
+
+# --- No-show endpoints must be after router is defined ---
+from typing import List as TypingList
+# 🔹 Get no-show candidates for an event
+@router.get("/{event_id}/no_shows", response_model=TypingList[str])
+def get_no_shows(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    candidates = get_no_show_candidates(db, event_id)
+    return [str(p.id) for p in candidates] if candidates else []
+
+# 🔹 Manually promote waitlisted participants for no-show slots
+@router.post("/{event_id}/promote_no_shows", response_model=TypingList[str])
+def promote_no_shows(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    promoted = promote_no_show_slots(db, event_id)
+    return [str(p.id) for p in promoted] if promoted else []
 
 #🔹 Create new event
 @router.post("/", response_model=EventOut, status_code=201)
@@ -87,16 +111,18 @@ def event_summary(
     waivers_missing = 0
 
     for p in participants:
-        if p.is_waitlisted:
+        # Treat any checked-in participant as confirmed (not waitlisted)
+        if p.checked_in:
+            surfers += 1
+            checked_in += 1
+        elif p.is_waitlisted:
             waitlisted += 1
         else:
             surfers += 1
 
-        if p.checked_in:
-            checked_in += 1
         if not p.waiver_verified:
             waivers_missing += 1
-        
+
     participant_remaining = None
     participant_fill_percent = None
     volunteer_remaining = None

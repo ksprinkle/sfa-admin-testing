@@ -1,7 +1,7 @@
 def surfer_count(event):
     return len([
         p for p in event.participants
-        if p.role == "surfer" and not p.is_waitlisted
+        if p.checked_in or (p.role == "surfer" and not p.is_waitlisted)
     ])
 
 

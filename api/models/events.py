@@ -38,6 +38,9 @@ class Event(Base):
     participant_capacity = Column(Integer, nullable=True)
     volunteer_capacity = Column(Integer, nullable=True)
 
+    # Minutes after session start to consider a participant a no-show
+    no_show_minutes = Column(Integer, nullable=True, default=15)
+
     participant_open = Column(Boolean, default=False)
     volunteer_open = Column(Boolean, default=False)
     vendor_open = Column(Boolean, default=False)
@@ -47,14 +50,17 @@ class Event(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     
     surfer_count = column_property(
-    select(func.count(Participant.id))
-    .where(
-        Participant.event_id == id,
-        Participant.is_waitlisted == False
+        select(func.count(Participant.id))
+        .where(
+            Participant.event_id == id,
+            (
+                (Participant.checked_in == True) |
+                ((Participant.role == "surfer") & (Participant.is_waitlisted == False))
+            )
+        )
+        .correlate_except(Participant)
+        .scalar_subquery()
     )
-    .correlate_except(Participant)
-    .scalar_subquery()
-)
     waitlist_count = column_property(
     select(func.count(Participant.id))
     .where(

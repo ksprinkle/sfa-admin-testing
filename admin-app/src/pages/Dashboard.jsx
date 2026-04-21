@@ -54,6 +54,12 @@ function Dashboard() {
     }
   }
 
+  // Manual refresh button handler
+  const handleManualRefresh = () => {
+    setLoading(true)
+    loadData()
+  }
+
 useEffect(() => {
   loadData()
 }, [])
@@ -73,9 +79,10 @@ useEffect(() => {
     return <div className="p-4">No active event found.</div>
   }
 
-  const percentFull = event.participant_capacity
-  ? Math.min((confirmed / event.participant_capacity) * 100, 100)
-  : 0
+  const participantCapacity = event.capacity?.participants;
+  const percentFull = participantCapacity
+    ? Math.min((confirmed / participantCapacity) * 100, 100)
+    : 0;
 
   const totalEvents = events.length
 
@@ -92,24 +99,35 @@ useEffect(() => {
     0
   )
   const capacityColor =
-    confirmed >= event.participant_capacity
+    participantCapacity && confirmed >= participantCapacity
       ? "bg-danger"
       : percentFull > 80
       ? "bg-warning"
-      : "bg-ocean"
+      : "bg-ocean";
 
   return (
-  <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6">
+      <div className="flex items-center mb-4">
+        <h1 className="text-2xl font-semibold flex-1">Dashboard</h1>
+        <button
+          onClick={handleManualRefresh}
+          className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+          title="Refresh dashboard"
+        >
+          ↻ Refresh
+        </button>
+      </div>
 
-    {/* Admin Overview Stats */}
-    <div className="grid grid-cols-2 gap-4">
-      <StatCard label="Total Events" value={totalEvents} color="text-ocean" />
-      <StatCard label="Published Events" value={publishedEvents} color="text-success" />
-      <StatCard label="Draft Events" value={draftEvents} color="text-warning" />
-      <StatCard label="Total Participants" value={totalParticipants} color="text-ocean" />
-    </div>
+      {/* Overall Event Stats */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total Events" value={totalEvents} color="text-ocean" />
+        <StatCard label="Published Events" value={publishedEvents} color="text-success" />
+        <StatCard label="Draft Events" value={draftEvents} color="text-warning" />
+        <StatCard label="Total Participants" value={totalParticipants} color="text-ocean" />
+      </div>
 
-    <div
+      {/* Live Event Stats */}
+      <div
       onClick={() => navigate(`/events/${event.id}`)}
       className="cursor-pointer hover:bg-gray-100 transition rounded-lg p-2 relative"
     >
@@ -136,21 +154,26 @@ useEffect(() => {
         <StatCard label="Waivers Missing" value={waiversMissing} color="text-danger" />
       </div>
 
+
       <div className="bg-white rounded-xl shadow p-4 space-y-3">
         <p className="text-sm font-medium text-gray-700">
           Participant Capacity
         </p>
-
-        <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${capacityColor}`}
-            style={{ width: `${percentFull}%` }}
-          />
-        </div>
-
-        <p className="text-xs text-gray-500">
-          {confirmed} of {event.participant_capacity} spots filled
-        </p>
+        {participantCapacity ? (
+          <>
+            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${capacityColor}`}
+                style={{ width: `${percentFull}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              {confirmed} of {participantCapacity} spots filled
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">No participant capacity set for this event.</p>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow p-4 space-y-3">

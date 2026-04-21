@@ -8,6 +8,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
     city: "",
     state: "",
     participant_capacity: "",
+    no_show_minutes: initialData.no_show_minutes ?? 15,
     ...initialData
   })
 
@@ -65,11 +66,22 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
         className="w-full border rounded p-2"
       />
 
+
       <input
         type="number"
         name="participant_capacity"
         placeholder="Participant Capacity"
         value={form.participant_capacity ?? ""}
+        onChange={handleChange}
+        className="w-full border rounded p-2"
+      />
+
+      <input
+        type="number"
+        name="no_show_minutes"
+        placeholder="No-Show Timeout (minutes)"
+        value={form.no_show_minutes ?? 15}
+        min={1}
         onChange={handleChange}
         className="w-full border rounded p-2"
       />

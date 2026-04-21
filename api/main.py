@@ -9,10 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from models import events, participants
 
 # Import routers
-from routers import events as events_router
-from routers import auth
-from routers import admin_events
-from routers import admin_participants
+
+
+from routers.events import router as events_router
+from routers.auth import router as auth_router
+from routers.admin_events import router as admin_events_router
+from routers.admin_participants import router as admin_participants_router
+from ws_manager import router as ws_router
 
 app = FastAPI(redirect_slashes=False)
 
@@ -26,10 +29,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(admin_participants.router, prefix="/admin", tags=["Admin Participants"])
-app.include_router(admin_events.router)
-app.include_router(events_router.router)
-app.include_router(auth.router)
+
+
+# Register all routers
+app.include_router(events_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+app.include_router(admin_events_router, prefix="/api")
+app.include_router(admin_participants_router, prefix="/api")
+app.include_router(ws_router, prefix="/api")
 
 origins = [
     "http://localhost:5173",

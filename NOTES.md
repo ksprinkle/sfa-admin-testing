@@ -1,3 +1,34 @@
+# Recent Changes (Spring 2026)
+
+## Priority System & UI/UX Overhaul
+- Participant priority is now a 3-level system:
+  - 1 = High (Red)
+  - 2 = Medium (Yellow)
+  - 3 = Low (Gray)
+  - 0 = Unset (Gray)
+- Priority can only be changed from the **Participants** page (table view) using a dropdown.
+- On the **Event Participants** page, priority is display-only (color dot, no controls).
+- Priority legend is visible at the top right of the Event Participants page.
+- Drag-and-drop session assignment for participants remains available.
+- When attempting to drag a participant into a full session, a notification appears at the top of the page with a close button.
+- All error and status notifications are now more visible and user-friendly.
+
+## Backend/API Updates
+- Priority update endpoint expects the priority as a query parameter (not JSON body).
+- All priority values are clamped between 0 and 3 on the backend.
+- Participant model and schema updated to reflect new priority logic.
+- Event title is now correctly displayed for each participant (fixed test data issue).
+
+## Dashboard & Stats
+- Dashboard and event detail stats now accurately reflect checked-in, waitlisted, and confirmed participants.
+- Capacity bar and participant counts are always up-to-date and correct.
+
+## General Improvements & Bug Fixes
+- All participant tables now show priority with a colored dot and legend.
+- Consistent color logic and legend across all participant views.
+- Improved error handling and UI feedback for all participant actions.
+- Fixed duplicate function declarations and improved code maintainability.
+- Cleaned up debug logs and improved developer experience.
 Surfers For Autism – Admin PWA
 
 Admin dashboard and event operations system for the Surfers For Autism platform.

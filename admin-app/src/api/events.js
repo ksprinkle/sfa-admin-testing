@@ -3,7 +3,7 @@ import { apiFetch } from "./api"
 const API = "http://localhost:8000"
 
 export async function createEvent(data) {
-  const res = await apiFetch("/admin/events/", {
+  const res = await apiFetch("/api/admin/events/", {
     method: "POST",
     body: JSON.stringify(data)
   })
@@ -16,7 +16,7 @@ export async function createEvent(data) {
 }
 
 export async function fetchEvents() {
-  const res = await apiFetch("/admin/events/")
+  const res = await apiFetch("/api/admin/events/")
 
   if (!res.ok) {
     throw new Error("Failed to fetch events")
@@ -26,7 +26,7 @@ export async function fetchEvents() {
 }
 
 export async function archiveEvent(eventId) {
-  const res = await apiFetch(`/admin/events/${eventId}`, {
+  const res = await apiFetch(`/api/admin/events/${eventId}`, {
     method: "PUT",
     body: JSON.stringify({
       status: "archived"
@@ -41,7 +41,7 @@ export async function archiveEvent(eventId) {
 }
 
 export async function deleteEvent(eventId) {
-  const res = await apiFetch(`/admin/events/${eventId}`, {
+  const res = await apiFetch(`/api/admin/events/${eventId}`, {
     method: "DELETE"
   })
 
@@ -52,8 +52,8 @@ export async function deleteEvent(eventId) {
   return res.json()
 }
 
- export async function fetchEventParticipants(eventId) {
-  const res = await apiFetch(`/admin/events/${eventId}/participants`)
+export async function fetchEventParticipants(eventId) {
+  const res = await apiFetch(`/api/admin/events/${eventId}/participants`)
 
   if (!res.ok) {
     throw new Error("Failed to fetch participants")
@@ -64,8 +64,8 @@ export async function deleteEvent(eventId) {
 
 
 
- export async function fetchAllParticipants() {
-  const res = await apiFetch("/admin/participants/")
+export async function fetchAllParticipants() {
+  const res = await apiFetch("/api/admin/participants/")
 
   if (!res.ok) {
     throw new Error("Failed to fetch participants")
@@ -76,7 +76,7 @@ export async function deleteEvent(eventId) {
 
 export async function checkInParticipant(participantId) {
   const res = await apiFetch(
-    `/admin/participants/${participantId}/checkin`,
+    `/api/admin/participants/${participantId}/checkin`,
     { method: "PATCH" }
   )
 
@@ -90,7 +90,7 @@ export async function checkInParticipant(participantId) {
 
 export async function promoteParticipant(participantId) {
   const res = await apiFetch(
-    `/admin/participants/${participantId}/promote`,
+    `/api/admin/participants/${participantId}/promote`,
     { method: "PATCH" }
   )
 
@@ -104,7 +104,7 @@ export async function promoteParticipant(participantId) {
 
 export async function removeParticipant(participantId) {
   const res = await apiFetch(
-    `/admin/participants/${participantId}`,
+    `/api/admin/participants/${participantId}`,
     { method: "DELETE" }
   )
 
@@ -118,7 +118,7 @@ export async function removeParticipant(participantId) {
 
 export async function verifyWaiver(participantId) {
   const res = await apiFetch(
-    `/admin/participants/${participantId}/action`,
+    `/api/admin/participants/${participantId}/action`,
     {
       method: "POST",
       body: JSON.stringify({
@@ -135,12 +135,19 @@ export async function verifyWaiver(participantId) {
   return res.json()
 }
 
-export const fetchEventSummary = (eventId) =>
-  apiFetch(`/admin/events/${eventId}/summary`);
+export async function fetchEventSummary(eventId) {
+  const res = await apiFetch(`/api/admin/events/${eventId}/summary`)
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch event summary")
+  }
+
+  return res.json()
+}
 
 export async function updateParticipantSession(participantId, sessionId) {
   const res = await apiFetch(
-    `/admin/participants/${participantId}/session`,
+    `/api/admin/participants/${participantId}/session`,
     {
       method: "PATCH",
       headers: {
@@ -162,16 +169,11 @@ export async function updateParticipantSession(participantId, sessionId) {
 }
 
 export async function updateParticipantPriority(participantId, priority) {
+  // Send priority as query param to match FastAPI signature
   const res = await apiFetch(
-    `/admin/participants/${participantId}/priority`,
+    `/api/admin/participants/${participantId}/priority?priority=${priority}`,
     {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        priority,
-      }),
+      method: "PATCH"
     }
   )
 

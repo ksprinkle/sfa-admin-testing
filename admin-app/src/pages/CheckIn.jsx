@@ -44,6 +44,16 @@ export default function CheckIn() {
     setSelectedParticipants([])
   }
 
+  // Utility: Refresh participants from API
+  async function refreshParticipants() {
+    try {
+      const data = await fetchEventParticipants(eventId)
+      setParticipants(data)
+    } catch (err) {
+      console.error("Failed to refresh participants", err)
+    }
+  }
+
   async function handleCheckIn(participantIds) {
     if (participantIds.length === 0) return
 
@@ -66,14 +76,8 @@ export default function CheckIn() {
       }
     }
 
-    // Update local state for successful check-ins
-    setParticipants(prev =>
-      prev.map(p =>
-        results.find(r => r.id === p.id && r.success)
-          ? { ...p, checked_in: true }
-          : p
-      )
-    )
+    // Always refresh after check-in
+    await refreshParticipants()
 
     // Show error message for waiver issues
     if (waiverErrors.length > 0) {
@@ -107,10 +111,16 @@ export default function CheckIn() {
   return (
 
     <div className="p-6 space-y-4">
-
-      <h1 className="text-2xl font-semibold">
-        Event Check-In
-      </h1>
+      <div className="flex items-center mb-4">
+        <h1 className="text-2xl font-semibold flex-1">Event Check-In</h1>
+        <button
+          onClick={refreshParticipants}
+          className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+          title="Refresh participants"
+        >
+          ↻ Refresh
+        </button>
+      </div>
 
       <input
         ref={searchRef}

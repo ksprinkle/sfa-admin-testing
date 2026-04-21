@@ -13,7 +13,7 @@ class ParticipantCreate(BaseModel):
     email: EmailStr
     role: str = "participant"
     is_minor: bool = False
-    priority: int = 0
+    priority: int = 0  # 0 = unset, 1 = high, 2 = medium, 3 = low
 
     class Config:
         from_attributes = True
