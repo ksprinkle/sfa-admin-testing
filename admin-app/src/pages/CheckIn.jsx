@@ -4,6 +4,33 @@ import { fetchEventParticipants, checkInParticipant } from "../api/events"
 
 const CHECKIN_QUEUE_KEY = "sfa.offline.checkin.queue"
 const EVENT_MODE_KEY = "sfa.event.mode"
+const PRIORITY_LEVELS = [
+  { value: 1, label: "High", dotClass: "bg-red-500" },
+  { value: 2, label: "Medium", dotClass: "bg-amber-400" },
+  { value: 3, label: "Low", dotClass: "bg-gray-500" },
+  { value: 0, label: "Unset", dotClass: "bg-gray-300" },
+]
+
+function getPriorityLevel(priority) {
+  const clamped = Math.max(0, Math.min(3, Number(priority ?? 0)))
+  return PRIORITY_LEVELS.find((level) => level.value === clamped) || PRIORITY_LEVELS[3]
+}
+
+function PriorityLegend() {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+      <span className="font-semibold uppercase tracking-wide text-gray-500">Priority legend</span>
+      {PRIORITY_LEVELS.map((level) => (
+        <span key={level.value} className="inline-flex items-center gap-2">
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white">
+            <span className={`h-2.5 w-2.5 rounded-full ${level.dotClass}`} />
+          </span>
+          <span>{level.label}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
 
 function getQueuedCheckIns() {
   try {
@@ -470,6 +497,8 @@ export default function CheckIn() {
         className="w-full border rounded p-3 text-lg"
       />
 
+      <PriorityLegend />
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {error}
@@ -503,16 +532,17 @@ export default function CheckIn() {
 
       <div className="space-y-2">
 
-        {filtered.map(p => (
-
-          <div
-            key={p.id}
-            onMouseDown={handleRowMouseDown}
-            onClick={() => toggleParticipantSelection(p.id)}
-            className={`flex justify-between items-center p-4 rounded shadow cursor-pointer transition
+        {filtered.map((p) => {
+          const priorityLevel = getPriorityLevel(p.priority)
+          return (
+            <div
+              key={p.id}
+              onMouseDown={handleRowMouseDown}
+              onClick={() => toggleParticipantSelection(p.id)}
+              className={`flex justify-between items-center p-4 rounded shadow cursor-pointer transition
               ${selectedParticipants.includes(p.id) ? "bg-blue-100 border-2 border-blue-600 ring-2 ring-blue-300" : "bg-white hover:bg-gray-50 border border-transparent"}
             `}
-          >
+            >
 
             {/* Checkbox */}
             <div className="flex items-center gap-3 flex-1">
@@ -534,17 +564,23 @@ export default function CheckIn() {
                   {p.email}
                 </p>
 
+                <p className="mt-1 inline-flex items-center gap-2 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white">
+                    <span className={`h-2.5 w-2.5 rounded-full ${priorityLevel.dotClass}`} />
+                  </span>
+                  Priority: {priorityLevel.label}
+                </p>
+
               </div>
 
               {!eventMode && (
                 <div className="text-center">
-                  <div className={`text-xs px-2 py-1 rounded ${
-                    p.waiver_verified 
-                      ? "bg-green-100 text-green-800" 
-                      : "bg-red-100 text-red-800"
+                  <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${
+                    p.waiver_verified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
                   }`}>
-                    {p.waiver_verified ? "✓ Waiver Verified" : "⚠ Waiver Pending"}
-                  </div>
+                    <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.waiver_verified ? "bg-green-500" : "bg-red-500"}`} />
+                    {p.waiver_verified ? "Waiver Verified" : "Waiver Pending"}
+                  </span>
                 </div>
               )}
 
@@ -553,16 +589,19 @@ export default function CheckIn() {
             {/* Status */}
             <div className="text-right ml-4">
               {p.checked_in ? (
-                <span className="text-green-700 font-medium">
-                  🟢 Checked In
+                <span className="inline-flex items-center gap-2 text-green-700 font-medium">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
+                  Checked In
                 </span>
               ) : p.is_waitlisted ? (
-                <span className="text-yellow-600 font-medium">
-                  🟡 Waitlisted
+                <span className="inline-flex items-center gap-2 text-yellow-700 font-medium">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                  Waitlisted
                 </span>
               ) : (
-                <span className="text-red-700 font-medium block mb-2">
-                  🔴 Not Checked In
+                <span className="inline-flex items-center gap-2 text-red-700 font-medium mb-2">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                  Not Checked In
                 </span>
               )}
 
@@ -580,9 +619,9 @@ export default function CheckIn() {
               )}
             </div>
 
-          </div>
-
-        ))}
+            </div>
+          )
+        })}
 
       </div>
 

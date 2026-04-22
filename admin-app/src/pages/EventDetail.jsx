@@ -18,6 +18,12 @@ import {
 import { DragOverlay } from "@dnd-kit/core"
 
 const EVENT_MODE_KEY = "sfa.event.mode"
+const PRIORITY_LEVELS = [
+  { value: 1, label: "High", dotClass: "bg-red-500" },
+  { value: 2, label: "Medium", dotClass: "bg-amber-400" },
+  { value: 3, label: "Low", dotClass: "bg-gray-500" },
+  { value: 0, label: "Unset", dotClass: "bg-gray-300" },
+]
 
 function EventDetail() {
     const [noShows, setNoShows] = useState([])
@@ -122,14 +128,18 @@ function EventDetail() {
     return () => window.clearInterval(intervalId);
   }, [eventId]);
 
-  // Priority Legend (top right)
+  // Priority legend kept consistent with Participants page.
   const PriorityLegend = () => (
-      <div className="absolute top-4 right-8 flex gap-4 items-center bg-white bg-opacity-90 px-4 py-2 rounded shadow z-20">
-        <span className="font-semibold text-sm">Priority Legend:</span>
-        <span className="flex items-center gap-1 text-xs"><span className="inline-block w-3 h-3 rounded-full bg-red-500 border border-gray-300 mr-1" />1 (High)</span>
-        <span className="flex items-center gap-1 text-xs"><span className="inline-block w-3 h-3 rounded-full bg-yellow-400 border border-gray-300 mr-1" />2 (Medium)</span>
-        <span className="flex items-center gap-1 text-xs"><span className="inline-block w-3 h-3 rounded-full bg-gray-400 border border-gray-300 mr-1" />3 (Low)</span>
-        <span className="flex items-center gap-1 text-xs"><span className="inline-block w-3 h-3 rounded-full bg-gray-300 border border-gray-300 mr-1" />0 (Unset)</span>
+      <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+        <span className="font-semibold uppercase tracking-wide text-gray-500">Priority legend</span>
+        {PRIORITY_LEVELS.map((level) => (
+          <span key={level.value} className="inline-flex items-center gap-2">
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white">
+              <span className={`h-2.5 w-2.5 rounded-full ${level.dotClass}`} />
+            </span>
+            <span>{level.label}</span>
+          </span>
+        ))}
       </div>
     );
   const navigate = useNavigate()
@@ -392,10 +402,10 @@ function EventDetail() {
     const minPriority = 1;
     const maxPriority = 3;
     const clampedPriority = Math.max(0, Math.min(maxPriority, p.priority));
-    let dotColor = "bg-gray-400";
+    let dotColor = "bg-gray-500";
     if (clampedPriority === 1) dotColor = "bg-red-500";
-    else if (clampedPriority === 2) dotColor = "bg-yellow-400";
-    else if (clampedPriority === 3) dotColor = "bg-gray-400";
+    else if (clampedPriority === 2) dotColor = "bg-amber-400";
+    else if (clampedPriority === 3) dotColor = "bg-gray-500";
     else if (clampedPriority === 0) dotColor = "bg-gray-300";
     // Priority arrow controls
     const handlePriorityChange = async (delta) => {
@@ -438,14 +448,32 @@ function EventDetail() {
         <div className="text-xs text-gray-500">
           {p.email}
         </div>
-        <div className="mt-1 text-xs font-medium">
-          {p.checked_in ? (
-            <span className="text-green-700">🟢 Checked In</span>
-          ) : p.is_waitlisted ? (
-            <span className="text-yellow-700">🟡 Waitlisted</span>
-          ) : (
-            <span className="text-red-700">🔴 Not Checked In</span>
-          )}
+        <div className="mt-1 text-xs font-medium space-y-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${
+                p.checked_in
+                  ? "bg-green-500"
+                  : p.is_waitlisted
+                  ? "bg-yellow-400"
+                  : "bg-red-500"
+              }`}
+            />
+            <span className={p.checked_in ? "text-green-700" : p.is_waitlisted ? "text-yellow-700" : "text-red-700"}>
+              {p.checked_in ? "Checked In" : p.is_waitlisted ? "Waitlisted" : "Not Checked In"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${
+                p.waiver_verified ? "bg-green-500" : "bg-red-500"
+              }`}
+            />
+            <span className={p.waiver_verified ? "text-green-700" : "text-red-700"}>
+              {p.waiver_verified ? "Waiver Verified" : "Waiver Pending"}
+            </span>
+          </div>
         </div>
         {!eventMode && (
           <div className="flex items-center justify-between mt-1">
@@ -463,7 +491,6 @@ function EventDetail() {
 
   return (
     <div className="relative p-6 space-y-6" onClick={() => setSelectedIds([])}>
-      {!eventMode && <PriorityLegend />}
 
       {/* Drag error notification at top of page */}
       {dragError && (
@@ -496,6 +523,8 @@ function EventDetail() {
           ↻ Refresh
         </button>
       </h1>
+
+      {!eventMode && <PriorityLegend />}
 
       {!eventMode && (
         <div className="mb-4 flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
