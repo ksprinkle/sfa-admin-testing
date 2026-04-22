@@ -17,6 +17,8 @@ import {
 
 import { DragOverlay } from "@dnd-kit/core"
 
+const EVENT_MODE_KEY = "sfa.event.mode"
+
 function EventDetail() {
     const [noShows, setNoShows] = useState([])
     const [promoteLoading, setPromoteLoading] = useState(false)
@@ -98,6 +100,7 @@ function EventDetail() {
   // (eventId already declared above)
 
   const [participants, setParticipants] = useState([])
+  const [eventMode, setEventMode] = useState(localStorage.getItem(EVENT_MODE_KEY) === "on")
   const [eventStartAt, setEventStartAt] = useState(null)
   const [nowMs, setNowMs] = useState(Date.now())
   const [loading, setLoading] = useState(true)
@@ -243,6 +246,14 @@ function EventDetail() {
       text: "🟢 All non-waitlisted participants checked in",
       className: "text-green-700",
     }
+  }
+
+  const toggleEventMode = () => {
+    setEventMode((prev) => {
+      const next = !prev
+      localStorage.setItem(EVENT_MODE_KEY, next ? "on" : "off")
+      return next
+    })
   }
 
   // ✅ stable move logic extracted to a function
@@ -400,12 +411,14 @@ function EventDetail() {
             <span className="text-red-700">🔴 Not Checked In</span>
           )}
         </div>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-xs flex items-center gap-2">
-            Priority:
-            <span className={`inline-block w-4 h-4 rounded-full border-2 ${dotColor} border-gray-300`} />
-          </span>
-        </div>
+        {!eventMode && (
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-xs flex items-center gap-2">
+              Priority:
+              <span className={`inline-block w-4 h-4 rounded-full border-2 ${dotColor} border-gray-300`} />
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -414,7 +427,7 @@ function EventDetail() {
 
   return (
     <div className="relative p-6 space-y-6" onClick={() => setSelectedIds([])}>
-      <PriorityLegend />
+      {!eventMode && <PriorityLegend />}
 
       {/* Drag error notification at top of page */}
       {dragError && (
@@ -433,6 +446,13 @@ function EventDetail() {
       <h1 className="text-2xl font-semibold flex items-center gap-4">
         Event Participants
         <button
+          onClick={toggleEventMode}
+          className={`ml-2 px-3 py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}
+          title="Toggle simplified event-day UI"
+        >
+          Event Mode {eventMode ? "ON" : "OFF"}
+        </button>
+        <button
           onClick={() => { refreshParticipants(); refreshNoShows(); }}
           className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
           title="Refresh participants"
@@ -441,25 +461,26 @@ function EventDetail() {
         </button>
       </h1>
 
-      {/* No-Show UI */}
-      <div className="mb-4 flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold">No-Show Candidates:</span>
-          <span className="text-red-600 font-bold">{noShows.length}</span>
+      {!eventMode && (
+        <div className="mb-4 flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">No-Show Candidates:</span>
+            <span className="text-red-600 font-bold">{noShows.length}</span>
+          </div>
+          <button
+            onClick={handlePromoteNoShows}
+            disabled={promoteLoading || noShows.length === 0}
+            className={`px-4 py-2 rounded text-white ${promoteLoading || noShows.length === 0 ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            {promoteLoading ? 'Promoting...' : 'Promote Waitlist to Fill No-Shows'}
+          </button>
+          {noShowError && <span className="text-red-500 text-sm">{noShowError}</span>}
         </div>
-        <button
-          onClick={handlePromoteNoShows}
-          disabled={promoteLoading || noShows.length === 0}
-          className={`px-4 py-2 rounded text-white ${promoteLoading || noShows.length === 0 ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
-        >
-          {promoteLoading ? 'Promoting...' : 'Promote Waitlist to Fill No-Shows'}
-        </button>
-        {noShowError && <span className="text-red-500 text-sm">{noShowError}</span>}
-      </div>
+      )}
 
       <button
         onClick={() => navigate(`/events/${eventId}/checkin`)}
-        className="w-full bg-green-600 text-white py-4 rounded-xl font-semibold"
+        className={`w-full bg-green-600 text-white rounded-xl font-semibold ${eventMode ? "py-6 text-2xl" : "py-4"}`}
       >
         ✔ Start Event Check-In
       </button>
