@@ -58,24 +58,25 @@ import ParticipantActionsDropdown from "../components/ParticipantActionsDropdown
 
 export default function Participants() {
 
-
-
+  const [priorityError, setPriorityError] = useState("")
+  const [actionError, setActionError] = useState("")
 
   // Move handlePriorityChange inside the component
   async function handlePriorityChange(participantId, newPriority) {
+    // Optimistic update
+    setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, priority: newPriority } : p))
+    setPriorityError("")
     try {
       await updateParticipantPriority(participantId, newPriority);
-      await refreshParticipants();
     } catch (err) {
-      // Log the error object for debugging
       console.error('Priority update error:', err);
-      let message = 'Failed to update priority';
-      if (err && err.message) {
-        message += `: ${err.message}`;
-      } else if (typeof err === 'string') {
-        message += `: ${err}`;
-      }
-      alert(message);
+      // Roll back
+      setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, priority: p.priority } : p))
+      const msg = err?.message || "Unknown error"
+      const isOffline = !navigator.onLine || msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("network")
+      setPriorityError(isOffline
+        ? "Priority change couldn't be saved — no connection. Changes will be lost on refresh."
+        : `Failed to update priority: ${msg}`)
     }
   }
   // Use a ref to always get the latest refreshParticipants
@@ -98,24 +99,60 @@ export default function Participants() {
 
   // WebSocket: Listen for real-time updates and refresh participants
   useEffect(() => {
-    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsUrl = `${wsProtocol}://${window.location.hostname}:8000/ws/updates`;
-    const ws = new window.WebSocket(wsUrl);
+    const apiBase = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`
+    const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates";
+    let ws = null;
+    let reconnectTimer = null;
+    let isCancelled = false;
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "participant_update") {
-          if (refreshRef.current) refreshRef.current();
+    const connect = () => {
+      if (isCancelled) return;
+      ws = new window.WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "participant_update") {
+            if (refreshRef.current) refreshRef.current();
+          }
+        } catch (e) {
+          // Ignore parse errors
         }
-      } catch (e) {
-        // Ignore parse errors
-      }
+      };
+
+      ws.onclose = () => {
+        if (isCancelled) return;
+        reconnectTimer = window.setTimeout(connect, 1000);
+      };
+
+      ws.onerror = () => {
+        // Let onclose handle reconnect timing.
+      };
     };
+
+    connect();
 
     return () => {
-      ws.close();
+      isCancelled = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
+      if (ws && ws.readyState === window.WebSocket.OPEN) {
+        ws.close();
+      }
     };
+  }, []);
+
+  // Fallback sync: periodically refresh while visible to avoid stale UI if
+  // websocket reconnect is delayed on some devices/networks.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        if (refreshRef.current) refreshRef.current();
+      }
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   const [participants, setParticipants] = useState([])
@@ -146,51 +183,55 @@ export default function Participants() {
   }, [refreshParticipants]);
 
   async function handleCheckIn(participantId) {
+    setActionError("")
     try {
       await checkInParticipant(participantId)
       await refreshParticipants()
     } catch (err) {
       console.error(err)
-      const errorMessage = err.message || "Failed to check in participant"
-      if (errorMessage.includes("Waiver not verified")) {
-        alert("Cannot check in participant. Waiver receipt must be verified prior to check-in.")
+      const msg = err.message || "Failed to check in participant"
+      const isOffline = !navigator.onLine || msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("network")
+      if (isOffline) {
+        setActionError("Check-in couldn't be saved — no connection. Try again when Wi-Fi is back.")
+      } else if (msg.includes("Waiver not verified")) {
+        setActionError("Cannot check in: waiver must be verified first.")
       } else {
-        alert(errorMessage)
+        setActionError(`Check-in failed: ${msg}`)
       }
     }
   }
 
   async function handleRemove(participantId) {
     if (!confirm("Remove this participant from the event?")) return
+    setActionError("")
     try {
       await removeParticipant(participantId)
       await refreshParticipants()
     } catch (err) {
       console.error(err)
-      const errorMessage = err.message || "Failed to remove participant"
-      alert(errorMessage)
+      setActionError(`Failed to remove: ${err.message || "Unknown error"}`)
     }
   }
 
   async function handlePromote(participantId) {
+    setActionError("")
     try {
       await promoteParticipant(participantId)
       await refreshParticipants()
     } catch (err) {
       console.error(err)
-      const errorMessage = err.message || "Failed to promote participant"
-      alert(errorMessage)
+      setActionError(`Failed to promote: ${err.message || "Unknown error"}`)
     }
   }
 
   async function handleVerifyWaiver(participantId) {
+    setActionError("")
     try {
       await verifyWaiver(participantId)
       await refreshParticipants()
     } catch (err) {
       console.error(err)
-      const errorMessage = err.message || "Failed to verify waiver"
-      alert(errorMessage)
+      setActionError(`Failed to verify waiver: ${err.message || "Unknown error"}`)
     }
   }
 
@@ -209,6 +250,19 @@ export default function Participants() {
       </div>
       
 {/* Search bar with count of filtered participants */ }   
+      {priorityError && (
+        <div className="mb-3 bg-amber-100 border border-amber-400 text-amber-800 px-4 py-2 rounded text-sm">
+          {priorityError}
+
+              {actionError && (
+                <div className="mb-3 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm flex justify-between items-center">
+                  <span>{actionError}</span>
+                  <button onClick={() => setActionError("")} className="ml-4 text-red-500 font-bold">✕</button>
+                </div>
+              )}
+        </div>
+      )}
+
       <div className="mb-4 text-center sticky top-0 bg-warmbg z-10 pb-2">
 
         <input

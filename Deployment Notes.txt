@@ -1,0 +1,29 @@
+Deployment Notes
+
+These additions are mainly for when you move from local testing to real event operations.
+
+When each thing is necessary
+
+Daily development (what you’ve been doing now):
+Not necessary.
+Keep using your local servers and test flow as usual.
+First real cloud deployment (before beach/event use on cellular):
+Necessary.
+This is when render.yaml and the backend env/config updates matter.
+Reason: local laptop/LAN setup won’t work reliably for devices on cellular data.
+Each production release (new version before an event):
+Helpful, optional but recommended.
+release-preflight.ps1: checks “is this safe to release?”
+create-release-tag.ps1: marks a version in git so you can roll back/find exactly what was deployed.
+generate-release-summary.ps1: creates a one-page ops checklist and release record.
+In plain language
+
+render.yaml = “how to create hosting services”
+preflight script = “quick safety checks”
+release tag script = “label this exact version”
+summary script = “event-day notes/checklist”
+What this means for you right now
+
+If you are not deploying yet: ignore these for now.
+When you’re ready to deploy to Render: we’ll use them.
+Before each event release: run preflight + tag + summary (takes a few minutes).

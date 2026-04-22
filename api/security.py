@@ -2,11 +2,11 @@ from fastapi import Header
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
-import os
+from api.config import settings
 
-SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", "dev-secret-key")
+SECRET_KEY = settings.BACKEND_SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

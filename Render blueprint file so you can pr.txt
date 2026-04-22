@@ -1,0 +1,54 @@
+Render blueprint file so you can provision API, frontend, and Postgres in one go instead of manual service-by-service setup.
+
+I set up the repo so we can actually execute the all-Render path.
+
+Code and config changes made:
+
+Environment-driven backend config in config.py
+Database URL now uses env var and supports Render postgres URL format in session.py
+CORS is now env-driven with safer production behavior in main.py
+JWT secret and token expiry now come from env settings in security.py
+Production dependencies added in requirements.txt
+Render blueprint added in render.yaml
+What this gives you:
+
+Local dev still works with SQLite defaults.
+Production can use managed Postgres without code changes.
+You can provision API, static frontend, and database from one blueprint file.
+All-Render deployment plan
+
+Commit and push current branch to your Git provider.
+In Render, choose New + Blueprint and select this repo.
+Render will read render.yaml and create:
+sfa-api web service
+sfa-admin static site
+sfa-db postgres database
+Wait for initial build/deploy to finish.
+In Render dashboard, open sfa-admin service and copy its public URL.
+In sfa-api environment variables, set CORS_ORIGINS to that exact sfa-admin URL.
+Redeploy sfa-api once after setting CORS_ORIGINS.
+Verify:
+API root loads
+login works from sfa-admin
+websocket updates work
+offline queue and reconnect sync work on two devices
+If Render rejects the VITE_API_URL fromService reference in blueprint:
+
+Set VITE_API_URL manually in sfa-admin env vars to your sfa-api URL.
+Trigger static site rebuild.
+15-minute beach-day runbook
+
+T-15: Open app on two devices over cellular and log in.
+T-12: Check in one participant on device A; confirm device B auto-updates.
+T-10: Airplane mode on for device A, check in 2 participants, verify pending queue appears.
+T-8: Airplane mode off on device A, verify queue drains to zero.
+T-7: Confirm those same check-ins appear on device B without manual refresh.
+T-5: Quick stress pass, check in 3 more rapidly and verify no duplicates.
+T-3: Confirm at least one backup device remains logged in.
+T-0: Start normal operations.
+Live incident quick actions
+
+If one device loses data signal, keep using it offline; do not clear storage.
+If queue does not drain after signal returns, keep app open 30-60 seconds and tap refresh once.
+If one device is unstable, continue operations on second logged-in device.
+If all devices temporarily fail network, continue check-ins on one device and let queue flush when signal returns.

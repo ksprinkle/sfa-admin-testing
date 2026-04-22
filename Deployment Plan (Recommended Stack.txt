@@ -1,0 +1,191 @@
+Deployment Plan (Recommended Stack: Render API + Render Postgres + Netlify Frontend)
+
+Create production database
+
+In Render, create a new PostgreSQL instance.
+
+Copy the internal database URL for backend use.
+
+Enable daily backups.
+
+Deploy backend API on Render
+
+Create a new Web Service from your Git repo.
+
+Root directory: project root.
+
+Build command: pip install -r requirements.txt
+
+Start command: python -m uvicorn main:app --app-dir api --host 0.0.0.0 --port $PORT
+
+Add environment variables:
+
+DATABASE_URL = render postgres url
+SECRET_KEY = long random string
+ACCESS_TOKEN_EXPIRE_MINUTES = 720
+ENVIRONMENT = production
+CORS_ORIGINS = https://your-admin-domain
+Deploy once.
+Run migrations: alembic upgrade head
+Confirm health:
+Open https://your-api-domain/openapi.json
+Verify websocket endpoint reachable at wss://your-api-domain/api/ws/updates
+Deploy frontend admin app on Netlify
+Create new site from Git.
+Base directory: admin-app
+Build command: npm ci && npm run build
+Publish directory: admin-app/dist
+Add environment variable:
+VITE_API_URL = https://your-api-domain
+Deploy and open the site.
+
+Login and verify API calls are successful.
+
+Backend production hardening
+
+Restrict CORS to only your real admin domain.
+
+Ensure secure cookies or token handling is appropriate for HTTPS.
+
+Keep websocket reconnect and polling fallback enabled (already done).
+
+Keep no-store fetch behavior in production for check-in freshness.
+
+Set log retention and alerting in Render.
+
+DNS and SSL
+
+Point custom domains:
+
+Admin app domain to Netlify
+API domain to Render
+Ensure both are HTTPS valid before event day.
+
+Confirm frontend uses HTTPS and websocket upgrades to WSS.
+
+Go-live verification
+
+Two devices on different networks.
+
+Login both.
+
+Check in from one device.
+
+Verify second device auto-updates.
+
+Run offline queue test:
+
+airplane mode on
+check in
+airplane mode off
+verify queue drains and second device updates
+Environment Variable Template
+
+Frontend
+
+VITE_API_URL = https://your-api-domain
+Backend
+
+DATABASE_URL = your production postgres url
+SECRET_KEY = long random secret
+ACCESS_TOKEN_EXPIRE_MINUTES = 720
+ENVIRONMENT = production
+CORS_ORIGINS = https://your-admin-domain
+Optional
+
+LOG_LEVEL = info
+SENTRY_DSN = if you use Sentry
+15-Minute Pre-Event Runbook (Beach Day)
+
+T-15 minutes: service checks
+
+Open admin app on two devices.
+
+Confirm both can login over cellular.
+
+Confirm event and participant list loads.
+
+T-12 minutes: sync checks
+
+On device A, check in one participant.
+
+Confirm device B reflects update automatically within a few seconds.
+
+T-10 minutes: offline queue drill
+
+Device A airplane mode on.
+
+Check in 2 participants.
+
+Confirm local UI updates and pending queue indicator appears.
+
+Airplane mode off.
+
+Confirm pending queue returns to zero.
+
+Confirm device B receives both updates.
+
+T-7 minutes: stress mini-test
+
+Check in 3 more quickly on device A.
+
+Verify no duplicate or missing check-ins.
+
+Verify waiver constraints still enforced.
+
+T-5 minutes: operator readiness
+
+Keep at least two logged-in devices active.
+
+Keep one backup power bank available.
+
+Ensure at least one fallback hotspot is available.
+
+During Event: Quick Decision Guide
+
+If check-ins are slow but working
+
+Continue operations.
+
+Let queue sync in background.
+
+If device loses data signal
+
+Keep checking participants in.
+
+Queue will hold pending items.
+
+Do not clear app storage or uninstall app.
+
+If queue does not drain after signal returns
+
+Keep app open for 30 to 60 seconds.
+
+Tap refresh once.
+
+Toggle airplane mode off and on once.
+
+Confirm API reachable by loading participant list.
+
+If one device is stuck
+
+Continue check-ins on second device.
+
+First device can recover and sync later.
+
+Avoid double-checking same person manually until sync confirms.
+
+If all devices fail to reach backend
+
+Continue offline check-ins on at least one device.
+
+Restore connectivity path (move location, hotspot fallback).
+
+Allow queue to flush when network returns.
+
+Post-Event Reconciliation (5 minutes)
+
+Confirm queue count is zero on all devices.
+Refresh participants and verify expected total checked-in count.
+Export or snapshot database backup after event.
+Record any connectivity incidents for next event improvements.

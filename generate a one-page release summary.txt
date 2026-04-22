@@ -1,0 +1,32 @@
+generate a one-page release summary with tag, commit hash, URLs, and an operator checklist, then I’ll validate it the same way as the other scripts.
+
+Created generate-release-summary.ps1
+
+I’ll share exact run commands so you can generate a release note in one step.
+
+generate-release-summary.ps1
+What it generates:
+
+version
+timestamp
+branch
+full and short commit hash
+admin app URL
+API URL
+websocket URL
+pre-event verification checklist
+incident fallback checklist
+sign-off section
+Output location:
+
+defaults to release-notes/<version>.md
+optional custom path via -OutputPath
+Run example:
+
+
+powershell -ExecutionPolicy Bypass -File .\scripts\generate-release-summary.ps1 `  -Version v2026.04.22-1 `  -AdminUrl https://your-admin.onrender.com `  -ApiUrl https://your-api.onrender.com
+Custom output example:
+
+
+powershell -ExecutionPolicy Bypass -File .\scripts\generate-release-summary.ps1 `  -Version v2026.04.22-1 `  -AdminUrl https://your-admin.onrender.com `  -ApiUrl https://your-api.onrender.com `  -OutputPath .\release-notes\beach-day-release.md
+I also syntax-validated the script successfully.

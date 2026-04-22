@@ -1,3 +1,9 @@
 fastapi
 uvicorn
 pydantic
+sqlalchemy
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+psycopg2-binary

@@ -6,6 +6,7 @@ import PriorityDropdown from "../pages/Participants.jsx";
 function ParticipantTable({ participants, onCheckIn }) {
   const [rows, setRows] = useState(participants)
   const [search, setSearch] = useState("")
+  const [priorityError, setPriorityError] = useState("")
 
   const filteredParticipants = rows.filter(p =>
     `${p.first_name} ${p.last_name} ${p.email}`
@@ -17,13 +18,21 @@ function ParticipantTable({ participants, onCheckIn }) {
   const maxPriority = 3;
   async function handlePriorityChange(id, newPriority) {
     const clamped = Math.max(minPriority, Math.min(maxPriority, newPriority));
+    // Optimistic update first
+    setRows(prev => prev.map(part =>
+      part.id === id ? { ...part, priority: clamped } : part
+    ));
+    setPriorityError("")
     try {
       await updateParticipantPriority(id, clamped);
-      setRows(prev => prev.map(part =>
-        part.id === id ? { ...part, priority: clamped } : part
-      ));
     } catch (err) {
-      alert("Failed to update priority");
+      // Roll back on hard failure
+      setRows(prev => prev.map(part =>
+        part.id === id ? { ...part, priority: newPriority } : part
+      ));
+      const msg = err?.message || "Unknown error"
+      const isOffline = !navigator.onLine || msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("network")
+      setPriorityError(isOffline ? "Priority change couldn't be saved — no connection. Changes will be lost on refresh." : `Failed to update priority: ${msg}`)
     }
   }
 
@@ -48,6 +57,11 @@ function ParticipantTable({ participants, onCheckIn }) {
                   autoFocus
                 />
               </div>
+              {priorityError && (
+                <div className="mb-3 bg-amber-100 border border-amber-400 text-amber-800 px-4 py-2 rounded text-sm">
+                  {priorityError}
+                </div>
+              )}
               {/* TABLE */}
               <div className="bg-white rounded-xl shadow">
                 <table className="w-full">
