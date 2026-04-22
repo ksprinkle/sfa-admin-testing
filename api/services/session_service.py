@@ -1,5 +1,5 @@
-from models.sessions import Session
-from models.participants import Participant
+from api.models.sessions import Session
+from api.models.participants import Participant
 
 def get_next_available_session(db, event_id: str):
     sessions = (

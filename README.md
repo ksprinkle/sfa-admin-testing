@@ -440,9 +440,10 @@ http://localhost:8000
 
 ## Start Frontend
 
-Inside the frontend directory:
+Inside the admin-app directory:
 
 
+cd admin-app
 npm install
 npm run dev
 
@@ -484,3 +485,68 @@ live event dashboards
 # Status
 
 This project is under **active development**.
+
+---
+
+# Verified Backend Runbook (April 2026)
+
+Use this command from the project root for local backend startup:
+
+```powershell
+& "c:/Users/caspe/A Local Documents/SFA/PWA Development Files/surfers-for-autism-app/venv/Scripts/python.exe" -m uvicorn main:app --reload --app-dir api
+```
+
+Quick smoke checks (PowerShell):
+
+```powershell
+(Invoke-WebRequest -Uri "http://127.0.0.1:8000/" -UseBasicParsing).StatusCode
+(Invoke-WebRequest -Uri "http://127.0.0.1:8000/debug/routes" -UseBasicParsing).StatusCode
+(Invoke-WebRequest -Uri "http://127.0.0.1:8000/openapi.json" -UseBasicParsing).StatusCode
+(Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/events" -UseBasicParsing).StatusCode
+```
+
+Expected status codes for public routes above: 200.
+
+Admin route note:
+
+- This app uses strict slash behavior (`redirect_slashes=False`).
+- Use trailing slashes for list routes:
+      - `/api/admin/events/`
+      - `/api/admin/participants/`
+- Without auth token, these admin routes should return 401.
+- Without trailing slash on list routes, they return 404.
+
+---
+
+# Verified Frontend Runbook (April 2026)
+
+The frontend currently served for development is `admin-app`.
+
+Run from project root:
+
+```powershell
+cd admin-app
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173/
+```
+
+Important notes:
+
+- Running `npm run dev` from the project root fails because there is no root `package.json`.
+- `frontend/package.json` currently does not define `scripts.dev`, so use `admin-app` for active UI development.
+
+---
+
+# Backend Stabilization Notes (April 2026)
+
+- Import paths were normalized to `api.*` to prevent duplicate SQLAlchemy module loading.
+- This resolved the `Table 'events' is already defined for this MetaData instance` startup failure.
+- Event ORM model was aligned with the current SQLite schema (location, capacity, registration flags, media, and no-show config fields).
+- `Event.participants` relationship was restored to match `Participant.event` back-populates.
+- `api/main.py` was cleaned up to remove duplicate imports and redundant engine creation.

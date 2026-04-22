@@ -3,20 +3,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
 from sqlalchemy.orm import Session
 from typing import List
-from crud.participants import promote_from_waitlist
-from db.session import get_db
-from dependencies import require_admin
-from models import events
-from models.events import Event
-from schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
-from crud.events import create_event as crud_create_event, update_event as crud_update_event
+from api.crud.participants import promote_from_waitlist
+from api.db.session import get_db
+from api.dependencies import require_admin
+from api.models.events import Event
+from api.schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
+from api.crud.events import create_event as crud_create_event, update_event as crud_update_event
 from sqlalchemy.orm import joinedload
-from schemas.participants import AdminParticipantListOut, ParticipantOut
-from utils.event_builder import build_admin_event
-from models.participants import Participant
-from schemas.events import AdminEventSummary
+from api.schemas.participants import AdminParticipantListOut, ParticipantOut
+from api.utils.event_builder import build_admin_event
+from api.models.participants import Participant
+from api.schemas.events import AdminEventSummary
 from datetime import datetime
-from services.no_show_service import get_no_show_candidates, promote_no_show_slots
+from api.services.no_show_service import get_no_show_candidates, promote_no_show_slots
 
 router = APIRouter(
     prefix="/admin/events",

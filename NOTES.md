@@ -29,6 +29,27 @@
 - Improved error handling and UI feedback for all participant actions.
 - Fixed duplicate function declarations and improved code maintainability.
 - Cleaned up debug logs and improved developer experience.
+
+## Verified Setup + Stabilization (April 2026)
+- Backend startup command from project root:
+  - `& "c:/Users/caspe/A Local Documents/SFA/PWA Development Files/surfers-for-autism-app/venv/Scripts/python.exe" -m uvicorn main:app --reload --app-dir api`
+- Frontend startup command from project root:
+  - `cd admin-app`
+  - `npm install`
+  - `npm run dev`
+- `npm run dev` at workspace root fails (no root `package.json`).
+- `frontend/package.json` currently has no `scripts.dev`; active UI app is `admin-app`.
+
+## Backend Fixes Verified in Smoke Tests
+- Normalized backend imports to `api.*` to avoid duplicate module loading.
+- Fixed SQLAlchemy startup error: `Table 'events' is already defined for this MetaData instance`.
+- Restored `Event.participants` relationship for mapper consistency.
+- Aligned `Event` ORM fields with the current `events` DB table to prevent runtime attribute errors.
+- Confirmed healthy endpoints: `/`, `/debug/routes`, `/openapi.json`, `/api/events`.
+- Confirmed admin route behavior:
+  - trailing slash required for list routes (`/api/admin/events/`, `/api/admin/participants/`)
+  - unauthenticated access returns 401
+  - authenticated admin access returns 200
 Surfers For Autism – Admin PWA
 
 Admin dashboard and event operations system for the Surfers For Autism platform.

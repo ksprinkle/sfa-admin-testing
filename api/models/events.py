@@ -2,11 +2,10 @@ import uuid
 from sqlalchemy import Column, String, Date, Time, Boolean, Integer, Float, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from db.base import Base
+from api.db.base import Base
 from sqlalchemy.orm import relationship
 from sqlalchemy import select, func
 from sqlalchemy.orm import column_property
-from models.participants import Participant
 
 class Event(Base):
     __tablename__ = "events"
@@ -26,66 +25,74 @@ class Event(Base):
     timezone = Column(String, default="America/New_York")
 
     sessions = relationship("Session", back_populates="event")
+    participants = relationship("Participant", back_populates="event")
     
     venue = Column(String)
     city = Column(String)
     state = Column(String)
-
     latitude = Column(Float)
     longitude = Column(Float)
     beach_accessibility = Column(Boolean, default=True)
 
-    participant_capacity = Column(Integer, nullable=True)
-    volunteer_capacity = Column(Integer, nullable=True)
-
-    # Minutes after session start to consider a participant a no-show
-    no_show_minutes = Column(Integer, nullable=True, default=15)
+    participant_capacity = Column(Integer)
+    volunteer_capacity = Column(Integer)
 
     participant_open = Column(Boolean, default=False)
     volunteer_open = Column(Boolean, default=False)
     vendor_open = Column(Boolean, default=False)
 
     featured_image = Column(String)
-    participants = relationship("Participant", back_populates="event")
+    no_show_minutes = Column(Integer, default=15)
+
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    
-    surfer_count = column_property(
-        select(func.count(Participant.id))
-        .where(
-            Participant.event_id == id,
-            (
-                (Participant.checked_in == True) |
-                ((Participant.role == "surfer") & (Participant.is_waitlisted == False))
-            )
-        )
-        .correlate_except(Participant)
-        .scalar_subquery()
-    )
-    waitlist_count = column_property(
-    select(func.count(Participant.id))
-    .where(
-        Participant.event_id == id,
-        Participant.is_waitlisted == True
-    )
-    .correlate_except(Participant)
-    .scalar_subquery()
-)
-    checked_in_count = column_property(
-    select(func.count(Participant.id))
-    .where(
-        Participant.event_id == id,
-        Participant.checked_in == True
-    )
-    .correlate_except(Participant)
-    .scalar_subquery()
-)
-    volunteer_count = column_property(
-    select(func.count(Participant.id))
-    .where(
-        Participant.event_id == id
-    )
-    .correlate_except(Participant)
-    .scalar_subquery()
-)
+
+
+    @property
+    def surfer_count(self):
+        from api.models.participants import Participant
+        from sqlalchemy.orm import object_session
+        session = object_session(self)
+        if session is None:
+            return 0
+        return session.query(Participant).filter(
+            Participant.event_id == self.id,
+            ((Participant.checked_in == True) |
+             ((Participant.role == "surfer") & (Participant.is_waitlisted == False)))
+        ).count()
+
+    @property
+    def waitlist_count(self):
+        from api.models.participants import Participant
+        from sqlalchemy.orm import object_session
+        session = object_session(self)
+        if session is None:
+            return 0
+        return session.query(Participant).filter(
+            Participant.event_id == self.id,
+            Participant.is_waitlisted == True
+        ).count()
+
+    @property
+    def checked_in_count(self):
+        from api.models.participants import Participant
+        from sqlalchemy.orm import object_session
+        session = object_session(self)
+        if session is None:
+            return 0
+        return session.query(Participant).filter(
+            Participant.event_id == self.id,
+            Participant.checked_in == True
+        ).count()
+
+    @property
+    def volunteer_count(self):
+        from api.models.participants import Participant
+        from sqlalchemy.orm import object_session
+        session = object_session(self)
+        if session is None:
+            return 0
+        return session.query(Participant).filter(
+            Participant.event_id == self.id
+        ).count()
 
 

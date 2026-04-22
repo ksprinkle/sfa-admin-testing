@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from models.events import Event
-from models.participants import Participant
-from models.sessions import Session as EventSession
+from api.models.events import Event
+from api.models.participants import Participant
+from api.models.sessions import Session as EventSession
 
 
 def get_no_show_candidates(db: Session, event_id):
@@ -59,7 +59,7 @@ def promote_no_show_slots(db: Session, event_id):
     event = db.query(Event).filter(Event.id == event_id).first()
     promoted = []
     for ns in no_shows:
-        from crud.participants import promote_from_waitlist
+        from api.crud.participants import promote_from_waitlist
         # Remove the no-show participant (admin action required)
         db.delete(ns)
         db.commit()

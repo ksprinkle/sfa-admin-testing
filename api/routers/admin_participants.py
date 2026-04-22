@@ -1,19 +1,19 @@
-from models.participants import Participant
+from api.models.participants import Participant
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
-from crud.participants import promote_from_waitlist, promote_specific_waitlisted_participant
-from db.session import get_db
-from dependencies import require_admin
-from models.events import Event
+from api.crud.participants import promote_from_waitlist, promote_specific_waitlisted_participant
+from api.db.session import get_db
+from api.dependencies import require_admin
+from api.models.events import Event
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
-from schemas.participants import ParticipantAction, ParticipantCreate, ParticipantOut, SessionUpdate
-from ws_manager import manager
+from api.schemas.participants import ParticipantAction, ParticipantCreate, ParticipantOut, SessionUpdate
+from api.ws_manager import manager
 import json
 from sqlalchemy import func
-from models.sessions import Session as EventSession
-from services.session_service import get_next_available_session
+from api.models.sessions import Session as EventSession
+from api.services.session_service import get_next_available_session
 
 router = APIRouter(
     prefix="/admin/participants",
