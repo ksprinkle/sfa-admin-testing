@@ -35,6 +35,10 @@ function isConnectivityError(err) {
   )
 }
 
+function isParticipantCheckable(participant) {
+  return participant && !participant.checked_in && !participant.is_waitlisted
+}
+
 export default function CheckIn() {
  
   const { eventId } = useParams()
@@ -48,6 +52,7 @@ export default function CheckIn() {
   const [isCheckingIn, setIsCheckingIn] = useState(false)
 
   const searchRef = useRef(null)
+  const isFlushingRef = useRef(false)
 
   useEffect(() => {
     (async () => {
@@ -67,16 +72,43 @@ export default function CheckIn() {
     })
   }
 
+  const blurSearchIfFocused = () => {
+    if (document.activeElement === searchRef.current) {
+      searchRef.current?.blur()
+    }
+  }
+
+  const handleRowMouseDown = (e) => {
+    // Let native behavior run for actual controls inside the row.
+    if (e.target.closest("input, button")) return
+
+    // Prevent browser focus/scroll side effects before click selection.
+    e.preventDefault()
+  }
+
   useEffect(() => {
     focusSearch()
   }, [])
 
   const toggleParticipantSelection = (participantId) => {
-    setSelectedParticipants(prev => 
-      prev.includes(participantId) 
+    blurSearchIfFocused()
+
+    setSelectedParticipants(prev => {
+      const isSelected = prev.includes(participantId)
+      const nextSelected = isSelected
         ? prev.filter(id => id !== participantId)
         : [...prev, participantId]
-    )
+
+      setActiveResultId((currentActiveId) => {
+        if (!isSelected) return participantId
+        if (currentActiveId === participantId) {
+          return nextSelected.length ? nextSelected[nextSelected.length - 1] : null
+        }
+        return currentActiveId
+      })
+
+      return nextSelected
+    })
   }
 
   const selectAllVisible = () => {
@@ -89,6 +121,7 @@ export default function CheckIn() {
 
   const deselectAll = () => {
     setSelectedParticipants([])
+    setActiveResultId(null)
   }
 
   const toggleEventMode = () => {
@@ -100,39 +133,50 @@ export default function CheckIn() {
   }
 
   async function flushQueuedCheckIns() {
+    if (isFlushingRef.current) return
+
     const queued = getQueuedCheckIns()
     if (!queued.length || !navigator.onLine) return
+
+    isFlushingRef.current = true
 
     const stillQueued = []
     let syncedCount = 0
 
-    for (const participantId of queued) {
-      try {
-        await checkInParticipant(participantId)
-        syncedCount += 1
-      } catch (err) {
-        // Keep retrying only for connectivity issues; drop business-rule failures.
-        if (isConnectivityError(err)) {
-          stillQueued.push(participantId)
+    try {
+      for (const participantId of queued) {
+        try {
+          await checkInParticipant(participantId)
+          syncedCount += 1
+        } catch (err) {
+          // Keep retrying only for connectivity issues; drop business-rule failures.
+          if (isConnectivityError(err)) {
+            stillQueued.push(participantId)
+          }
         }
       }
-    }
 
-    saveQueuedCheckIns(stillQueued)
-    setQueueCount(stillQueued.length)
+      saveQueuedCheckIns(stillQueued)
+      setQueueCount(stillQueued.length)
 
-    if (syncedCount > 0) {
-      await refreshParticipants()
-      setError("")
+      if (syncedCount > 0) {
+        await refreshParticipants()
+        setError("")
+      }
+    } finally {
+      isFlushingRef.current = false
     }
   }
 
   // Utility: Refresh participants from API
-  async function refreshParticipants() {
+  async function refreshParticipants(options = {}) {
+    const { focusSearchInput = false } = options
     try {
       const data = await fetchEventParticipants(eventId)
       setParticipants(data)
-      focusSearch()
+      if (focusSearchInput) {
+        focusSearch()
+      }
     } catch (err) {
       console.error("Failed to refresh participants", err)
     }
@@ -144,9 +188,9 @@ export default function CheckIn() {
     setIsCheckingIn(true)
     setError("")
 
-    const results = []
     let waiverErrors = []
     let queuedOffline = []
+    let serverSuccesses = []
 
     for (const id of participantIds) {
       // Optimistic UI for perceived speed: immediately mark checked-in.
@@ -156,12 +200,12 @@ export default function CheckIn() {
 
       try {
         await checkInParticipant(id)
-        results.push({ id, success: true })
+        serverSuccesses.push(id)
       } catch (err) {
         const errorMessage = err.message || "Unknown error"
 
-        const shouldKeepOptimistic = isConnectivityError(err)
-        if (!shouldKeepOptimistic) {
+        const isOffline = isConnectivityError(err)
+        if (!isOffline) {
           // Roll back only for hard errors (e.g. waiver rule violations).
           setParticipants((prev) =>
             prev.map((p) => (p.id === id ? { ...p, checked_in: false } : p))
@@ -170,20 +214,24 @@ export default function CheckIn() {
 
         if (errorMessage.includes("Waiver not verified")) {
           waiverErrors.push(id)
-        } else if (isConnectivityError(err)) {
+        } else if (isOffline) {
           const updatedQueue = [...getQueuedCheckIns(), String(id)]
           saveQueuedCheckIns(updatedQueue)
           setQueueCount(updatedQueue.length)
           queuedOffline.push(id)
         }
-        results.push({ id, success: false, error: errorMessage })
       }
     }
 
-    // Always refresh after check-in
-    await refreshParticipants()
+    // Only refresh from server when at least one check-in actually committed.
+    // Skipping refresh for offline-only failures keeps the optimistic update
+    // intact and prevents stale server data from wiping the local state.
+    if (serverSuccesses.length > 0) {
+      await refreshParticipants({ focusSearchInput: true })
+    }
 
-    // Show error message for waiver issues
+    // Show error only for hard failures (waiver). Offline queuing uses the
+    // amber banner — no red error for expected offline behavior.
     if (waiverErrors.length > 0) {
       const participantNames = waiverErrors.map(id => {
         const p = participants.find(p => p.id === id)
@@ -193,12 +241,7 @@ export default function CheckIn() {
     }
 
     if (queuedOffline.length > 0) {
-      const queuedNames = queuedOffline.map(id => {
-        const p = participants.find((participant) => participant.id === id)
-        return p ? `${p.first_name} ${p.last_name}` : "Unknown"
-      }).join(", ")
-
-      setError(`Offline detected. Queued check-in for: ${queuedNames}. Will retry automatically when connection returns.`)
+      setError(`Offline detected. ${queuedOffline.length} check-in${queuedOffline.length === 1 ? "" : "s"} queued and will retry automatically.`)
     }
 
     // Clear selection
@@ -220,6 +263,96 @@ export default function CheckIn() {
 
     window.addEventListener("online", onOnline)
     return () => window.removeEventListener("online", onOnline)
+  }, [eventId])
+
+  // Some mobile browsers keep navigator.onLine=true on cellular while Wi-Fi is
+  // disconnected, so online/offline events can be unreliable. Periodically
+  // retry queued check-ins and also retry when app regains focus.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (getQueuedCheckIns().length > 0) {
+        flushQueuedCheckIns()
+      }
+    }, 5000)
+
+    const onFocus = () => {
+      if (getQueuedCheckIns().length > 0) {
+        flushQueuedCheckIns()
+      }
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && getQueuedCheckIns().length > 0) {
+        flushQueuedCheckIns()
+      }
+    }
+
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+  }, [eventId])
+
+  // Real-time updates from other clients (phone/laptop) on this page.
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`
+    const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates"
+    let ws = null
+    let reconnectTimer = null
+    let isCancelled = false
+
+    const connect = () => {
+      if (isCancelled) return
+      ws = new window.WebSocket(wsUrl)
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === "participant_update") {
+            refreshParticipants()
+          }
+        } catch {
+          // Ignore malformed websocket messages.
+        }
+      }
+
+      ws.onclose = () => {
+        if (isCancelled) return
+        reconnectTimer = window.setTimeout(connect, 1000)
+      }
+
+      ws.onerror = () => {
+        // Let onclose handle reconnect timing.
+      }
+    }
+
+    connect()
+
+    return () => {
+      isCancelled = true
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer)
+      }
+      if (ws && ws.readyState === window.WebSocket.OPEN) {
+        ws.close()
+      }
+    }
+  }, [eventId])
+
+  // Fallback sync: periodically refresh while visible to avoid stale UI if
+  // websocket reconnect is delayed on some devices/networks.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        refreshParticipants()
+      }
+    }, 4000)
+
+    return () => window.clearInterval(intervalId)
   }, [eventId])
 
   const filtered = participants
@@ -249,11 +382,16 @@ export default function CheckIn() {
     }
 
     const hasCurrentActive = activeResultId && filtered.some((p) => p.id === activeResultId)
-    const nextActiveId = hasCurrentActive ? activeResultId : filtered[0].id
+    if (!hasCurrentActive && activeResultId) {
+      setActiveResultId(null)
+    }
 
-    setActiveResultId(nextActiveId)
-    setSelectedParticipants([nextActiveId])
-  }, [search, participants])
+    setSelectedParticipants((prev) => {
+      const next = prev.filter((id) => filtered.some((p) => p.id === id))
+      const unchanged = next.length === prev.length && next.every((id, index) => id === prev[index])
+      return unchanged ? prev : next
+    })
+  }, [search, participants, filtered.length, activeResultId])
 
   const moveActiveSelection = (direction) => {
     if (filtered.length === 0) return
@@ -285,7 +423,7 @@ export default function CheckIn() {
       e.preventDefault()
       if (isCheckingIn) return
 
-      const activeParticipant = filtered.find((p) => p.id === activeResultId) || filtered[0]
+      const activeParticipant = filtered.find((p) => p.id === activeResultId)
       if (!activeParticipant) return
 
       if (activeParticipant.checked_in || activeParticipant.is_waitlisted) return
@@ -295,10 +433,11 @@ export default function CheckIn() {
   }
 
   const selectedCount = selectedParticipants.length
-  const checkableSelected = selectedParticipants.filter(id => {
-    const p = participants.find(p => p.id === id)
-    return p && !p.checked_in && !p.is_waitlisted
-  }).length
+  const selectedCheckableIds = selectedParticipants.filter(id => {
+    const participant = participants.find(p => p.id === id)
+    return isParticipantCheckable(participant)
+  })
+  const checkableSelected = selectedCheckableIds.length
 
   return (
 
@@ -313,7 +452,7 @@ export default function CheckIn() {
           Event Mode {eventMode ? "ON" : "OFF"}
         </button>
         <button
-          onClick={refreshParticipants}
+          onClick={() => refreshParticipants({ focusSearchInput: true })}
           className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
           title="Refresh participants"
         >
@@ -329,7 +468,6 @@ export default function CheckIn() {
         onChange={(e) => setSearch(e.target.value)}
         onKeyDown={handleSearchKeyDown}
         className="w-full border rounded p-3 text-lg"
-        autoFocus
       />
 
       {error && (
@@ -369,6 +507,8 @@ export default function CheckIn() {
 
           <div
             key={p.id}
+            onMouseDown={handleRowMouseDown}
+            onClick={() => toggleParticipantSelection(p.id)}
             className={`flex justify-between items-center p-4 rounded shadow cursor-pointer transition
               ${selectedParticipants.includes(p.id) ? "bg-blue-100 border-2 border-blue-600 ring-2 ring-blue-300" : "bg-white hover:bg-gray-50 border border-transparent"}
             `}
@@ -380,6 +520,7 @@ export default function CheckIn() {
                 type="checkbox"
                 checked={selectedParticipants.includes(p.id)}
                 onChange={() => toggleParticipantSelection(p.id)}
+                onClick={(e) => e.stopPropagation()}
                 className="w-4 h-4"
               />
 
@@ -448,7 +589,7 @@ export default function CheckIn() {
       {/* Bulk Check-In Button */}
       <button
         disabled={checkableSelected === 0 || isCheckingIn}
-        onClick={() => handleCheckIn(selectedParticipants)}
+        onClick={() => handleCheckIn(selectedCheckableIds)}
         className={`w-full py-4 rounded-xl text-lg font-semibold transition
           ${checkableSelected > 0 && !isCheckingIn
             ? "bg-green-600 text-white hover:bg-green-700"

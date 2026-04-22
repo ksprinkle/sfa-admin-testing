@@ -12,11 +12,21 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            await connection.send_text(message)
+        stale_connections: List[WebSocket] = []
+
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_text(message)
+            except Exception:
+                # A dead socket should not block updates to healthy clients.
+                stale_connections.append(connection)
+
+        for connection in stale_connections:
+            self.disconnect(connection)
 
 manager = ConnectionManager()
 
@@ -27,6 +37,10 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             await websocket.receive_text()  # Keep connection alive
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        # Mobile network transitions can raise non-WebSocketDisconnect errors.
+        # Treat them as disconnects so stale sockets don't linger.
         manager.disconnect(websocket)
 
 # Usage: from other modules, import manager and call await manager.broadcast(json.dumps({...})) on relevant updates.

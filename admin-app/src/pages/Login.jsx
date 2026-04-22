@@ -21,7 +21,7 @@ function Login() {
       navigate("/")
     } catch (err) {
       console.error(err)
-      setError("Login failed")
+      setError(err.message || "Login failed")
     }
   }
 

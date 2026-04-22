@@ -55,6 +55,32 @@
 - Soft timer grace period: waiting on client confirmation.
 - Current behavior shows countdown until session start, then a non-enforcing not-checked-in warning.
 - Potential later update (if approved): delay warning until an agreed grace period elapses after session start.
+
+## Build-Only Changelog (April 22, 2026)
+- Offline check-in queue reliability improved on the check-in page:
+  - optimistic check-in retained during offline scenarios
+  - guarded queue flushes to prevent overlapping sync calls
+  - periodic retry plus focus/visibility retries for queue drain
+  - clearer offline queue status messaging
+- Cross-device sync reliability improved:
+  - websocket auto-reconnect added on check-in, participants, and event detail pages
+  - fallback polling refresh added for stale websocket periods
+- Backend realtime update path completed:
+  - admin check-in endpoint now broadcasts participant updates after commit
+  - websocket manager now safely removes dead sockets instead of breaking broadcasts
+- Check-in selection and action UX improved:
+  - no implicit auto-selection after refresh
+  - explicit row-click selection behavior
+  - bulk check-in only submits valid selected participants
+  - Enter key requires explicit active selection
+  - desktop row-click jump-to-top behavior fixed
+- Dev consistency improvements:
+  - API fetches now use no-store cache mode to reduce stale responses
+  - service worker is disabled/unregistered in development to avoid stale bundles during testing
+- Login feedback improvements:
+  - auth API now respects VITE_API_URL fallback behavior
+  - login view now surfaces backend error details when available
+
 Surfers For Autism – Admin PWA
 
 Admin dashboard and event operations system for the Surfers For Autism platform.

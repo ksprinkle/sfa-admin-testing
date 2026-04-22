@@ -277,7 +277,7 @@ def list_all_participants(
 
 #🔹 List participants for an event (admin view)
 @router.patch("/{participant_id}/checkin")
-def check_in_participant(
+async def check_in_participant(
     participant_id: UUID,
     db: DBSession = Depends(get_db),
     _current_user = Depends(require_admin),
@@ -298,6 +298,14 @@ def check_in_participant(
 
     db.commit()
     db.refresh(participant)
+
+    # Broadcast update so all open clients refresh without manual reload.
+    await manager.broadcast(json.dumps({
+        "type": "participant_update",
+        "participant_id": str(participant.id),
+        "action": "checkin",
+        "checked_in": True
+    }))
 
     return {
         "message": "Participant checked in",

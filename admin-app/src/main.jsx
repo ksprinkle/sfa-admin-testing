@@ -13,9 +13,17 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 )
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.error("Service worker registration failed:", err)
-    })
+  window.addEventListener("load", async () => {
+    if (import.meta.env.PROD) {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.error("Service worker registration failed:", err)
+      })
+      return
+    }
+
+    // In development, stale service-worker caches can make mobile testing
+    // appear inconsistent. Keep dev sessions uncached.
+    const registrations = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(registrations.map((registration) => registration.unregister()))
   })
 }
