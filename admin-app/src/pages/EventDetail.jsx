@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 
 
 import { useNavigate, useParams } from "react-router-dom"
-import { fetchEventParticipants, updateParticipantSession, updateParticipantPriority } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 
 import {
@@ -98,6 +98,8 @@ function EventDetail() {
   // (eventId already declared above)
 
   const [participants, setParticipants] = useState([])
+  const [eventStartAt, setEventStartAt] = useState(null)
+  const [nowMs, setNowMs] = useState(Date.now())
   const [loading, setLoading] = useState(true)
   const [activeId, setActiveId] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
@@ -115,15 +117,29 @@ function EventDetail() {
   // ✅ stable data loading logic
   useEffect(() => {
     if (!eventId || eventId === "new") return
+
+    const toEventStartDate = (startDate, startTime) => {
+      if (!startDate || !startTime) return null
+      const isoLike = `${startDate}T${startTime}`
+      const parsed = new Date(isoLike)
+      return Number.isNaN(parsed.getTime()) ? null : parsed
+    }
+
     async function loadAll() {
       setLoading(true)
       try {
-        const data = await fetchEventParticipants(eventId)
+        const [data, eventData] = await Promise.all([
+          fetchEventParticipants(eventId),
+          fetchAdminEvent(eventId),
+        ])
+
         setParticipants(data || [])
+        setEventStartAt(toEventStartDate(eventData?.start_date, eventData?.start_time))
         await refreshNoShows()
       } catch (err) {
         setParticipants([])
         setNoShows([])
+        setEventStartAt(null)
       } finally {
         setLoading(false)
       }
@@ -131,11 +147,23 @@ function EventDetail() {
     loadAll()
   }, [eventId])
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now())
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
+
   
   // ✅ stable ordering by session and natural name order
   const sortedParticipants = [...participants].sort((a, b) => {
     if (a.session_id !== b.session_id) {
       return a.session_id.localeCompare(b.session_id)
+    }
+
+    if (a.checked_in !== b.checked_in) {
+      return a.checked_in ? -1 : 1
     }
 
     const lastNameComparison = a.last_name.localeCompare(b.last_name)
@@ -175,6 +203,46 @@ function EventDetail() {
     if (count >= 15) return { status: 'Full', emoji: '🔴', color: 'text-red-500' }
     if (count >= 13) return { status: 'Almost Full', emoji: '🟡', color: 'text-yellow-500' }
     return { status: 'Open', emoji: '🟢', color: 'text-green-500' }
+  }
+
+  const formatCountdown = (milliseconds) => {
+    const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000))
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+
+    if (hours > 0) {
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    }
+
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+  }
+
+  const getSessionSoftStatus = (sessionIndex, group) => {
+    if (eventStartAt) {
+      const sessionStartMs = eventStartAt.getTime() + (sessionIndex * 60 * 60 * 1000)
+      const remainingMs = sessionStartMs - nowMs
+
+      if (remainingMs > 0) {
+        return {
+          text: `Session starts in: ${formatCountdown(remainingMs)}`,
+          className: "text-blue-700",
+        }
+      }
+    }
+
+    const notCheckedInCount = group.filter((p) => !p.checked_in && !p.is_waitlisted).length
+    if (notCheckedInCount > 0) {
+      return {
+        text: `⚠️ ${notCheckedInCount} participant${notCheckedInCount === 1 ? "" : "s"} not checked in`,
+        className: "text-amber-700",
+      }
+    }
+
+    return {
+      text: "🟢 All non-waitlisted participants checked in",
+      className: "text-green-700",
+    }
   }
 
   // ✅ stable move logic extracted to a function
@@ -323,6 +391,15 @@ function EventDetail() {
         <div className="text-xs text-gray-500">
           {p.email}
         </div>
+        <div className="mt-1 text-xs font-medium">
+          {p.checked_in ? (
+            <span className="text-green-700">🟢 Checked In</span>
+          ) : p.is_waitlisted ? (
+            <span className="text-yellow-700">🟡 Waitlisted</span>
+          ) : (
+            <span className="text-red-700">🔴 Not Checked In</span>
+          )}
+        </div>
         <div className="flex items-center justify-between mt-1">
           <span className="text-xs flex items-center gap-2">
             Priority:
@@ -407,11 +484,15 @@ function EventDetail() {
         <div className="grid md:grid-cols-2 gap-6">
           {groupedParticipants.map((group, idx) => {
             const sessionId = group[0]?.session_id;
+            const softStatus = getSessionSoftStatus(idx, group)
             return (
               <DroppableSession key={sessionId} sessionId={sessionId}>
                 <div className="flex justify-between mb-2">
                   <h3 className="font-semibold">Session {idx + 1} {getSessionStatus(sessionId).emoji}</h3>
                   <span className={getSessionStatus(sessionId).color}>{group.length} / 15</span>
+                </div>
+                <div className={`mb-3 text-xs font-medium ${softStatus.className}`}>
+                  {softStatus.text}
                 </div>
                 {/* Render draggable participant cards for this session */}
                 <div className="space-y-2">

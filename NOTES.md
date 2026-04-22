@@ -50,6 +50,11 @@
   - trailing slash required for list routes (`/api/admin/events/`, `/api/admin/participants/`)
   - unauthenticated access returns 401
   - authenticated admin access returns 200
+
+## Pending Product Decision
+- Soft timer grace period: waiting on client confirmation.
+- Current behavior shows countdown until session start, then a non-enforcing not-checked-in warning.
+- Potential later update (if approved): delay warning until an agreed grace period elapses after session start.
 Surfers For Autism – Admin PWA
 
 Admin dashboard and event operations system for the Surfers For Autism platform.

@@ -121,11 +121,24 @@ export default function Participants() {
   const [participants, setParticipants] = useState([])
   const [search, setSearch] = useState("");
 
-  const filteredParticipants = participants.filter(p =>
-    `${p.first_name} ${p.last_name} ${p.email} ${p.event_title}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const filteredParticipants = participants
+    .filter((p) =>
+      `${p.first_name} ${p.last_name} ${p.email} ${p.event_title}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (a.checked_in !== b.checked_in) {
+        return a.checked_in ? -1 : 1
+      }
+
+      const lastNameComparison = a.last_name.localeCompare(b.last_name)
+      if (lastNameComparison !== 0) {
+        return lastNameComparison
+      }
+
+      return a.first_name.localeCompare(b.first_name)
+    });
 
   // Initial load
   useEffect(() => {
@@ -261,11 +274,11 @@ export default function Participants() {
                   </td>
                   <td className="p-4">
                     {p.checked_in ? (
-                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm font-medium">Checked In</span>
+                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm font-medium">🟢 Checked In</span>
                     ) : p.is_waitlisted ? (
-                      <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-sm font-medium">Waitlisted</span>
+                      <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-sm font-medium">🟡 Waitlisted</span>
                     ) : (
-                      <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm font-medium">Registered</span>
+                      <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-medium">🔴 Not Checked In</span>
                     )}
                   </td>
                   <td className="p-4">

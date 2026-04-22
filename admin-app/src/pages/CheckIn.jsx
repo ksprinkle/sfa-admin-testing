@@ -95,12 +95,24 @@ export default function CheckIn() {
     setIsCheckingIn(false)
   }
 
-  const filtered = participants.filter(p =>
+  const filtered = participants
+    .filter((p) =>
+      `${p.first_name} ${p.last_name}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (a.checked_in !== b.checked_in) {
+        return a.checked_in ? -1 : 1
+      }
 
-    `${p.first_name} ${p.last_name}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+      const lastNameComparison = a.last_name.localeCompare(b.last_name)
+      if (lastNameComparison !== 0) {
+        return lastNameComparison
+      }
+
+      return a.first_name.localeCompare(b.first_name)
+    })
 
   const selectedCount = selectedParticipants.length
   const checkableSelected = selectedParticipants.filter(id => {
@@ -204,15 +216,17 @@ export default function CheckIn() {
 
             {/* Status */}
             <div className="text-right ml-4">
-              {p.checked_in && (
+              {p.checked_in ? (
                 <span className="text-green-700 font-medium">
-                  ✔ Checked In
+                  🟢 Checked In
                 </span>
-              )}
-
-              {p.is_waitlisted && (
+              ) : p.is_waitlisted ? (
                 <span className="text-yellow-600 font-medium">
-                  Waitlisted
+                  🟡 Waitlisted
+                </span>
+              ) : (
+                <span className="text-red-700 font-medium block mb-2">
+                  🔴 Not Checked In
                 </span>
               )}
 

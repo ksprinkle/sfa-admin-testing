@@ -145,6 +145,16 @@ export async function fetchEventSummary(eventId) {
   return res.json()
 }
 
+export async function fetchAdminEvent(eventId) {
+  const res = await apiFetch(`/api/admin/events/${eventId}`)
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch event")
+  }
+
+  return res.json()
+}
+
 export async function updateParticipantSession(participantId, sessionId) {
   const res = await apiFetch(
     `/api/admin/participants/${participantId}/session`,
