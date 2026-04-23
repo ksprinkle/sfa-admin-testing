@@ -4,12 +4,317 @@ import { fetchEventParticipants, checkInParticipant } from "../api/events"
 
 const CHECKIN_QUEUE_KEY = "sfa.offline.checkin.queue"
 const EVENT_MODE_KEY = "sfa.event.mode"
+const DEBUG_SHEET_PATH = "/event-day-troubleshooting-sheet.html"
+const OPERATOR_SHEET_PATH = "/event-day-operator-sheet.html"
+const SIMULATED_OFFLINE_MESSAGE = "Dev-only simulated offline mode is enabled."
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
   { value: 2, label: "Medium", dotClass: "bg-amber-400" },
   { value: 3, label: "Low", dotClass: "bg-gray-500" },
   { value: 0, label: "Unset", dotClass: "bg-gray-300" },
 ]
+
+function formatDebugTime(value) {
+  if (!value) return "Not yet"
+
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+}
+
+function formatAge(value, nowMs) {
+  if (!value) return "Not yet"
+
+  const seconds = Math.max(0, Math.floor((nowMs - new Date(value).getTime()) / 1000))
+  if (seconds < 60) return `${seconds}s ago`
+
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ago`
+}
+
+function getDebugTone(status) {
+  switch (status) {
+    case "success":
+    case "open":
+      return "bg-green-100 text-green-700 border-green-200"
+    case "running":
+    case "connecting":
+      return "bg-blue-100 text-blue-700 border-blue-200"
+    case "partial":
+    case "warning":
+      return "bg-amber-100 text-amber-800 border-amber-200"
+    case "error":
+    case "closed":
+      return "bg-red-100 text-red-700 border-red-200"
+    default:
+      return "bg-gray-100 text-gray-700 border-gray-200"
+  }
+}
+
+function DevStatusPill({ label, status }) {
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${getDebugTone(status)}`}>
+      {label}
+    </span>
+  )
+}
+
+function DevCheckInPanel({
+  isOnline,
+  browserOnline,
+  apiBase,
+  wsUrl,
+  queueCount,
+  queuePreview,
+  isFlushingQueue,
+  refreshStatus,
+  refreshSource,
+  refreshAt,
+  refreshAge,
+  refreshDetail,
+  queueStatus,
+  queueSource,
+  queueAt,
+  queueDetail,
+  wsStatus,
+  wsAt,
+  wsDetail,
+  lastCheckInEvent,
+  healthState,
+  forceOffline,
+  setForceOffline,
+  pauseRealtime,
+  setPauseRealtime,
+  slowRefresh,
+  setSlowRefresh,
+  triggerReconnect,
+  clearDevScenarios,
+  onCopySnapshot,
+  copySnapshotStatus,
+}) {
+  const refreshSourceStatus = refreshSource === "polling-fallback" ? "warning" : "success"
+
+  return (
+    <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-slate-800 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">Dev Diagnostics</h2>
+          <p className="mt-1 max-w-3xl text-xs text-slate-600">
+            Visible only in development. Use this panel to interpret offline queueing, refresh timing, and websocket reconnect behavior while testing.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={DEBUG_SHEET_PATH}
+            download="sfa-event-day-troubleshooting-sheet.html"
+            className="inline-flex items-center rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-100"
+          >
+            Download troubleshooting sheet
+          </a>
+          <a
+            href={OPERATOR_SHEET_PATH}
+            download="sfa-event-day-operator-sheet.html"
+            className="inline-flex items-center rounded-lg border border-sky-300 bg-sky-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-800"
+          >
+            Download operator sheet
+          </a>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-sky-200 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-semibold text-slate-900">Force-test scenarios</h3>
+            <p className="mt-1 text-xs text-slate-600">
+              Development only. These toggles simulate failure modes without changing production behavior.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={clearDevScenarios}
+            className="inline-flex items-center rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Clear all scenarios
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onCopySnapshot}
+            className={`inline-flex items-center rounded-full border px-3 py-2 text-xs font-semibold transition ${copySnapshotStatus === "success" ? "border-green-300 bg-green-100 text-green-800" : copySnapshotStatus === "error" ? "border-red-300 bg-red-100 text-red-800" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+          >
+            {copySnapshotStatus === "success" ? "Snapshot copied" : copySnapshotStatus === "error" ? "Copy failed" : "Copy diagnostics snapshot"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setForceOffline((current) => !current)}
+            className={`inline-flex items-center rounded-full border px-3 py-2 text-xs font-semibold transition ${forceOffline ? "border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+          >
+            {forceOffline ? "Disable" : "Enable"} simulated offline
+          </button>
+          <button
+            type="button"
+            onClick={() => setPauseRealtime((current) => !current)}
+            className={`inline-flex items-center rounded-full border px-3 py-2 text-xs font-semibold transition ${pauseRealtime ? "border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+          >
+            {pauseRealtime ? "Resume" : "Pause"} realtime websocket
+          </button>
+          <button
+            type="button"
+            onClick={() => setSlowRefresh((current) => !current)}
+            className={`inline-flex items-center rounded-full border px-3 py-2 text-xs font-semibold transition ${slowRefresh ? "border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+          >
+            {slowRefresh ? "Disable" : "Enable"} slow refresh
+          </button>
+          <button
+            type="button"
+            onClick={triggerReconnect}
+            className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Trigger reconnect
+          </button>
+        </div>
+
+        <dl className="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+            <dt className="font-semibold text-slate-800">Simulated offline</dt>
+            <dd className="mt-1">Queues check-ins and makes refresh attempts fail locally even if the device still has internet.</dd>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+            <dt className="font-semibold text-slate-800">Pause realtime websocket</dt>
+            <dd className="mt-1">Stops live websocket updates so you can see polling fallback and stale-screen behavior.</dd>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+            <dt className="font-semibold text-slate-800">Slow refresh</dt>
+            <dd className="mt-1">Adds a short delay before participant refresh to mimic slow network responses.</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <div className="rounded-lg border border-sky-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold text-slate-900">Network</h3>
+            <DevStatusPill label={isOnline ? "Online" : "Offline"} status={isOnline ? "success" : "error"} />
+          </div>
+          <dl className="mt-3 space-y-2 text-xs text-slate-600">
+            <div className="flex items-center justify-between gap-3">
+              <dt>Browser online</dt>
+              <dd>
+                <DevStatusPill label={browserOnline ? "Online" : "Offline"} status={browserOnline ? "success" : "error"} />
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>Pending queue</dt>
+              <dd className="font-medium text-slate-900">{queueCount}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-slate-700">Queue preview</dt>
+              {queuePreview.length > 0 ? (
+                <dd className="mt-1 text-slate-600">
+                  <ul className="space-y-1">
+                    {queuePreview.map((item) => (
+                      <li key={item.id} className="truncate">- {item.name} ({item.id})</li>
+                    ))}
+                  </ul>
+                </dd>
+              ) : (
+                <dd className="mt-1 text-slate-600">Queue is empty.</dd>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>Queue flush</dt>
+              <dd>
+                <DevStatusPill label={isFlushingQueue ? "Running" : "Idle"} status={isFlushingQueue ? "running" : "idle"} />
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>Health mode</dt>
+              <dd>
+                <DevStatusPill label={healthState.label} status={healthState.status} />
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium text-slate-700">API base</dt>
+              <dd className="mt-1 break-all text-slate-600">{apiBase}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="rounded-lg border border-sky-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold text-slate-900">Participant refresh</h3>
+            <DevStatusPill label={refreshStatus} status={refreshStatus} />
+          </div>
+          <dl className="mt-3 space-y-2 text-xs text-slate-600">
+            <div className="flex items-center justify-between gap-3">
+              <dt>Source</dt>
+              <dd>
+                <DevStatusPill label={refreshSource} status={refreshSourceStatus} />
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>Updated</dt>
+              <dd className="font-medium text-slate-900">{formatDebugTime(refreshAt)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>Last sync age</dt>
+              <dd className="font-medium text-slate-900">{refreshAge}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-slate-700">Detail</dt>
+              <dd className="mt-1 text-slate-600">{refreshDetail}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="rounded-lg border border-sky-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold text-slate-900">Queue + realtime</h3>
+            <DevStatusPill label={wsStatus} status={wsStatus} />
+          </div>
+          <dl className="mt-3 space-y-2 text-xs text-slate-600">
+            <div className="flex items-center justify-between gap-3">
+              <dt>Queue source</dt>
+              <dd className="font-medium text-slate-900">{queueSource}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>Queue update</dt>
+              <dd className="font-medium text-slate-900">{formatDebugTime(queueAt)}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-slate-700">Queue detail</dt>
+              <dd className="mt-1 text-slate-600">{queueDetail}</dd>
+            </div>
+            <div className="border-t border-sky-100 pt-2">
+              <dt className="font-medium text-slate-700">WebSocket</dt>
+              <dd className="mt-1 break-all text-slate-600">{wsUrl}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-slate-700">Last websocket event</dt>
+              <dd className="mt-1 text-slate-600">{formatDebugTime(wsAt)} - {wsDetail}</dd>
+            </div>
+            <div className="border-t border-sky-100 pt-2">
+              <dt className="font-medium text-slate-700">Last check-in event</dt>
+              <dd className="mt-1 text-slate-600">
+                {lastCheckInEvent
+                  ? `Checked in: ${lastCheckInEvent.name} (${formatDebugTime(lastCheckInEvent.at)})`
+                  : "No check-in action captured yet."}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function getPriorityLevel(priority) {
   const clamped = Math.max(0, Math.min(3, Number(priority ?? 0)))
@@ -50,8 +355,8 @@ function saveQueuedCheckIns(ids) {
   localStorage.setItem(CHECKIN_QUEUE_KEY, JSON.stringify([...new Set(ids.map((id) => String(id)))]))
 }
 
-function isConnectivityError(err) {
-  if (!navigator.onLine) return true
+function isConnectivityError(err, isOnlineOverride = navigator.onLine) {
+  if (!isOnlineOverride) return true
 
   const message = String(err?.message || "").toLowerCase()
   return (
@@ -67,8 +372,13 @@ function isParticipantCheckable(participant) {
 }
 
 export default function CheckIn() {
- 
   const { eventId } = useParams()
+  const isDev = import.meta.env.DEV
+  const apiBase = isDev
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : (import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`)
+  const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates"
+
   const [participants, setParticipants] = useState([])
   const [selectedParticipants, setSelectedParticipants] = useState([])
   const [activeResultId, setActiveResultId] = useState(null)
@@ -77,20 +387,170 @@ export default function CheckIn() {
   const [queueCount, setQueueCount] = useState(getQueuedCheckIns().length)
   const [eventMode, setEventMode] = useState(localStorage.getItem(EVENT_MODE_KEY) === "on")
   const [isCheckingIn, setIsCheckingIn] = useState(false)
+  const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
+  const [forceOffline, setForceOffline] = useState(false)
+  const [pauseRealtime, setPauseRealtime] = useState(false)
+  const [slowRefresh, setSlowRefresh] = useState(false)
+  const [wsReconnectNonce, setWsReconnectNonce] = useState(0)
+  const [tickMs, setTickMs] = useState(Date.now())
+  const [isFlushingQueue, setIsFlushingQueue] = useState(false)
+  const [refreshStatus, setRefreshStatus] = useState("idle")
+  const [refreshSource, setRefreshSource] = useState("not-started")
+  const [refreshAt, setRefreshAt] = useState(null)
+  const [refreshDetail, setRefreshDetail] = useState("No participant refresh has run yet.")
+  const [queueStatus, setQueueStatus] = useState("idle")
+  const [queueSource, setQueueSource] = useState("not-started")
+  const [queueAt, setQueueAt] = useState(null)
+  const [queueDetail, setQueueDetail] = useState("No queue sync has run yet.")
+  const [queuePreviewIds, setQueuePreviewIds] = useState(getQueuedCheckIns())
+  const [wsStatus, setWsStatus] = useState("connecting")
+  const [wsAt, setWsAt] = useState(null)
+  const [wsDetail, setWsDetail] = useState("Waiting for websocket activity.")
+  const [lastCheckInEvent, setLastCheckInEvent] = useState(null)
+  const [copySnapshotStatus, setCopySnapshotStatus] = useState("idle")
 
   const searchRef = useRef(null)
   const isFlushingRef = useRef(false)
 
+  const isOnline = browserOnline && !forceOffline
+
+  const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+  const createSimulatedConnectivityError = () => new Error(SIMULATED_OFFLINE_MESSAGE)
+
+  const queuePreview = queuePreviewIds.map((id) => {
+    const participant = participants.find((p) => String(p.id) === String(id))
+    if (!participant) {
+      return { id, name: "Unknown participant" }
+    }
+
+    return {
+      id,
+      name: `${participant.first_name} ${participant.last_name}`,
+    }
+  })
+
+  const refreshAge = formatAge(refreshAt, tickMs)
+
+  const healthState = (() => {
+    if (!isOnline || queueCount > 0) {
+      return { label: "Offline queue active", status: "error" }
+    }
+
+    if (refreshSource === "polling-fallback" || pauseRealtime) {
+      return { label: "Polling fallback", status: "warning" }
+    }
+
+    return { label: "Normal", status: "success" }
+  })()
+
+  const updateRefreshDebug = ({ source, status, detail }) => {
+    setRefreshSource(source)
+    setRefreshStatus(status)
+    setRefreshDetail(detail)
+    setRefreshAt(new Date().toISOString())
+  }
+
+  const updateQueueDebug = ({ source, status, detail }) => {
+    setQueueSource(source)
+    setQueueStatus(status)
+    setQueueDetail(detail)
+    setQueueAt(new Date().toISOString())
+  }
+
+  const updateWsDebug = ({ status, detail }) => {
+    setWsStatus(status)
+    setWsDetail(detail)
+    setWsAt(new Date().toISOString())
+  }
+
+  const clearDevScenarios = () => {
+    setForceOffline(false)
+    setPauseRealtime(false)
+    setSlowRefresh(false)
+  }
+
+  const triggerReconnect = () => {
+    updateWsDebug({
+      status: "connecting",
+      detail: "Manual reconnect requested from dev panel.",
+    })
+
+    setWsReconnectNonce((value) => value + 1)
+    flushQueuedCheckIns("manual-reconnect")
+    refreshParticipants({ source: "manual-reconnect" })
+  }
+
+  const copyDiagnosticsSnapshot = async () => {
+    const lines = [
+      "SFA Dev Diagnostics Snapshot",
+      `Timestamp: ${new Date().toISOString()}`,
+      `Event ID: ${eventId}`,
+      `Health mode: ${healthState.label}`,
+      `Network effective: ${isOnline ? "online" : "offline"}`,
+      `Browser online: ${browserOnline ? "online" : "offline"}`,
+      `Simulated offline: ${forceOffline ? "enabled" : "disabled"}`,
+      `Pause realtime websocket: ${pauseRealtime ? "enabled" : "disabled"}`,
+      `Slow refresh: ${slowRefresh ? "enabled" : "disabled"}`,
+      `Queue count: ${queueCount}`,
+      `Queue source: ${queueSource}`,
+      `Queue status: ${queueStatus}`,
+      `Queue detail: ${queueDetail}`,
+      `Queue preview: ${queuePreview.length > 0 ? queuePreview.map((item) => `${item.name} (${item.id})`).join("; ") : "none"}`,
+      `Refresh source: ${refreshSource}`,
+      `Refresh status: ${refreshStatus}`,
+      `Refresh updated: ${formatDebugTime(refreshAt)}`,
+      `Refresh age: ${refreshAge}`,
+      `Refresh detail: ${refreshDetail}`,
+      `WebSocket status: ${wsStatus}`,
+      `WebSocket url: ${wsUrl}`,
+      `WebSocket updated: ${formatDebugTime(wsAt)}`,
+      `WebSocket detail: ${wsDetail}`,
+      `Last check-in event: ${lastCheckInEvent ? `Checked in ${lastCheckInEvent.name} (${formatDebugTime(lastCheckInEvent.at)})` : "none"}`,
+    ]
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"))
+      setCopySnapshotStatus("success")
+    } catch {
+      setCopySnapshotStatus("error")
+    } finally {
+      window.setTimeout(() => {
+        setCopySnapshotStatus("idle")
+      }, 1800)
+    }
+  }
+
   useEffect(() => {
-    (async () => {
-      try {
-        const data = await fetchEventParticipants(eventId)
-        setParticipants(data)
-      } catch (err) {
-        console.error("Failed to load participants", err)
-      }
-    })()
+    const intervalId = window.setInterval(() => {
+      setTickMs(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
+
+  useEffect(() => {
+    refreshParticipants({ source: "initial-load" })
   }, [eventId])
+
+  useEffect(() => {
+    if (forceOffline) {
+      updateQueueDebug({
+        source: "dev-simulated-offline",
+        status: "warning",
+        detail: SIMULATED_OFFLINE_MESSAGE,
+      })
+    }
+  }, [forceOffline])
+
+  useEffect(() => {
+    if (pauseRealtime) {
+      updateWsDebug({
+        status: "warning",
+        detail: "Dev-only websocket pause is enabled.",
+      })
+    }
+  }, [pauseRealtime])
 
   const focusSearch = () => {
     requestAnimationFrame(() => {
@@ -159,18 +619,52 @@ export default function CheckIn() {
     })
   }
 
-  async function flushQueuedCheckIns() {
-    if (isFlushingRef.current) return
+  async function flushQueuedCheckIns(source = "queue-manual") {
+    if (isFlushingRef.current) {
+      updateQueueDebug({
+        source,
+        status: "warning",
+        detail: "Skipped because a queue sync is already in progress.",
+      })
+      return
+    }
 
     const queued = getQueuedCheckIns()
-    if (!queued.length || !navigator.onLine) return
+    setQueuePreviewIds(queued)
+    if (!queued.length) {
+      setQueueCount(0)
+      updateQueueDebug({
+        source,
+        status: "idle",
+        detail: "No queued check-ins were pending.",
+      })
+      return
+    }
+
+    if (!isOnline) {
+      setQueueCount(queued.length)
+      updateQueueDebug({
+        source,
+        status: "warning",
+        detail: `${forceOffline ? "Simulated offline mode is active." : "Device is offline."} ${queued.length} queued check-in${queued.length === 1 ? " is" : "s are"} waiting to retry.`,
+      })
+      return
+    }
 
     isFlushingRef.current = true
+    setIsFlushingQueue(true)
 
     const stillQueued = []
     let syncedCount = 0
+    let droppedCount = 0
 
     try {
+      updateQueueDebug({
+        source,
+        status: "running",
+        detail: `Attempting to sync ${queued.length} queued check-in${queued.length === 1 ? "" : "s"}.`,
+      })
+
       for (const participantId of queued) {
         try {
           await checkInParticipant(participantId)
@@ -179,33 +673,104 @@ export default function CheckIn() {
           // Keep retrying only for connectivity issues; drop business-rule failures.
           if (isConnectivityError(err)) {
             stillQueued.push(participantId)
+          } else {
+            droppedCount += 1
           }
         }
       }
 
       saveQueuedCheckIns(stillQueued)
       setQueueCount(stillQueued.length)
+      setQueuePreviewIds(stillQueued)
+
+      if (stillQueued.length > 0) {
+        updateQueueDebug({
+          source,
+          status: "partial",
+          detail: `Synced ${syncedCount}. ${stillQueued.length} check-in${stillQueued.length === 1 ? " is" : "s are"} still queued.`,
+        })
+      } else if (syncedCount > 0) {
+        updateQueueDebug({
+          source,
+          status: "success",
+          detail: `Synced ${syncedCount} queued check-in${syncedCount === 1 ? "" : "s"} and cleared the queue.`,
+        })
+      } else if (droppedCount > 0) {
+        updateQueueDebug({
+          source,
+          status: "warning",
+          detail: `Dropped ${droppedCount} queued check-in${droppedCount === 1 ? "" : "s"} because the server rejected them after reconnect.`,
+        })
+      } else {
+        updateQueueDebug({
+          source,
+          status: "idle",
+          detail: "Queue sync ran but there was nothing new to apply.",
+        })
+      }
 
       if (syncedCount > 0) {
-        await refreshParticipants()
+        await refreshParticipants({ source: "queue-sync" })
         setError("")
       }
+    } catch (err) {
+      updateQueueDebug({
+        source,
+        status: "error",
+        detail: err?.message || "Queue sync failed unexpectedly.",
+      })
     } finally {
       isFlushingRef.current = false
+      setIsFlushingQueue(false)
     }
   }
 
   // Utility: Refresh participants from API
   async function refreshParticipants(options = {}) {
-    const { focusSearchInput = false } = options
+    const { focusSearchInput = false, source = "manual-refresh" } = options
+
+    updateRefreshDebug({
+      source,
+      status: "running",
+      detail: "Fetching latest participants from the server.",
+    })
+
+    if (slowRefresh) {
+      updateRefreshDebug({
+        source,
+        status: "warning",
+        detail: "Dev-only slow refresh delay is active before the request runs.",
+      })
+      await wait(3000)
+      updateRefreshDebug({
+        source,
+        status: "running",
+        detail: "Fetching latest participants after simulated delay.",
+      })
+    }
+
     try {
+      if (forceOffline) {
+        throw createSimulatedConnectivityError()
+      }
+
       const data = await fetchEventParticipants(eventId)
       setParticipants(data)
+      updateRefreshDebug({
+        source,
+        status: "success",
+        detail: `Loaded ${data.length} participant${data.length === 1 ? "" : "s"}.`,
+      })
       if (focusSearchInput) {
         focusSearch()
       }
     } catch (err) {
       console.error("Failed to refresh participants", err)
+      updateRefreshDebug({
+        source,
+        status: "error",
+        detail: err?.message || "Failed to refresh participants.",
+      })
     }
   }
 
@@ -220,18 +785,31 @@ export default function CheckIn() {
     let serverSuccesses = []
 
     for (const id of participantIds) {
+      const participant = participants.find((p) => p.id === id)
+      const participantName = participant
+        ? `${participant.first_name} ${participant.last_name}`
+        : "Unknown participant"
+
       // Optimistic UI for perceived speed: immediately mark checked-in.
       setParticipants((prev) =>
         prev.map((p) => (p.id === id ? { ...p, checked_in: true } : p))
       )
 
       try {
+        if (forceOffline) {
+          throw createSimulatedConnectivityError()
+        }
         await checkInParticipant(id)
         serverSuccesses.push(id)
+        setLastCheckInEvent({
+          id,
+          name: participantName,
+          at: new Date().toISOString(),
+        })
       } catch (err) {
         const errorMessage = err.message || "Unknown error"
 
-        const isOffline = isConnectivityError(err)
+        const isOffline = isConnectivityError(err, isOnline)
         if (!isOffline) {
           // Roll back only for hard errors (e.g. waiver rule violations).
           setParticipants((prev) =>
@@ -245,6 +823,7 @@ export default function CheckIn() {
           const updatedQueue = [...getQueuedCheckIns(), String(id)]
           saveQueuedCheckIns(updatedQueue)
           setQueueCount(updatedQueue.length)
+          setQueuePreviewIds(updatedQueue)
           queuedOffline.push(id)
         }
       }
@@ -280,16 +859,34 @@ export default function CheckIn() {
   }
 
   useEffect(() => {
-    flushQueuedCheckIns()
+    flushQueuedCheckIns("event-change")
+  }, [eventId])
+
+  useEffect(() => {
+    setQueuePreviewIds(getQueuedCheckIns())
   }, [eventId])
 
   useEffect(() => {
     const onOnline = () => {
-      flushQueuedCheckIns()
+      setBrowserOnline(true)
+      flushQueuedCheckIns("online-event")
+    }
+
+    const onOffline = () => {
+      setBrowserOnline(false)
+      updateQueueDebug({
+        source: "offline-event",
+        status: "warning",
+        detail: `Device went offline. ${getQueuedCheckIns().length} queued check-in${getQueuedCheckIns().length === 1 ? " is" : "s are"} waiting to retry.`,
+      })
     }
 
     window.addEventListener("online", onOnline)
-    return () => window.removeEventListener("online", onOnline)
+    window.addEventListener("offline", onOffline)
+    return () => {
+      window.removeEventListener("online", onOnline)
+      window.removeEventListener("offline", onOffline)
+    }
   }, [eventId])
 
   // Some mobile browsers keep navigator.onLine=true on cellular while Wi-Fi is
@@ -298,19 +895,19 @@ export default function CheckIn() {
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       if (getQueuedCheckIns().length > 0) {
-        flushQueuedCheckIns()
+        flushQueuedCheckIns("queue-interval")
       }
     }, 5000)
 
     const onFocus = () => {
       if (getQueuedCheckIns().length > 0) {
-        flushQueuedCheckIns()
+        flushQueuedCheckIns("window-focus")
       }
     }
 
     const onVisibility = () => {
       if (document.visibilityState === "visible" && getQueuedCheckIns().length > 0) {
-        flushQueuedCheckIns()
+        flushQueuedCheckIns("tab-visible")
       }
     }
 
@@ -326,36 +923,63 @@ export default function CheckIn() {
 
   // Real-time updates from other clients (phone/laptop) on this page.
   useEffect(() => {
-    const apiBase = import.meta.env.DEV
-      ? `${window.location.protocol}//${window.location.hostname}:8000`
-      : (import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`)
-    const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates"
+    if (pauseRealtime) {
+      return undefined
+    }
+
     let ws = null
     let reconnectTimer = null
     let isCancelled = false
 
     const connect = () => {
       if (isCancelled) return
+      updateWsDebug({
+        status: "connecting",
+        detail: "Opening websocket connection.",
+      })
       ws = new window.WebSocket(wsUrl)
+
+      ws.onopen = () => {
+        updateWsDebug({
+          status: "open",
+          detail: "Connected. Waiting for participant updates.",
+        })
+      }
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
+          updateWsDebug({
+            status: "open",
+            detail: `Received ${data.type || "message"} event.`,
+          })
           if (data.type === "participant_update") {
-            refreshParticipants()
+            refreshParticipants({ source: "websocket-update" })
           }
         } catch {
           // Ignore malformed websocket messages.
+          updateWsDebug({
+            status: "warning",
+            detail: "Received malformed websocket message.",
+          })
         }
       }
 
       ws.onclose = () => {
         if (isCancelled) return
+        updateWsDebug({
+          status: "closed",
+          detail: "Connection closed. Retrying in 1 second.",
+        })
         reconnectTimer = window.setTimeout(connect, 1000)
       }
 
       ws.onerror = () => {
         // Let onclose handle reconnect timing.
+        updateWsDebug({
+          status: "warning",
+          detail: "Websocket error signaled. Waiting for reconnect.",
+        })
       }
     }
 
@@ -366,23 +990,23 @@ export default function CheckIn() {
       if (reconnectTimer) {
         window.clearTimeout(reconnectTimer)
       }
-      if (ws && ws.readyState === window.WebSocket.OPEN) {
+      if (ws && (ws.readyState === window.WebSocket.OPEN || ws.readyState === window.WebSocket.CONNECTING)) {
         ws.close()
       }
     }
-  }, [eventId])
+  }, [eventId, wsUrl, pauseRealtime, wsReconnectNonce])
 
   // Fallback sync: periodically refresh while visible to avoid stale UI if
   // websocket reconnect is delayed on some devices/networks.
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible" && navigator.onLine) {
-        refreshParticipants()
+      if (document.visibilityState === "visible" && isOnline) {
+        refreshParticipants({ source: "polling-fallback" })
       }
     }, 4000)
 
     return () => window.clearInterval(intervalId)
-  }, [eventId])
+  }, [eventId, isOnline, slowRefresh, forceOffline])
 
   const filtered = participants
     .filter((p) =>
@@ -500,6 +1124,42 @@ export default function CheckIn() {
       />
 
       <PriorityLegend />
+
+      {isDev && (
+        <DevCheckInPanel
+          isOnline={isOnline}
+          browserOnline={browserOnline}
+          apiBase={apiBase}
+          wsUrl={wsUrl}
+          queueCount={queueCount}
+          queuePreview={queuePreview}
+          isFlushingQueue={isFlushingQueue}
+          refreshStatus={refreshStatus}
+          refreshSource={refreshSource}
+          refreshAt={refreshAt}
+          refreshAge={refreshAge}
+          refreshDetail={refreshDetail}
+          queueStatus={queueStatus}
+          queueSource={queueSource}
+          queueAt={queueAt}
+          queueDetail={queueDetail}
+          wsStatus={wsStatus}
+          wsAt={wsAt}
+          wsDetail={wsDetail}
+          lastCheckInEvent={lastCheckInEvent}
+          healthState={healthState}
+          forceOffline={forceOffline}
+          setForceOffline={setForceOffline}
+          pauseRealtime={pauseRealtime}
+          setPauseRealtime={setPauseRealtime}
+          slowRefresh={slowRefresh}
+          setSlowRefresh={setSlowRefresh}
+          triggerReconnect={triggerReconnect}
+          clearDevScenarios={clearDevScenarios}
+          onCopySnapshot={copyDiagnosticsSnapshot}
+          copySnapshotStatus={copySnapshotStatus}
+        />
+      )}
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
