@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from datetime import date, time
 from uuid import UUID
 from typing import Optional
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 class EventLocation(BaseModel):
     venue: Optional[str]
@@ -21,7 +21,7 @@ class EventCapacity(BaseModel):
 class EventRegistration(BaseModel):
     participant_open: bool
     volunteer_open: bool
-    vendor_open: bool
+    exhibitor_open: bool
 
 class EventAvailability(BaseModel):
     participant_available: bool
@@ -43,6 +43,7 @@ class EventOut(BaseModel):
     capacity: EventCapacity
     registration: EventRegistration
     availability: EventAvailability
+    website_schedule_published: bool = False
 
     featured_image: Optional[str] = None
     no_show_minutes: Optional[int] = None
@@ -90,7 +91,8 @@ class EventBase(BaseModel):
 
     participant_open: Optional[bool] = None
     volunteer_open: Optional[bool] = None
-    vendor_open: Optional[bool] = None
+    exhibitor_open: Optional[bool] = None
+    website_schedule_published: Optional[bool] = None
 
     featured_image: Optional[str] = None
     no_show_minutes: Optional[int] = None
@@ -101,6 +103,14 @@ class EventBase(BaseModel):
         if v == 0:
             return None
         return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_legacy_vendor_field(cls, data):
+        if isinstance(data, dict):
+            if "exhibitor_open" not in data and "vendor_open" in data:
+                data["exhibitor_open"] = data["vendor_open"]
+        return data
     
 class EventCreate(EventBase):
     title: str
@@ -114,7 +124,8 @@ class EventCreate(EventBase):
 
     participant_open: bool = False
     volunteer_open: bool = False
-    vendor_open: bool = False
+    exhibitor_open: bool = False
+    website_schedule_published: bool = False
 
     no_show_minutes: Optional[int] = 15
 
@@ -127,7 +138,8 @@ class EventCreate(EventBase):
     
     participant_open: bool = False
     volunteer_open: bool = False
-    vendor_open: bool = False
+    exhibitor_open: bool = False
+    website_schedule_published: bool = False
 
     featured_image: Optional[str] = None
     
@@ -143,7 +155,8 @@ class EventUpdate(EventBase):
     
     participant_open: Optional[bool] = None
     volunteer_open: Optional[bool] = None
-    vendor_open: Optional[bool] = None
+    exhibitor_open: Optional[bool] = None
+    website_schedule_published: Optional[bool] = None
 
     featured_image: Optional[str] = None
     no_show_minutes: Optional[int] = None
@@ -170,6 +183,7 @@ class AdminEventListOut(BaseModel):
     capacity: EventCapacity
     registration: EventRegistration
     availability: EventAvailability
+    website_schedule_published: bool = False
     sessions: list = []
     featured_image: Optional[str]
 

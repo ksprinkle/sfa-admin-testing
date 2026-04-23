@@ -8,6 +8,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
     city: "",
     state: "",
     participant_capacity: "",
+    website_schedule_published: false,
     no_show_minutes: initialData.no_show_minutes ?? 15,
     ...initialData
   })
@@ -17,9 +18,10 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
   // it should either remount this component or pass a different key.
 
   function handleChange(e) {
+    const { name, type, value, checked } = e.target
     setForm({
       ...form,
-      [e.target.name]: e.target.value
+      [name]: type === "checkbox" ? checked : value
     })
   }
 
@@ -85,6 +87,22 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
         onChange={handleChange}
         className="w-full border rounded p-2"
       />
+
+      <label className="flex items-start gap-2 rounded border p-3 text-sm">
+        <input
+          type="checkbox"
+          name="website_schedule_published"
+          checked={!!form.website_schedule_published}
+          onChange={handleChange}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span>
+          Website schedule published
+          <span className="block text-xs text-gray-600">
+            When enabled, volunteer and exhibitor registration automatically open.
+          </span>
+        </span>
+      </label>
 
       <div className="flex gap-3">
 

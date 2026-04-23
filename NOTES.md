@@ -343,7 +343,7 @@ Volunteer Check-In
 Separate workflows for:
 
 volunteers
-vendors
+exhibitors
 staff
 Equipment Tracking
 

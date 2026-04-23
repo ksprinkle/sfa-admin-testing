@@ -39,7 +39,8 @@ class Event(Base):
 
     participant_open = Column(Boolean, default=False)
     volunteer_open = Column(Boolean, default=False)
-    vendor_open = Column(Boolean, default=False)
+    exhibitor_open = Column("vendor_open", Boolean, default=False)
+    website_schedule_published = Column(Boolean, default=False)
 
     featured_image = Column(String)
     no_show_minutes = Column(Integer, default=15)
@@ -94,5 +95,13 @@ class Event(Base):
         return session.query(Participant).filter(
             Participant.event_id == self.id
         ).count()
+
+    @property
+    def vendor_open(self):
+        return self.exhibitor_open
+
+    @vendor_open.setter
+    def vendor_open(self, value):
+        self.exhibitor_open = value
 
 

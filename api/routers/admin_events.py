@@ -8,7 +8,11 @@ from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
 from api.schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
-from api.crud.events import create_event as crud_create_event, update_event as crud_update_event
+from api.crud.events import (
+    create_event as crud_create_event,
+    update_event as crud_update_event,
+    auto_publish_and_open_participant_registration,
+)
 from sqlalchemy.orm import joinedload
 from api.schemas.participants import AdminParticipantListOut, ParticipantOut
 from api.utils.event_builder import build_admin_event
@@ -63,6 +67,8 @@ def get_event(
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
+    auto_publish_and_open_participant_registration(db)
+
     event = db.query(Event).filter(Event.id == event_id).first()
 
     if not event:
@@ -89,6 +95,8 @@ def event_summary(
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
+    auto_publish_and_open_participant_registration(db)
+
     from sqlalchemy.orm import joinedload
 
     event = (
@@ -164,6 +172,8 @@ def list_all_events(
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
+    auto_publish_and_open_participant_registration(db)
+
     query = db.query(Event).options(joinedload(Event.participants))
 
     if status:

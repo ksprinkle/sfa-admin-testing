@@ -37,7 +37,7 @@ def build_admin_event(event):
         registration={
             "participant_open": event.participant_open,
             "volunteer_open": event.volunteer_open,
-            "vendor_open": event.vendor_open,
+            "exhibitor_open": event.exhibitor_open,
         },
 
         availability={
@@ -56,6 +56,8 @@ def build_admin_event(event):
                 )
             ),
         },
+
+        website_schedule_published=event.website_schedule_published,
 
         featured_image=event.featured_image,
 

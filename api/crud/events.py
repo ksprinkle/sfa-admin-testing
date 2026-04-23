@@ -9,6 +9,8 @@ from api.utils.slug import generate_unique_slug
 from api.crud.participants import promote_from_waitlist
 import math
 
+AUTO_PUBLISH_DAYS_BEFORE_START = 14
+
 
 def create_event(db: Session, event_in: EventCreate):
 
@@ -49,6 +51,11 @@ def create_event(db: Session, event_in: EventCreate):
         )
 
     db.refresh(event)
+
+    # Apply automatic publication/registration rules immediately after creation.
+    auto_publish_and_open_participant_registration(db)
+    db.refresh(event)
+
     return event
 
 
@@ -70,10 +77,62 @@ def update_event(db: Session, event: Event, event_in: EventUpdate):
     # ALWAYS run waitlist promotion after update
     promote_waitlist(db, event)
 
+    # Reconcile automatic publication/registration rules after updates.
+    auto_publish_and_open_participant_registration(db)
+
     db.commit()
     db.refresh(event)
 
     return event
+
+
+def auto_publish_and_open_participant_registration(
+    db: Session,
+    days_before_start: int = AUTO_PUBLISH_DAYS_BEFORE_START,
+):
+    """
+    Automatically transitions event state based on start date.
+
+        Rules:
+        - Draft events are auto-published when start_date is within N days.
+        - Participant registration is auto-opened for published events within N days.
+        - Volunteer and exhibitor registration auto-open when website schedule
+            publication is explicitly marked true.
+    """
+    cutoff_date = date.today() + timedelta(days=days_before_start)
+
+    candidates = (
+        db.query(Event)
+        .filter(
+            Event.start_date.isnot(None),
+            Event.start_date <= cutoff_date,
+            Event.status.in_(["draft", "published"]),
+        )
+        .all()
+    )
+
+    changed = False
+    for event in candidates:
+        if event.status == "draft":
+            event.status = "published"
+            changed = True
+
+        if event.status == "published" and not event.participant_open:
+            event.participant_open = True
+            changed = True
+
+        if event.website_schedule_published:
+            if not event.volunteer_open:
+                event.volunteer_open = True
+                changed = True
+            if not event.exhibitor_open:
+                event.exhibitor_open = True
+                changed = True
+
+    if changed:
+        db.commit()
+
+    return changed
 
 def get_upcoming_events(
     db: Session,
@@ -86,6 +145,7 @@ def get_upcoming_events(
     offset: int | None = None,
     sort: str | None = "start_date",
 ):
+    auto_publish_and_open_participant_registration(db)
 
     query = db.query(Event)
 
@@ -134,6 +194,8 @@ def get_upcoming_events(
 
 
 def get_event_by_slug(db: Session, slug: str, is_admin: bool = False):
+    auto_publish_and_open_participant_registration(db)
+
     query = db.query(Event).filter(Event.slug == slug)
 
     if not is_admin:

@@ -132,7 +132,7 @@ def get_event(
         registration={
             "participant_open": event.participant_open,
             "volunteer_open": event.volunteer_open,
-            "vendor_open": event.vendor_open,
+            "exhibitor_open": event.exhibitor_open,
         },
         availability={
             "participant_available": (
@@ -150,6 +150,7 @@ def get_event(
                 )
             ),
         },
+        website_schedule_published=event.website_schedule_published,
         featured_image=event.featured_image,
     )
 
@@ -222,7 +223,7 @@ def build_event_out(event: Event) -> EventOut:
         registration={
             "participant_open": event.participant_open,
             "volunteer_open": event.volunteer_open,
-            "vendor_open": event.vendor_open,
+            "exhibitor_open": event.exhibitor_open,
         },
         availability={
             "participant_count": participant_count,
@@ -234,6 +235,7 @@ def build_event_out(event: Event) -> EventOut:
                 )
             ),
         },
+        website_schedule_published=event.website_schedule_published,
     )
 
 # ADMIN-ONLY List participants for an event (with waitlist status)
