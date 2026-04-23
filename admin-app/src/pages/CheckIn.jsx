@@ -326,7 +326,9 @@ export default function CheckIn() {
 
   // Real-time updates from other clients (phone/laptop) on this page.
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`
+    const apiBase = import.meta.env.DEV
+      ? `${window.location.protocol}//${window.location.hostname}:8000`
+      : (import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`)
     const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates"
     let ws = null
     let reconnectTimer = null
@@ -530,6 +532,16 @@ export default function CheckIn() {
         </span>
       </div>
 
+      {!eventMode && (
+        <div className="flex justify-end pr-4">
+          <div className="grid w-[440px] grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <span className="text-center">Waiver</span>
+            <span className="text-center">Check-In</span>
+            <span className="text-center">Waitlist</span>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
 
         {filtered.map((p) => {
@@ -573,22 +585,59 @@ export default function CheckIn() {
 
               </div>
 
-              {!eventMode && (
-                <div className="text-center">
-                  <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${
-                    p.waiver_verified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                  }`}>
-                    <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.waiver_verified ? "bg-green-500" : "bg-red-500"}`} />
-                    {p.waiver_verified ? "Waiver Verified" : "Waiver Pending"}
-                  </span>
-                </div>
-              )}
-
             </div>
 
             {/* Status */}
-            <div className="text-right ml-4">
-              {p.checked_in ? (
+            <div className="text-right ml-2">
+              {!eventMode ? (
+                <div className="w-[410px]">
+                  <div className="grid grid-cols-3 gap-2">
+                    <span className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                      p.waiver_verified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    }`}>
+                      <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.waiver_verified ? "bg-green-500" : "bg-red-500"}`} />
+                      {p.waiver_verified ? "Verified" : "Pending"}
+                    </span>
+
+                    <span className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                      p.checked_in
+                        ? "bg-green-100 text-green-700"
+                        : p.is_waitlisted
+                        ? "bg-gray-100 text-gray-600"
+                        : "bg-red-100 text-red-700"
+                    }`}>
+                      <span
+                        className={`inline-block h-2.5 w-2.5 rounded-full ${
+                          p.checked_in ? "bg-green-500" : p.is_waitlisted ? "bg-gray-400" : "bg-red-500"
+                        }`}
+                      />
+                      {p.checked_in ? "Checked In" : p.is_waitlisted ? "N/A" : "Not Checked In"}
+                    </span>
+
+                    <span className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                      p.is_waitlisted ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"
+                    }`}>
+                      <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.is_waitlisted ? "bg-yellow-400" : "bg-gray-500"}`} />
+                      {p.is_waitlisted ? "Waitlisted" : "Confirmed"}
+                    </span>
+                  </div>
+
+                  {!p.checked_in && !p.is_waitlisted && (
+                    <div className="mt-2 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleCheckIn([p.id])
+                        }}
+                        disabled={isCheckingIn}
+                        className="bg-success text-white rounded px-4 py-2 disabled:opacity-50"
+                      >
+                        Check In
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : p.checked_in ? (
                 <span className="inline-flex items-center gap-2 text-green-700 font-medium">
                   <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
                   Checked In
@@ -602,10 +651,10 @@ export default function CheckIn() {
                 <span className="inline-flex items-center gap-2 text-red-700 font-medium mb-2">
                   <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
                   Not Checked In
-                </span>
+                  </span>
               )}
 
-              {!p.checked_in && !p.is_waitlisted && (
+              {eventMode && !p.checked_in && !p.is_waitlisted && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
