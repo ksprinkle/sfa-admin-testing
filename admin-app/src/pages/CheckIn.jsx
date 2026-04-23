@@ -98,6 +98,8 @@ function DevCheckInPanel({
   copySnapshotStatus,
 }) {
   const refreshSourceStatus = refreshSource === "polling-fallback" ? "warning" : "success"
+  const transportMode = pauseRealtime ? "Polling fallback" : "Realtime websocket"
+  const transportModeStatus = pauseRealtime ? "warning" : "success"
 
   return (
     <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-slate-800 shadow-sm">
@@ -124,6 +126,19 @@ function DevCheckInPanel({
           >
             Download operator sheet
           </a>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-slate-700">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold uppercase tracking-wide text-slate-500">System status:</span>
+          <DevStatusPill label={isOnline ? "Online" : "Offline"} status={isOnline ? "success" : "error"} />
+          <span className="text-slate-400">|</span>
+          <DevStatusPill label={transportMode} status={transportModeStatus} />
+          <span className="text-slate-400">|</span>
+          <span className="font-medium text-slate-900">Queue: {queueCount}</span>
+          <span className="text-slate-400">|</span>
+          <span className="font-medium text-slate-900">Last sync: {refreshAge}</span>
         </div>
       </div>
 
