@@ -25,6 +25,16 @@ const PRIORITY_LEVELS = [
   { value: 0, label: "Unset", dotClass: "bg-gray-300" },
 ]
 
+function formatEventType(eventType) {
+  if (!eventType) return "Unspecified"
+
+  return eventType
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
 function EventDetail() {
     const [noShows, setNoShows] = useState([])
     const [promoteLoading, setPromoteLoading] = useState(false)
@@ -148,6 +158,7 @@ function EventDetail() {
   // (eventId already declared above)
 
   const [participants, setParticipants] = useState([])
+  const [eventInfo, setEventInfo] = useState(null)
   const [eventMode, setEventMode] = useState(localStorage.getItem(EVENT_MODE_KEY) === "on")
   const [eventStartAt, setEventStartAt] = useState(null)
   const [nowMs, setNowMs] = useState(Date.now())
@@ -185,10 +196,12 @@ function EventDetail() {
         ])
 
         setParticipants(data || [])
+        setEventInfo(eventData || null)
         setEventStartAt(toEventStartDate(eventData?.start_date, eventData?.start_time))
         await refreshNoShows()
       } catch (err) {
         setParticipants([])
+        setEventInfo(null)
         setNoShows([])
         setEventStartAt(null)
       } finally {
@@ -508,23 +521,41 @@ function EventDetail() {
         </div>
       )}
 
-      <h1 className="text-2xl font-semibold flex items-center gap-4">
-        Event Participants
-        <button
-          onClick={toggleEventMode}
-          className={`ml-2 px-3 py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}
-          title="Toggle simplified event-day UI"
-        >
-          Event Mode {eventMode ? "ON" : "OFF"}
-        </button>
-        <button
-          onClick={() => { refreshParticipants(); refreshNoShows(); }}
-          className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
-          title="Refresh participants"
-        >
-          ↻ Refresh
-        </button>
-      </h1>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold">Event Participants</h1>
+            {eventInfo?.event_type && (
+              <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-medium text-sky-800">
+                {formatEventType(eventInfo.event_type)}
+              </span>
+            )}
+          </div>
+          {eventInfo?.title && (
+            <p className="text-sm text-gray-600">
+              {eventInfo.title}
+              {eventInfo.start_date ? ` • ${eventInfo.start_date}` : ""}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={toggleEventMode}
+            className={`px-3 py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}
+            title="Toggle simplified event-day UI"
+          >
+            Event Mode {eventMode ? "ON" : "OFF"}
+          </button>
+          <button
+            onClick={() => { refreshParticipants(); refreshNoShows(); }}
+            className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+            title="Refresh participants"
+          >
+            ↻ Refresh
+          </button>
+        </div>
+      </div>
 
       {!eventMode && <PriorityLegend />}
 

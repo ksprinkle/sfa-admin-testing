@@ -2,6 +2,16 @@ import { useEffect, useState } from "react"
 import { fetchEvents, fetchEventSummary } from "../api/events"
 import { useNavigate } from "react-router-dom";
 
+function formatEventType(eventType) {
+  if (!eventType) return "Unspecified"
+
+  return eventType
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
 function Dashboard() {
   const [events, setEvents] = useState([])
   const [event, setEvent] = useState(null)
@@ -94,6 +104,14 @@ useEffect(() => {
     e => e.status?.toLowerCase() === "draft"
   ).length
 
+  const eventsByType = Object.entries(
+    events.reduce((counts, currentEvent) => {
+      const key = currentEvent.event_type || "unspecified"
+      counts[key] = (counts[key] || 0) + 1
+      return counts
+    }, {})
+  ).sort(([left], [right]) => left.localeCompare(right))
+
   const totalParticipants = events.reduce(
     (sum, e) => sum + (e.participant_count || 0),
     0
@@ -124,6 +142,28 @@ useEffect(() => {
         <StatCard label="Published Events" value={publishedEvents} color="text-success" />
         <StatCard label="Draft Events" value={draftEvents} color="text-warning" />
         <StatCard label="Total Participants" value={totalParticipants} color="text-ocean" />
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Events by Type</h2>
+            <p className="text-xs text-gray-500">
+              Quick count of configured event types across the current event list.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {eventsByType.map(([eventType, count]) => (
+            <StatCard
+              key={eventType}
+              label={formatEventType(eventType)}
+              value={count}
+              color="text-ocean"
+            />
+          ))}
+        </div>
       </div>
 
       {/* Live Event Stats */}

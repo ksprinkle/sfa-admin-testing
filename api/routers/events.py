@@ -151,6 +151,12 @@ def get_event(
             ),
         },
         website_schedule_published=event.website_schedule_published,
+        beach_access_notes=event.beach_access_notes,
+        directions=event.directions,
+        parking_info=event.parking_info,
+        lodging_info=event.lodging_info,
+        weather_report_url=event.weather_report_url,
+        surf_report_url=event.surf_report_url,
         featured_image=event.featured_image,
     )
 
@@ -236,6 +242,12 @@ def build_event_out(event: Event) -> EventOut:
             ),
         },
         website_schedule_published=event.website_schedule_published,
+        beach_access_notes=event.beach_access_notes,
+        directions=event.directions,
+        parking_info=event.parking_info,
+        lodging_info=event.lodging_info,
+        weather_report_url=event.weather_report_url,
+        surf_report_url=event.surf_report_url,
     )
 
 # ADMIN-ONLY List participants for an event (with waitlist status)

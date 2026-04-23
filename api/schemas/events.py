@@ -44,6 +44,12 @@ class EventOut(BaseModel):
     registration: EventRegistration
     availability: EventAvailability
     website_schedule_published: bool = False
+    beach_access_notes: Optional[str] = None
+    directions: Optional[str] = None
+    parking_info: Optional[str] = None
+    lodging_info: Optional[str] = None
+    weather_report_url: Optional[str] = None
+    surf_report_url: Optional[str] = None
 
     featured_image: Optional[str] = None
     no_show_minutes: Optional[int] = None
@@ -85,6 +91,13 @@ class EventBase(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     beach_accessibility: Optional[bool] = None
+    beach_access_notes: Optional[str] = None
+    directions: Optional[str] = None
+    parking_info: Optional[str] = None
+    lodging_info: Optional[str] = None
+    weather_report_url: Optional[str] = None
+    surf_report_url: Optional[str] = None
+    internal_notes: Optional[str] = None
 
     participant_capacity: Optional[int] = None
     volunteer_capacity: Optional[int] = None
@@ -104,6 +117,24 @@ class EventBase(BaseModel):
             return None
         return v
 
+    @field_validator("latitude")
+    @classmethod
+    def validate_latitude(cls, value):
+        if value is None:
+            return value
+        if value < -90 or value > 90:
+            raise ValueError("Latitude must be between -90 and 90")
+        return value
+
+    @field_validator("longitude")
+    @classmethod
+    def validate_longitude(cls, value):
+        if value is None:
+            return value
+        if value < -180 or value > 180:
+            raise ValueError("Longitude must be between -180 and 180")
+        return value
+
     @model_validator(mode="before")
     @classmethod
     def map_legacy_vendor_field(cls, data):
@@ -111,6 +142,26 @@ class EventBase(BaseModel):
             if "exhibitor_open" not in data and "vendor_open" in data:
                 data["exhibitor_open"] = data["vendor_open"]
         return data
+
+    @model_validator(mode="after")
+    def validate_event_timing(self):
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("End date cannot be earlier than start date")
+
+        same_day_event = (
+            self.start_time
+            and self.end_time
+            and (
+                self.end_date is None
+                or self.start_date is None
+                or self.end_date == self.start_date
+            )
+        )
+
+        if same_day_event and self.end_time < self.start_time:
+            raise ValueError("End time cannot be earlier than start time for a same-day event")
+
+        return self
     
 class EventCreate(EventBase):
     title: str
@@ -184,6 +235,13 @@ class AdminEventListOut(BaseModel):
     registration: EventRegistration
     availability: EventAvailability
     website_schedule_published: bool = False
+    beach_access_notes: Optional[str] = None
+    directions: Optional[str] = None
+    parking_info: Optional[str] = None
+    lodging_info: Optional[str] = None
+    weather_report_url: Optional[str] = None
+    surf_report_url: Optional[str] = None
+    internal_notes: Optional[str] = None
     sessions: list = []
     featured_image: Optional[str]
 

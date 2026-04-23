@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Date, Time, Boolean, Integer, Float, DateTime
+from sqlalchemy import Column, String, Date, Time, Boolean, Integer, Float, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from api.db.base import Base
@@ -33,6 +33,12 @@ class Event(Base):
     latitude = Column(Float)
     longitude = Column(Float)
     beach_accessibility = Column(Boolean, default=True)
+    beach_access_notes = Column(Text)
+    directions = Column(Text)
+    parking_info = Column(Text)
+    lodging_info = Column(Text)
+    weather_report_url = Column(String)
+    surf_report_url = Column(String)
 
     participant_capacity = Column(Integer)
     volunteer_capacity = Column(Integer)
@@ -43,6 +49,7 @@ class Event(Base):
     website_schedule_published = Column(Boolean, default=False)
 
     featured_image = Column(String)
+    internal_notes = Column(Text)
     no_show_minutes = Column(Integer, default=15)
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

@@ -58,6 +58,13 @@ def build_admin_event(event):
         },
 
         website_schedule_published=event.website_schedule_published,
+        beach_access_notes=event.beach_access_notes,
+        directions=event.directions,
+        parking_info=event.parking_info,
+        lodging_info=event.lodging_info,
+        weather_report_url=event.weather_report_url,
+        surf_report_url=event.surf_report_url,
+        internal_notes=event.internal_notes,
 
         featured_image=event.featured_image,
 

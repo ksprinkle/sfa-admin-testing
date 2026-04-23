@@ -13,7 +13,7 @@ function CreateEvent() {
 
       const event = await createEvent({
         ...data,
-        status: "draft"
+        status: data.status || "draft"
       })
 
       navigate(`/events/${event.id}`)

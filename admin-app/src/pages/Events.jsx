@@ -4,10 +4,49 @@ import { useNavigate } from "react-router-dom"
 import EventActionsDropdown from "../components/EventActionsDropdown"
 import { deleteEvent, archiveEvent } from "../api/events"
 
+const EVENT_TYPE_FILTER_KEY = "sfa.events.selectedType"
+
+function formatEventType(eventType) {
+  if (!eventType) return "-"
+
+  return eventType
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
 export default function Events() {
   const navigate = useNavigate()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedEventType, setSelectedEventType] = useState(
+    () => window.localStorage.getItem(EVENT_TYPE_FILTER_KEY) || "all"
+  )
+
+  const eventTypeCounts = events.reduce((counts, event) => {
+    const key = event.event_type || "unspecified"
+    counts[key] = (counts[key] || 0) + 1
+    return counts
+  }, {})
+
+  const eventTypes = Array.from(
+    new Set(events.map(event => event.event_type).filter(Boolean))
+  ).sort((left, right) => left.localeCompare(right))
+
+  const filteredEvents = selectedEventType === "all"
+    ? events
+    : events.filter(event => event.event_type === selectedEventType)
+
+  useEffect(() => {
+    window.localStorage.setItem(EVENT_TYPE_FILTER_KEY, selectedEventType)
+  }, [selectedEventType])
+
+  useEffect(() => {
+    if (selectedEventType !== "all" && !eventTypes.includes(selectedEventType)) {
+      setSelectedEventType("all")
+    }
+  }, [eventTypes, selectedEventType])
 
   useEffect(() => {
     async function loadEvents() {
@@ -99,11 +138,47 @@ export default function Events() {
     </button>
 
   </div>    
+      <div className="border-b p-4">
+        <div>
+          <p className="text-sm font-medium text-gray-700">Filter by type</p>
+          <p className="text-xs text-gray-500">
+            Showing {filteredEvents.length} of {events.length} events
+          </p>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedEventType("all")}
+            className={`rounded-full border px-3 py-2 text-sm font-medium transition ${selectedEventType === "all" ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+          >
+            All event types
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${selectedEventType === "all" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
+              {events.length}
+            </span>
+          </button>
+          {eventTypes.map((eventType) => (
+            <button
+              key={eventType}
+              type="button"
+              onClick={() => setSelectedEventType(eventType)}
+              className={`rounded-full border px-3 py-2 text-sm font-medium transition ${selectedEventType === eventType ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+            >
+              {formatEventType(eventType)}
+              <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${selectedEventType === eventType ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
+                {eventTypeCounts[eventType] || 0}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <table className="w-full">
 
         <thead className="bg-gray-50 border-b">
           <tr className="text-left text-sm text-gray-600">
             <th className="p-4">Event</th>
+            <th className="p-4">Type</th>
             <th className="p-4">Date</th>
             <th className="p-4">Status</th>
             <th className="p-4">Capacity</th>
@@ -112,7 +187,7 @@ export default function Events() {
 
         <tbody>
 
-          {events.map(event => {
+          {filteredEvents.map(event => {
 
   const capacity = event.participant_capacity
   const count = event.participant_count
@@ -130,6 +205,10 @@ export default function Events() {
 
       <td className="p-4 font-medium">
         {event.title}
+      </td>
+
+      <td className="p-4 text-gray-600">
+        {formatEventType(event.event_type)}
       </td>
 
       <td className="p-4 text-gray-600">
