@@ -38,6 +38,43 @@ This system manages events, participant registrations, waitlists, and live event
 
 The application is built as a **Progressive Web App (PWA)** so it can run on **phones, tablets, and laptops during events**.
 
+## Recent Updates (April 2026)
+
+- Participants page mobile compaction:
+      - Waiver/Check-In/Status converted to dot indicators with top legend.
+      - Column labels updated to WVR/CHK/STS.
+      - Table widths/padding tightened to reduce horizontal scrolling.
+      - Name/Email/Event cells truncate with hover titles.
+- Event Check-In status layout:
+      - Added aligned status headers and columns (Waiver, Check-In, Waitlist).
+      - Waitlist moved to far-right status column.
+      - Status pill padding and status block spacing reduced for denser layout.
+- PWA icon setup:
+      - Admin app now uses PNG app icons and maskable icon entries in manifest.
+      - Home-screen icon behavior aligned for phone and laptop installs.
+- Dev reliability improvements:
+      - In dev mode, API and websocket calls now default to the current host/IP.
+      - This avoids stale `.env` host issues after Wi-Fi changes.
+- Repo cleanup:
+      - Removed tracked Python cache artifacts from version control.
+
+## Local Dev Runbook (Current)
+
+Backend from repository root:
+
+"c:/Users/caspe/A Local Documents/SFA/PWA Development Files/surfers-for-autism-app/venv/Scripts/python.exe" -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000
+
+Frontend from admin app folder:
+
+cd admin-app
+npm run dev -- --host 0.0.0.0 --port 5173
+
+Common startup notes:
+
+- `npm run dev` at repository root fails because there is no root package.json.
+- If backend reports port 8000 already in use, stop the existing process on 8000, then start backend once.
+- For phone testing/install, open the frontend via your laptop IPv4 address and port 5173.
+
 ---
 
 # Overview

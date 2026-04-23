@@ -1,5 +1,35 @@
 # Recent Changes (Spring 2026)
 
+## Latest Updates (April 22, 2026)
+
+### Participants Page Mobile Compaction
+- Converted Waiver, Check-In, and Status table cells to dot indicators for tighter mobile layout.
+- Added top legend for Waiver, Check-In, and Status dot meanings.
+- Updated column labels from single-letter to clearer three-letter labels: WVR, CHK, STS.
+- Tightened table spacing and widths (including Name, Email, Event, Priority, dot columns, and Actions) to reduce horizontal scroll.
+- Added truncation with hover titles for Name, Email, and Event cells to keep rows compact.
+- Updated status dot colors for better visibility (especially Waitlisted and Confirmed).
+
+### Event Check-In Status Layout Improvements
+- Added explicit status headers and three aligned status columns in normal mode: Waiver, Check-In, Waitlist.
+- Moved Waitlist to the far-right status column as requested.
+- Reduced pill background padding and status-area width for denser row layout.
+- Reduced spacing between participant details and status columns for better balance.
+
+### PWA/App Icon Updates
+- Added and wired maskable icon assets for both standard and mask-safe variants.
+- Updated admin app manifest and HTML icon tags to use PNG icons instead of the default Vite SVG icon.
+- Verified icon files are available under admin-app public assets and correctly referenced.
+
+### Dev Networking and API Reliability
+- Updated admin app API/auth base URL logic in dev mode to use the current browser host (`window.location.hostname`) instead of stale env host values.
+- Applied the same dev-host strategy for websocket base URLs in Check-In, Participants, and Event Detail pages.
+- This fixes common laptop/phone mismatch after Wi-Fi network changes.
+
+### Repository Hygiene
+- Removed tracked Python cache artifacts from version control (`__pycache__` .pyc files).
+
+
 ## Priority System & UI/UX Overhaul
 - Participant priority is now a 3-level system:
   - 1 = High (Red)
