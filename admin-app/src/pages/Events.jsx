@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { fetchEvents } from "../api/events"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import EventActionsDropdown from "../components/EventActionsDropdown"
+import BackButton from "../components/BackButton"
 import { deleteEvent, archiveEvent } from "../api/events"
 
 const EVENT_TYPE_FILTER_KEY = "sfa.events.selectedType"
@@ -18,10 +19,13 @@ function formatEventType(eventType) {
 
 export default function Events() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
+  const statusFilter = (searchParams.get("status") || "all").toLowerCase()
+  const typeFilter = searchParams.get("type") || null
   const [selectedEventType, setSelectedEventType] = useState(
-    () => window.localStorage.getItem(EVENT_TYPE_FILTER_KEY) || "all"
+    () => typeFilter || window.localStorage.getItem(EVENT_TYPE_FILTER_KEY) || "all"
   )
 
   const eventTypeCounts = events.reduce((counts, event) => {
@@ -34,13 +38,45 @@ export default function Events() {
     new Set(events.map(event => event.event_type).filter(Boolean))
   ).sort((left, right) => left.localeCompare(right))
 
-  const filteredEvents = selectedEventType === "all"
-    ? events
-    : events.filter(event => event.event_type === selectedEventType)
+  const filteredEvents = useMemo(() => {
+    return events.filter((event) => {
+      const eventStatus = (event.status || "").toLowerCase()
+      const matchesStatus = statusFilter === "all" || eventStatus === statusFilter
+      const matchesType = selectedEventType === "all" || event.event_type === selectedEventType
+
+      return matchesStatus && matchesType
+    })
+  }, [events, selectedEventType, statusFilter])
+
+  const statusOptions = ["all", "published", "draft", "archived"]
+  const statusCounts = useMemo(() => {
+    return events.reduce((counts, event) => {
+      const key = (event.status || "unknown").toLowerCase()
+      counts[key] = (counts[key] || 0) + 1
+      return counts
+    }, {})
+  }, [events])
+
+  function handleStatusFilterChange(nextStatus) {
+    const nextParams = new URLSearchParams(searchParams)
+
+    if (nextStatus === "all") {
+      nextParams.delete("status")
+    } else {
+      nextParams.set("status", nextStatus)
+    }
+
+    setSearchParams(nextParams)
+  }
 
   useEffect(() => {
     window.localStorage.setItem(EVENT_TYPE_FILTER_KEY, selectedEventType)
   }, [selectedEventType])
+
+  useEffect(() => {
+    if (!typeFilter) return
+    setSelectedEventType(typeFilter)
+  }, [typeFilter])
 
   useEffect(() => {
     if (selectedEventType !== "all" && !eventTypes.includes(selectedEventType)) {
@@ -129,20 +165,42 @@ export default function Events() {
     <h1 className="text-2xl font-semibold">
       Events
     </h1>
-
-    <button
-      onClick={() => navigate("/events/new")}
-      className="bg-ocean text-white px-4 py-2 rounded"
-    >
-      + New Event
-    </button>
+    <div className="flex items-center gap-2">
+      <BackButton fallbackTo="/dashboard" className="px-3 py-2" />
+      <button
+        onClick={() => navigate("/events/new")}
+        className="bg-ocean text-white px-4 py-2 rounded"
+      >
+        + New Event
+      </button>
+    </div>
 
   </div>    
       <div className="border-b p-4">
         <div>
+          <p className="text-sm font-medium text-gray-700">Filter by status</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {statusOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => handleStatusFilterChange(option)}
+                className={`rounded-full border px-3 py-2 text-sm font-medium capitalize transition ${statusFilter === option ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+              >
+                {option}
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${statusFilter === option ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
+                  {option === "all" ? events.length : (statusCounts[option] || 0)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4">
           <p className="text-sm font-medium text-gray-700">Filter by type</p>
           <p className="text-xs text-gray-500">
             Showing {filteredEvents.length} of {events.length} events
+            {statusFilter !== "all" ? ` (status: ${statusFilter})` : ""}
           </p>
         </div>
 

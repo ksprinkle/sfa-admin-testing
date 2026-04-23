@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react"
 
 
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
+import BackButton from "../components/BackButton"
 
 import {
   DndContext,
@@ -90,6 +91,8 @@ function EventDetail() {
       }
     }
   const { eventId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams()
+  const participantFilter = (searchParams.get("participants") || "all").toLowerCase()
 
   // Utility: Refresh participants from API
   async function refreshParticipants() {
@@ -189,6 +192,25 @@ function EventDetail() {
   const [activeTransform, setActiveTransform] = useState(null)
   const [dragError, setDragError] = useState(null)
 
+  const participantFilterLabels = {
+    all: "All participants",
+    confirmed: "Confirmed",
+    waitlisted: "Waitlisted",
+    checked_in: "Checked In",
+    waiver_missing: "Waivers Missing",
+  }
+
+  const matchesParticipantFilter = (participant) => {
+    if (participantFilter === "all") return true
+    if (participantFilter === "confirmed") return !participant.is_waitlisted
+    if (participantFilter === "waitlisted") return participant.is_waitlisted
+    if (participantFilter === "checked_in") return participant.checked_in
+    if (participantFilter === "waiver_missing") return !participant.waiver_verified
+    return true
+  }
+
+  const visibleParticipants = participants.filter(matchesParticipantFilter)
+
   // ✅ stable sensors setup
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -242,7 +264,7 @@ function EventDetail() {
 
   
   // ✅ stable ordering by session and natural name order
-  const sortedParticipants = [...participants].sort((a, b) => {
+  const sortedParticipants = [...visibleParticipants].sort((a, b) => {
     if (a.session_id !== b.session_id) {
       return a.session_id.localeCompare(b.session_id)
     }
@@ -279,12 +301,12 @@ function EventDetail() {
   );
 
   const isSessionFull = (sessionId) => {
-    const count = participants.filter(p => p.session_id === sessionId).length
+    const count = sortedParticipants.filter(p => p.session_id === sessionId).length
     return count >= 15
   }
 
   const getSessionStatus = (sessionId) => {
-    const count = participants.filter(p => p.session_id === sessionId).length
+    const count = sortedParticipants.filter(p => p.session_id === sessionId).length
     if (count >= 15) return { status: 'Full', emoji: '🔴', color: 'text-red-500' }
     if (count >= 13) return { status: 'Almost Full', emoji: '🟡', color: 'text-yellow-500' }
     return { status: 'Open', emoji: '🟢', color: 'text-green-500' }
@@ -561,9 +583,28 @@ function EventDetail() {
               {eventInfo.start_date ? ` • ${eventInfo.start_date}` : ""}
             </p>
           )}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+              Viewing: {participantFilterLabels[participantFilter] || participantFilterLabels.all}
+            </span>
+            {participantFilter !== "all" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextParams = new URLSearchParams(searchParams)
+                  nextParams.delete("participants")
+                  setSearchParams(nextParams)
+                }}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <BackButton fallbackTo="/events" />
           <button
             onClick={toggleEventMode}
             className={`px-3 py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}
@@ -712,6 +753,12 @@ function EventDetail() {
 
         {/* Debug: log groupedParticipants structure */}
 
+
+        {groupedParticipants.length === 0 && (
+          <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+            No participants match the selected filter.
+          </div>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6">
           {groupedParticipants.map((group, idx) => {

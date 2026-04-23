@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { fetchAllParticipants, checkInParticipant, promoteParticipant, 
   removeParticipant, verifyWaiver, updateParticipantPriority } from "../api/events"
+import BackButton from "../components/BackButton"
 
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
@@ -305,6 +306,7 @@ export default function Participants() {
     <div className="p-6">
       <div className="flex items-center mb-4">
         <h1 className="text-2xl font-semibold flex-1">Participants</h1>
+        <BackButton fallbackTo="/dashboard" className="ml-2" />
         <button
           onClick={refreshParticipants}
           className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"

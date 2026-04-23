@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams } from "react-router-dom"
 import { fetchEventParticipants, checkInParticipant } from "../api/events"
+import BackButton from "../components/BackButton"
 
 const CHECKIN_QUEUE_KEY = "sfa.offline.checkin.queue"
 const EVENT_MODE_KEY = "sfa.event.mode"
@@ -1112,6 +1113,7 @@ export default function CheckIn() {
     <div className="p-6 space-y-4">
       <div className="flex items-center mb-4">
         <h1 className="text-2xl font-semibold flex-1">Event Check-In</h1>
+        <BackButton fallbackTo={`/events/${eventId}`} className="ml-2" />
         <button
           onClick={toggleEventMode}
           className={`ml-2 px-3 py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}

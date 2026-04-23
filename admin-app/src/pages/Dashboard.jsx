@@ -138,10 +138,34 @@ useEffect(() => {
 
       {/* Overall Event Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Events" value={totalEvents} color="text-ocean" />
-        <StatCard label="Published Events" value={publishedEvents} color="text-success" />
-        <StatCard label="Draft Events" value={draftEvents} color="text-warning" />
-        <StatCard label="Total Participants" value={totalParticipants} color="text-ocean" />
+        <StatCard
+          label="Total Events"
+          value={totalEvents}
+          color="text-ocean"
+          onClick={() => navigate("/events")}
+          title="Open all events"
+        />
+        <StatCard
+          label="Published Events"
+          value={publishedEvents}
+          color="text-success"
+          onClick={() => navigate("/events?status=published")}
+          title="Open published events"
+        />
+        <StatCard
+          label="Draft Events"
+          value={draftEvents}
+          color="text-warning"
+          onClick={() => navigate("/events?status=draft")}
+          title="Open draft events"
+        />
+        <StatCard
+          label="Total Participants"
+          value={totalParticipants}
+          color="text-ocean"
+          onClick={() => navigate("/participants")}
+          title="Open participants"
+        />
       </div>
 
       <div className="bg-white rounded-xl shadow p-4 space-y-3">
@@ -161,6 +185,8 @@ useEffect(() => {
               label={formatEventType(eventType)}
               value={count}
               color="text-ocean"
+              onClick={() => navigate(`/events?type=${encodeURIComponent(eventType)}`)}
+              title={`Filter events by ${formatEventType(eventType)}`}
             />
           ))}
         </div>
@@ -187,11 +213,35 @@ useEffect(() => {
     </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Confirmed" value={confirmed} color="text-ocean" />
-        <StatCard label="Waitlisted" value={waitlisted} color="text-warning" />
-        <StatCard label="Checked In" value={checkedIn} color="text-success" />
+        <StatCard
+          label="Confirmed"
+          value={confirmed}
+          color="text-ocean"
+          onClick={() => navigate(`/events/${event.id}?participants=confirmed`)}
+          title="Open event roster filtered to confirmed participants"
+        />
+        <StatCard
+          label="Waitlisted"
+          value={waitlisted}
+          color="text-warning"
+          onClick={() => navigate(`/events/${event.id}?participants=waitlisted`)}
+          title="Open event roster filtered to waitlisted participants"
+        />
+        <StatCard
+          label="Checked In"
+          value={checkedIn}
+          color="text-success"
+          onClick={() => navigate(`/events/${event.id}?participants=checked_in`)}
+          title="Open event roster filtered to checked-in participants"
+        />
         <StatCard label="Volunteers" value={event.volunteer_count ?? 0} color="text-ocean" />
-        <StatCard label="Waivers Missing" value={waiversMissing} color="text-danger" />
+        <StatCard
+          label="Waivers Missing"
+          value={waiversMissing}
+          color="text-danger"
+          onClick={() => navigate(`/events/${event.id}?participants=waiver_missing`)}
+          title="Open event roster filtered to missing waivers"
+        />
       </div>
 
 
@@ -261,9 +311,23 @@ useEffect(() => {
   )
 }
 
-function StatCard({ label, value, color }) {
+function StatCard({ label, value, color, onClick, title }) {
+  const clickable = typeof onClick === "function"
+
   return (
-    <div className="bg-white rounded-xl shadow p-4">
+    <div
+      className={`bg-white rounded-xl shadow p-4 ${clickable ? "cursor-pointer transition hover:bg-gray-50" : ""}`}
+      onClick={onClick}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      title={title}
+      onKeyDown={clickable ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onClick()
+        }
+      } : undefined}
+    >
       <p className="text-xs text-gray-500">{label}</p>
       <p className={`text-2xl font-semibold ${color}`}>
         {value}
