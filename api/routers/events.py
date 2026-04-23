@@ -97,9 +97,8 @@ def list_events(
 def get_event(
     slug: str,
     db: Session = Depends(get_db),
-    admin: bool = Depends(require_admin),
 ):
-    event: Event | None = get_event_by_slug(db, slug, is_admin=admin)
+    event: Event | None = get_event_by_slug(db, slug, is_admin=False)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 

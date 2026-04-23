@@ -1,7 +1,8 @@
-const CACHE_NAME = "sfa-pwa-cache-v1";
+const CACHE_NAME = "sfa-pwa-cache-v2";
 const FILES_TO_CACHE = [
   "./index.html",
   "./app.js",
+  "./style.css",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png"

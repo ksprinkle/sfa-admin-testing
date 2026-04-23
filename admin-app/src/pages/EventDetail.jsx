@@ -35,6 +35,27 @@ function formatEventType(eventType) {
     .join(" ")
 }
 
+function buildLocationSummary(eventInfo) {
+  const location = eventInfo?.location || {}
+  return [location.venue, location.city, location.state].filter(Boolean).join(", ") || "Location details not set"
+}
+
+function buildMapUrl(eventInfo) {
+  const latitude = eventInfo?.location?.latitude
+  const longitude = eventInfo?.location?.longitude
+
+  if (latitude != null && longitude != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`
+  }
+
+  const fallbackLocation = buildLocationSummary(eventInfo)
+  if (fallbackLocation !== "Location details not set") {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fallbackLocation)}`
+  }
+
+  return null
+}
+
 function EventDetail() {
     const [noShows, setNoShows] = useState([])
     const [promoteLoading, setPromoteLoading] = useState(false)
@@ -504,6 +525,9 @@ function EventDetail() {
 
   if (loading) return <div className="p-6">Loading...</div>
 
+  const mapUrl = buildMapUrl(eventInfo)
+  const hasResources = mapUrl || eventInfo?.weather_report_url || eventInfo?.surf_report_url
+
   return (
     <div className="relative p-6 space-y-6" onClick={() => setSelectedIds([])}>
 
@@ -556,6 +580,95 @@ function EventDetail() {
           </button>
         </div>
       </div>
+
+      {eventInfo && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold text-slate-900">Event Logistics</h2>
+              <p className="text-sm text-slate-600">{buildLocationSummary(eventInfo)}</p>
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                <span className={`rounded-full px-3 py-1 ${eventInfo.location?.beach_accessibility ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}>
+                  {eventInfo.location?.beach_accessibility ? "Beach access confirmed" : "Beach access needs review"}
+                </span>
+                {eventInfo.start_time && (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+                    Starts at {String(eventInfo.start_time).slice(0, 5)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {hasResources && (
+              <div className="flex flex-wrap gap-2">
+                {mapUrl && (
+                  <a
+                    href={mapUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+                  >
+                    Open map
+                  </a>
+                )}
+                {eventInfo.weather_report_url && (
+                  <a
+                    href={eventInfo.weather_report_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+                  >
+                    Weather report
+                  </a>
+                )}
+                {eventInfo.surf_report_url && (
+                  <a
+                    href={eventInfo.surf_report_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+                  >
+                    Surf report
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {eventInfo.directions && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <h3 className="text-sm font-semibold text-slate-900">Directions</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.directions}</p>
+              </div>
+            )}
+            {eventInfo.parking_info && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <h3 className="text-sm font-semibold text-slate-900">Parking</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.parking_info}</p>
+              </div>
+            )}
+            {eventInfo.lodging_info && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <h3 className="text-sm font-semibold text-slate-900">Lodging</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.lodging_info}</p>
+              </div>
+            )}
+            {eventInfo.beach_access_notes && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2 xl:col-span-1">
+                <h3 className="text-sm font-semibold text-slate-900">Beach Access Notes</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.beach_access_notes}</p>
+              </div>
+            )}
+            {eventInfo.internal_notes && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2 xl:col-span-2">
+                <h3 className="text-sm font-semibold text-slate-900">Internal Notes</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.internal_notes}</p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {!eventMode && <PriorityLegend />}
 
