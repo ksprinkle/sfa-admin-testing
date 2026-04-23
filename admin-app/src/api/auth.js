@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
+const DEFAULT_API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`
+const API_BASE = import.meta.env.DEV
+  ? DEFAULT_API_BASE
+  : (import.meta.env.VITE_API_URL || DEFAULT_API_BASE)
 
 export async function login(username, password) {
   const formData = new URLSearchParams()
