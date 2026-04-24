@@ -40,6 +40,7 @@ def get_confirmed_participant_count(db: Session, event_id):
         .filter(
             Participant.event_id == event_id,
             Participant.is_waitlisted == False,
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
         )
         .scalar()
     )
@@ -60,6 +61,7 @@ def get_waitlist_query(db: Session, event: Event, exclude_participant_id=None):
         .filter(
             Participant.event_id == event.id,
             Participant.is_waitlisted == True,
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
         )
     )
 

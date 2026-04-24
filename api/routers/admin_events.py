@@ -111,21 +111,30 @@ def event_summary(
 
     participants = event.participants
 
-    surfers = 0
+    registered = 0
     waitlisted = 0
     checked_in = 0
+    cleared_to_participate = 0
     volunteers = 0
     waivers_missing = 0
 
     for p in participants:
-        # Treat any checked-in participant as confirmed (not waitlisted)
-        if p.checked_in:
-            surfers += 1
-            checked_in += 1
-        elif p.is_waitlisted:
+        is_volunteer = (p.role or "").strip().lower() == "volunteer"
+
+        if is_volunteer:
+            volunteers += 1
+            continue
+
+        if p.is_waitlisted:
             waitlisted += 1
         else:
-            surfers += 1
+            registered += 1
+
+        if p.checked_in:
+            checked_in += 1
+
+        if p.checked_in and p.waiver_verified:
+            cleared_to_participate += 1
 
         if not p.waiver_verified:
             waivers_missing += 1
@@ -137,11 +146,11 @@ def event_summary(
 
     if event.participant_capacity:
         participant_remaining = max(
-            event.participant_capacity - surfers, 0
+            event.participant_capacity - registered, 0
         )
 
         participant_fill_percent = round(
-            (surfers / event.participant_capacity) * 100, 2
+            (registered / event.participant_capacity) * 100, 2
         )
 
     return {
@@ -149,7 +158,9 @@ def event_summary(
         "title": event.title,
         "status": event.status,
 
-        "participant_count": surfers,
+        "registered_count": registered,
+        "cleared_to_participate_count": cleared_to_participate,
+        "participant_count": registered,
         "waitlist_count": waitlisted,
         "checked_in_count": checked_in,
         "waivers_missing": waivers_missing,

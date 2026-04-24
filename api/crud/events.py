@@ -62,6 +62,7 @@ def create_event(db: Session, event_in: EventCreate):
 from sqlalchemy.orm import Session
 from datetime import date
 from api.models.events import Event
+from sqlalchemy import func
 from api.schemas.events import EventUpdate
 
 
@@ -229,6 +230,7 @@ def promote_waitlist(db: Session, event: Event):
         .filter(
             Participant.event_id == event.id,
             Participant.is_waitlisted == False,
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
         )
         .count()
     )

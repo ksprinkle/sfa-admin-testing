@@ -1,5 +1,6 @@
 from api.models.sessions import Session
 from api.models.participants import Participant
+from sqlalchemy import func
 
 def get_next_available_session(db, event_id: str):
     sessions = (
@@ -12,7 +13,10 @@ def get_next_available_session(db, event_id: str):
     for session in sessions:
         count = (
             db.query(Participant)
-            .filter(Participant.session_id == session.id)
+            .filter(
+                Participant.session_id == session.id,
+                func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+            )
             .count()
         )
 

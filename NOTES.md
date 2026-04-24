@@ -1,5 +1,27 @@
 # Recent Changes (Spring 2026)
 
+## Latest Updates (April 23, 2026)
+
+### Metrics + Terminology Alignment
+- Replaced "Confirmed" with "Registered" in dashboard and drill-down routes.
+- Added "Cleared to Participate" count and filter (`checked_in && waiver_verified`).
+- Event and dashboard summaries now report registered, waitlisted, checked-in, waivers-missing, and volunteer counts with clearer semantics.
+
+### Volunteer Capacity Policy
+- Volunteers are treated as unlimited for current operations.
+- Volunteer records are excluded from participant/session seat-capacity enforcement.
+- Waitlist promotion for volunteers now bypasses participant-capacity checks.
+- `volunteer_capacity` fields remain available in API models as informational (non-enforced for now).
+
+### Admin Participant API Expansion
+- Added comprehensive `PATCH /api/admin/participants/{participant_id}` endpoint.
+- Supports first/last name, email, role, minor flag, waitlist, priority, waiver state, check-in state, notes, and session assignment updates.
+- Includes duplicate-email protection and role-aware session validation.
+
+### Participants Page Refresh Behavior
+- Continuous `GET /api/admin/participants/` logs every few seconds are expected with current fallback strategy.
+- The page refreshes from websocket events and also runs a visible-tab polling fallback every 4 seconds.
+
 ## Latest Updates (April 22, 2026)
 
 ### Participants Page Mobile Compaction

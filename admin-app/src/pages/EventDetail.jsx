@@ -194,16 +194,20 @@ function EventDetail() {
 
   const participantFilterLabels = {
     all: "All participants",
-    confirmed: "Confirmed",
+    registered: "Registered",
     waitlisted: "Waitlisted",
+    cleared: "Cleared to Participate",
+    volunteers: "Volunteers",
     checked_in: "Checked In",
     waiver_missing: "Waivers Missing",
   }
 
   const matchesParticipantFilter = (participant) => {
     if (participantFilter === "all") return true
-    if (participantFilter === "confirmed") return !participant.is_waitlisted
+    if (participantFilter === "registered" || participantFilter === "confirmed") return !participant.is_waitlisted
     if (participantFilter === "waitlisted") return participant.is_waitlisted
+    if (participantFilter === "cleared") return participant.checked_in && participant.waiver_verified
+    if (participantFilter === "volunteers") return (participant.role || "").toLowerCase() === "volunteer"
     if (participantFilter === "checked_in") return participant.checked_in
     if (participantFilter === "waiver_missing") return !participant.waiver_verified
     return true
@@ -265,8 +269,11 @@ function EventDetail() {
   
   // ✅ stable ordering by session and natural name order
   const sortedParticipants = [...visibleParticipants].sort((a, b) => {
-    if (a.session_id !== b.session_id) {
-      return a.session_id.localeCompare(b.session_id)
+    const sessionA = a.session_id || ""
+    const sessionB = b.session_id || ""
+
+    if (sessionA !== sessionB) {
+      return sessionA.localeCompare(sessionB)
     }
 
     if (a.checked_in !== b.checked_in) {
@@ -288,28 +295,49 @@ function EventDetail() {
 
   // Only keep groups for the two most common session IDs
   const sessionIdCounts = sortedParticipants.reduce((acc, p) => {
-    acc[p.session_id] = (acc[p.session_id] || 0) + 1;
+    const key = p.session_id || "UNASSIGNED";
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
-  const topSessionIds = Object.entries(sessionIdCounts)
+
+  const sortedSessionIds = Object.entries(sessionIdCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
     .map(([id]) => id);
 
-  const groupedParticipants = topSessionIds.map(sessionId =>
-    sortedParticipants.filter(p => p.session_id === sessionId)
+  const sessionIdsForView = participantFilter === "all"
+    ? sortedSessionIds.slice(0, 2)
+    : sortedSessionIds
+
+  const groupedParticipants = sessionIdsForView.map(sessionId =>
+    sortedParticipants.filter(p => (p.session_id || "UNASSIGNED") === sessionId)
   );
 
+  const isVolunteer = (participant) => (participant?.role || "").toLowerCase().trim() === "volunteer"
+
   const isSessionFull = (sessionId) => {
-    const count = sortedParticipants.filter(p => p.session_id === sessionId).length
+    const count = sortedParticipants.filter(
+      p => p.session_id === sessionId && !isVolunteer(p)
+    ).length
     return count >= 15
   }
 
   const getSessionStatus = (sessionId) => {
-    const count = sortedParticipants.filter(p => p.session_id === sessionId).length
-    if (count >= 15) return { status: 'Full', emoji: '🔴', color: 'text-red-500' }
-    if (count >= 13) return { status: 'Almost Full', emoji: '🟡', color: 'text-yellow-500' }
-    return { status: 'Open', emoji: '🟢', color: 'text-green-500' }
+    const participantCount = sortedParticipants.filter(
+      p => p.session_id === sessionId && !isVolunteer(p)
+    ).length
+    const volunteerCount = sortedParticipants.filter(
+      p => p.session_id === sessionId && isVolunteer(p)
+    ).length
+
+    if (participantCount >= 15) {
+      return { status: `Full${volunteerCount ? ` (${volunteerCount} volunteers)` : ""}`, emoji: '🔴', color: 'text-red-500', participantCount, volunteerCount }
+    }
+
+    if (participantCount >= 13) {
+      return { status: `Almost Full${volunteerCount ? ` (${volunteerCount} volunteers)` : ""}`, emoji: '🟡', color: 'text-yellow-500', participantCount, volunteerCount }
+    }
+
+    return { status: `Open${volunteerCount ? ` (${volunteerCount} volunteers)` : ""}`, emoji: '🟢', color: 'text-green-500', participantCount, volunteerCount }
   }
 
   const formatCountdown = (milliseconds) => {
@@ -326,6 +354,41 @@ function EventDetail() {
   }
 
   const getSessionSoftStatus = (sessionIndex, group) => {
+    if (participantFilter === "waitlisted") {
+      return {
+        text: "Showing waitlisted participants for manual review",
+        className: "text-amber-700",
+      }
+    }
+
+    if (participantFilter === "checked_in") {
+      return {
+        text: "Showing checked-in participants only",
+        className: "text-green-700",
+      }
+    }
+
+    if (participantFilter === "cleared") {
+      return {
+        text: "Showing waiver-verified participants who are checked in",
+        className: "text-green-700",
+      }
+    }
+
+    if (participantFilter === "volunteers") {
+      return {
+        text: "Showing volunteer roster",
+        className: "text-blue-700",
+      }
+    }
+
+    if (participantFilter === "waiver_missing") {
+      return {
+        text: "Showing participants with missing waiver verification",
+        className: "text-red-700",
+      }
+    }
+
     if (eventStartAt) {
       const sessionStartMs = eventStartAt.getTime() + (sessionIndex * 60 * 60 * 1000)
       const remainingMs = sessionStartMs - nowMs
@@ -396,9 +459,18 @@ function EventDetail() {
       ? selectedIds
       : [activeId]
 
+    const isParticipantSeat = (person) => !isVolunteer(person)
+
     // Check if target session has capacity
-    const currentInSession = participants.filter(p => p.session_id === targetSessionId).length
-    if (currentInSession + idsToMove.length > 15) {
+    const currentInSession = participants.filter(
+      p => p.session_id === targetSessionId && isParticipantSeat(p)
+    ).length
+    const movingParticipantSeats = idsToMove.filter((id) => {
+      const person = participants.find((p) => String(p.id) === String(id))
+      return isParticipantSeat(person)
+    }).length
+
+    if (currentInSession + movingParticipantSeats > 15) {
       // Session would exceed capacity
       setDragError("Cannot move to full session")
       return
@@ -762,13 +834,15 @@ function EventDetail() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {groupedParticipants.map((group, idx) => {
-            const sessionId = group[0]?.session_id;
+            const sessionId = group[0]?.session_id || "UNASSIGNED";
             const softStatus = getSessionSoftStatus(idx, group)
+            const sessionLabel = sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : `Session ${idx + 1}`
+            const sessionStatus = getSessionStatus(sessionId)
             return (
               <DroppableSession key={sessionId} sessionId={sessionId}>
                 <div className="flex justify-between mb-2">
-                  <h3 className="font-semibold">Session {idx + 1} {getSessionStatus(sessionId).emoji}</h3>
-                  <span className={getSessionStatus(sessionId).color}>{group.length} / 15</span>
+                  <h3 className="font-semibold">{sessionLabel} {sessionStatus.emoji}</h3>
+                  <span className={sessionStatus.color}>{sessionStatus.participantCount} / 15</span>
                 </div>
                 <div className={`mb-3 text-xs font-medium ${softStatus.className}`}>
                   {softStatus.text}

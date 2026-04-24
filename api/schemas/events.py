@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date, time
 from uuid import UUID
 from typing import Optional
@@ -15,7 +15,10 @@ class EventLocation(BaseModel):
 
 class EventCapacity(BaseModel):
     participants: Optional[int]
-    volunteers: Optional[int]
+    volunteers: Optional[int] = Field(
+        default=None,
+        description="Informational only for now. Volunteer limits are currently not enforced.",
+    )
 
 
 class EventRegistration(BaseModel):
@@ -100,7 +103,10 @@ class EventBase(BaseModel):
     internal_notes: Optional[str] = None
 
     participant_capacity: Optional[int] = None
-    volunteer_capacity: Optional[int] = None
+    volunteer_capacity: Optional[int] = Field(
+        default=None,
+        description="Informational only for now. Volunteer limits are currently not enforced.",
+    )
 
     participant_open: Optional[bool] = None
     volunteer_open: Optional[bool] = None
@@ -262,6 +268,8 @@ class AdminEventSummary(BaseModel):
     title: str
     status: str
     
+    registered_count: int
+    cleared_to_participate_count: int
     participant_count: int
     waitlist_count: int
     checked_in_count: int

@@ -58,3 +58,22 @@ class AdminParticipantListOut(BaseModel):
 
 class SessionUpdate(BaseModel):
     session_id: UUID
+
+
+class ParticipantEmailUpdate(BaseModel):
+    email: EmailStr
+
+
+class ParticipantUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
+    is_minor: Optional[bool] = None
+    is_waitlisted: Optional[bool] = None
+    priority: Optional[int] = None
+    waiver_signed: Optional[bool] = None
+    waiver_verified: Optional[bool] = None
+    checked_in: Optional[bool] = None
+    notes: Optional[str] = None
+    session_id: Optional[UUID] = None

@@ -18,9 +18,11 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate();
 
-  const [confirmed, setConfirmed] = useState(0)
+  const [registered, setRegistered] = useState(0)
   const [waitlisted, setWaitlisted] = useState(0)
   const [checkedIn, setCheckedIn] = useState(0)
+  const [clearedToParticipate, setClearedToParticipate] = useState(0)
+  const [volunteers, setVolunteers] = useState(0)
   const [waiversMissing, setWaiversMissing] = useState(0)
 
   // For now, just show the first published event and its stats. 
@@ -52,9 +54,11 @@ function Dashboard() {
       // ✅ fetch summary here (correct place)
       const summary = await fetchEventSummary(active.id)
 
-      setConfirmed(summary.participant_count)
+      setRegistered(summary.registered_count ?? summary.participant_count)
       setWaitlisted(summary.waitlist_count)
       setCheckedIn(summary.checked_in_count)
+      setClearedToParticipate(summary.cleared_to_participate_count ?? 0)
+      setVolunteers(summary.volunteer_count ?? 0)
       setWaiversMissing(summary.waivers_missing)
 
     } catch (err) {
@@ -91,7 +95,7 @@ useEffect(() => {
 
   const participantCapacity = event.capacity?.participants;
   const percentFull = participantCapacity
-    ? Math.min((confirmed / participantCapacity) * 100, 100)
+    ? Math.min((registered / participantCapacity) * 100, 100)
     : 0;
 
   const totalEvents = events.length
@@ -117,7 +121,7 @@ useEffect(() => {
     0
   )
   const capacityColor =
-    participantCapacity && confirmed >= participantCapacity
+    participantCapacity && registered >= participantCapacity
       ? "bg-danger"
       : percentFull > 80
       ? "bg-warning"
@@ -214,11 +218,11 @@ useEffect(() => {
 
       <div className="grid grid-cols-3 gap-4">
         <StatCard
-          label="Confirmed"
-          value={confirmed}
+          label="Registered"
+          value={registered}
           color="text-ocean"
-          onClick={() => navigate(`/events/${event.id}?participants=confirmed`)}
-          title="Open event roster filtered to confirmed participants"
+          onClick={() => navigate(`/events/${event.id}?participants=registered`)}
+          title="Open event roster filtered to registered participants"
         />
         <StatCard
           label="Waitlisted"
@@ -228,13 +232,26 @@ useEffect(() => {
           title="Open event roster filtered to waitlisted participants"
         />
         <StatCard
+          label="Cleared to Participate"
+          value={clearedToParticipate}
+          color="text-success"
+          onClick={() => navigate(`/events/${event.id}?participants=cleared`)}
+          title="Open event roster filtered to waiver-verified checked-in participants"
+        />
+        <StatCard
           label="Checked In"
           value={checkedIn}
           color="text-success"
           onClick={() => navigate(`/events/${event.id}?participants=checked_in`)}
           title="Open event roster filtered to checked-in participants"
         />
-        <StatCard label="Volunteers" value={event.volunteer_count ?? 0} color="text-ocean" />
+        <StatCard
+          label="Volunteers"
+          value={volunteers}
+          color="text-ocean"
+          onClick={() => navigate(`/events/${event.id}?participants=volunteers`)}
+          title="Open event roster filtered to volunteers"
+        />
         <StatCard
           label="Waivers Missing"
           value={waiversMissing}
@@ -258,7 +275,7 @@ useEffect(() => {
               />
             </div>
             <p className="text-xs text-gray-500">
-              {confirmed} of {participantCapacity} spots filled
+              {registered} of {participantCapacity} spots filled
             </p>
           </>
         ) : (
@@ -274,12 +291,12 @@ useEffect(() => {
         <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
           <div
             className="h-full bg-green-500"
-            style={{ width: `${confirmed > 0 ? (checkedIn / confirmed) * 100 : 0}%` }}
+            style={{ width: `${registered > 0 ? (checkedIn / registered) * 100 : 0}%` }}
           />
         </div>
 
         <p className="text-xs text-gray-500">
-          {checkedIn} of {confirmed} confirmed participants checked in
+          {checkedIn} of {registered} registered participants checked in
         </p>
       </div>
 

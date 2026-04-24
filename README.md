@@ -40,6 +40,22 @@ The application is built as a **Progressive Web App (PWA)** so it can run on **p
 
 ## Recent Updates (April 2026)
 
+- Admin dashboard and roster semantics update:
+      - "Confirmed" metric renamed to "Registered".
+      - Added "Cleared to Participate" metric (checked in + waiver verified).
+      - Dashboard stat cards now deep-link into filtered event rosters.
+- Volunteer capacity policy update:
+      - Volunteers are excluded from participant and session seat enforcement.
+      - Volunteer assignment/promotion remains allowed even when participant capacity is full.
+      - `volunteer_capacity` remains in schemas as informational (not currently enforced).
+- Participant administration improvements:
+      - Added broad PATCH participant update endpoint for admin workflows.
+      - Supports updates for identity/contact fields, role, waiver/check-in flags, notes, priority, and session assignment.
+      - Session capacity checks apply to participant seats only (volunteers exempt).
+- Participants page refresh behavior:
+      - Real-time websocket refresh remains primary.
+      - 4-second polling fallback runs while tab is visible to reduce stale screens when reconnecting.
+
 - Participants page mobile compaction:
       - Waiver/Check-In/Status converted to dot indicators with top legend.
       - Column labels updated to WVR/CHK/STS.

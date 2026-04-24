@@ -2,23 +2,135 @@ from api.models.participants import Participant
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
+from sqlalchemy.exc import IntegrityError
 from api.crud.participants import promote_from_waitlist, promote_specific_waitlisted_participant
 from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
-from api.schemas.participants import ParticipantAction, ParticipantCreate, ParticipantOut, SessionUpdate
+from api.schemas.participants import ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate
 from api.ws_manager import manager
 import json
 from sqlalchemy import func
 from api.models.sessions import Session as EventSession
 from api.services.session_service import get_next_available_session
 
+
+def _is_volunteer_role(value: str | None) -> bool:
+    return (value or "").strip().lower() == "volunteer"
+
 router = APIRouter(
     prefix="/admin/participants",
     tags=["Admin Participants"],
 )
+
+
+@router.patch("/{participant_id}", response_model=ParticipantOut)
+async def update_participant(
+    participant_id: UUID,
+    payload: ParticipantUpdate,
+    db: DBSession = Depends(get_db),
+    _current_user = Depends(require_admin),
+):
+    participant = db.query(Participant).filter(Participant.id == participant_id).first()
+
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No update fields provided")
+
+    effective_role = updates.get("role", participant.role)
+
+    session_id_in_payload = "session_id" in updates
+    target_session_id = updates.pop("session_id", None)
+
+    if session_id_in_payload:
+        if target_session_id is None:
+            participant.session_id = None
+        else:
+            session = db.query(EventSession).filter(EventSession.id == target_session_id).first()
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            if str(session.event_id) != str(participant.event_id):
+                raise HTTPException(status_code=400, detail="Session does not belong to participant event")
+
+            if not _is_volunteer_role(effective_role):
+                count = db.query(Participant).filter(
+                    Participant.session_id == target_session_id,
+                    Participant.id != participant.id,
+                    func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+                ).count()
+
+                if count >= 15:
+                    raise HTTPException(status_code=400, detail="Session is full")
+
+            participant.session_id = target_session_id
+            participant.is_waitlisted = False
+
+    if "priority" in updates and updates["priority"] is not None:
+        updates["priority"] = max(0, min(3, updates["priority"]))
+
+    if "is_waitlisted" in updates:
+        if updates["is_waitlisted"]:
+            participant.is_waitlisted = True
+            participant.session_id = None
+        else:
+            participant.is_waitlisted = False
+
+    for field in [
+        "first_name",
+        "last_name",
+        "email",
+        "role",
+        "is_minor",
+        "priority",
+        "waiver_signed",
+        "waiver_verified",
+        "notes",
+    ]:
+        if field in updates:
+            setattr(participant, field, updates[field])
+
+    if _is_volunteer_role(participant.role):
+        participant.is_waitlisted = False
+
+    if "checked_in" in updates:
+        if updates["checked_in"]:
+            effective_waiver_verified = updates.get("waiver_verified", participant.waiver_verified)
+            if not effective_waiver_verified:
+                raise HTTPException(status_code=400, detail="Waiver not verified")
+
+            participant.checked_in = True
+            if not participant.checked_in_at:
+                participant.checked_in_at = datetime.utcnow()
+        else:
+            participant.checked_in = False
+            participant.checked_in_at = None
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="A participant with this email already exists for this event",
+        )
+
+    db.refresh(participant)
+
+    await manager.broadcast(json.dumps({
+        "type": "participant_update",
+        "participant_id": str(participant.id),
+        "action": "update_participant",
+        "email": participant.email,
+    }))
+
+    return participant
 
 # @router.get("/test")
 # def test():
@@ -70,12 +182,17 @@ def create_participant(
 
         sessions = [session1, session2]
 
-    # Use centralized session assignment
-    available_session = get_next_available_session(db, data.event_id)
-    assigned_session_id = available_session.id if available_session else None
-    
-    # If no session available, add as waitlisted (don't turn away extras)
-    is_waitlisted = not assigned_session_id
+    is_volunteer = _is_volunteer_role(data.role)
+
+    # Use centralized session assignment for participant roles.
+    if is_volunteer:
+        assigned_session_id = sessions[0].id if sessions else None
+        is_waitlisted = False
+    else:
+        available_session = get_next_available_session(db, data.event_id)
+        assigned_session_id = available_session.id if available_session else None
+        # If no session available, add as waitlisted (don't turn away extras)
+        is_waitlisted = not assigned_session_id
 
     try:
         participant = Participant(
@@ -92,9 +209,10 @@ def create_participant(
         db.add(participant)
 
         # Final capacity check to prevent exceeding session capacity under race conditions
-        if participant.session_id:
+        if participant.session_id and not is_volunteer:
             final_count = db.query(func.count(Participant.id)).filter(
-                Participant.session_id == participant.session_id
+                Participant.session_id == participant.session_id,
+                func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
             ).scalar()
             if final_count > 15:
                 participant.is_waitlisted = True
@@ -197,10 +315,18 @@ def promote_participant(
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
 
-    event = participant.event
+    if not participant.is_waitlisted:
+        return {"message": "Participant is already active"}
 
-    if event.participant_capacity is not None:
-        confirmed_count = event.surfer_count
+    event = participant.event
+    is_volunteer = _is_volunteer_role(participant.role)
+
+    if event.participant_capacity is not None and not is_volunteer:
+        confirmed_count = db.query(Participant).filter(
+            Participant.event_id == event.id,
+            Participant.is_waitlisted == False,
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+        ).count()
 
         if confirmed_count >= event.participant_capacity:
             raise HTTPException(
