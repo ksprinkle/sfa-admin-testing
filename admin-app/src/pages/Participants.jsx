@@ -21,45 +21,6 @@ const CHECKIN_LEGEND = [
   { value: "pending", label: "Not Checked In", dotClass: "bg-red-500" },
 ]
 
-const STATUS_LEGEND = [
-  { value: "waitlisted", label: "Waitlisted", dotClass: "bg-yellow-400" },
-  { value: "confirmed", label: "Confirmed", dotClass: "bg-gray-500" },
-]
-
-function StatusLegend() {
-  return (
-    <div className="mb-3 flex flex-wrap items-center gap-6 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
-      <div className="flex items-center gap-4">
-        <span className="font-semibold uppercase tracking-wide text-gray-800">Waiver</span>
-        {WAIVER_LEGEND.map((item) => (
-          <span key={String(item.value)} className="inline-flex items-center gap-1.5">
-            <span className={`h-2.5 w-2.5 rounded-full ${item.dotClass}`} />
-            <span>{item.label}</span>
-          </span>
-        ))}
-      </div>
-      <div className="flex items-center gap-4">
-        <span className="font-semibold uppercase tracking-wide text-gray-800">Check-In</span>
-        {CHECKIN_LEGEND.map((item) => (
-          <span key={item.value} className="inline-flex items-center gap-1.5">
-            <span className={`h-2.5 w-2.5 rounded-full ${item.dotClass}`} />
-            <span>{item.label}</span>
-          </span>
-        ))}
-      </div>
-      <div className="flex items-center gap-4">
-        <span className="font-semibold uppercase tracking-wide text-gray-800">Status</span>
-        {STATUS_LEGEND.map((item) => (
-          <span key={item.value} className="inline-flex items-center gap-1.5">
-            <span className={`h-2.5 w-2.5 rounded-full ${item.dotClass}`} />
-            <span>{item.label}</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // PriorityDropdown component (moved to top level)
 function PriorityDropdown({ current, onChange }) {
   const [open, setOpen] = useState(false);
@@ -353,13 +314,11 @@ export default function Participants() {
     </div>
 
 {/* Table of participants with columns for name, email, event, status, and actions */}
-      <StatusLegend />
-
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
+      <div className="bg-white rounded-xl shadow overflow-auto max-h-[70vh]">
 
         <table className="w-full min-w-[900px] text-sm">
 
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-gray-50 border-b sticky top-0 z-10">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <th className="w-36 px-2 py-3">Name</th>
               <th className="w-44 px-2 py-3">Email</th>
@@ -369,6 +328,42 @@ export default function Participants() {
               <th className="w-12 px-2 py-3 text-center">CHK</th>
               <th className="w-12 px-2 py-3 text-center">STS</th>
               <th className="w-16 px-2 py-3 text-center">Actions</th>
+            </tr>
+            <tr className="border-t text-[10px] text-gray-600">
+              <th className="px-2 pb-2" colSpan={4}></th>
+              <th className="px-2 pb-2 text-center font-medium">
+                <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                  {WAIVER_LEGEND.map((item) => (
+                    <span key={String(item.value)} className="inline-flex items-center gap-1">
+                      <span className={`h-2 w-2 rounded-full ${item.dotClass}`} />
+                      {item.label}
+                    </span>
+                  ))}
+                </span>
+              </th>
+              <th className="px-2 pb-2 text-center font-medium">
+                <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                  {CHECKIN_LEGEND.map((item) => (
+                    <span key={item.value} className="inline-flex items-center gap-1">
+                      <span className={`h-2 w-2 rounded-full ${item.dotClass}`} />
+                      {item.label}
+                    </span>
+                  ))}
+                </span>
+              </th>
+              <th className="px-2 pb-2 text-center font-medium">
+                <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-yellow-400" />
+                    Waitlisted
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-gray-500" />
+                    Confirmed
+                  </span>
+                </span>
+              </th>
+              <th className="px-2 pb-2" />
             </tr>
             
           </thead>

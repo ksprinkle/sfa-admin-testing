@@ -231,9 +231,10 @@ export default function Events() {
         </div>
       </div>
 
+      <div className="overflow-auto max-h-[70vh] rounded-xl border border-gray-200">
       <table className="w-full">
 
-        <thead className="bg-gray-50 border-b">
+        <thead className="bg-gray-50 border-b sticky top-0 z-10">
           <tr className="text-left text-sm text-gray-600">
             <th className="p-4">Event</th>
             <th className="p-4">Type</th>
@@ -329,6 +330,7 @@ export default function Events() {
         </tbody>
 
       </table>
+      </div>
 
     </div>
 

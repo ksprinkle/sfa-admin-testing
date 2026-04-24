@@ -135,6 +135,25 @@ export async function verifyWaiver(participantId) {
   return res.json()
 }
 
+export async function moveParticipantToWaitlist(participantId) {
+  const res = await apiFetch(
+    `/api/admin/participants/${participantId}/action`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        action: "move_to_waitlist"
+      })
+    }
+  )
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to move participant to waitlist")
+  }
+
+  return res.json()
+}
+
 export async function fetchEventSummary(eventId) {
   const res = await apiFetch(`/api/admin/events/${eventId}/summary`)
 

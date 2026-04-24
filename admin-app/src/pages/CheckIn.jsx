@@ -1,6 +1,12 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams } from "react-router-dom"
-import { fetchEventParticipants, checkInParticipant } from "../api/events"
+import {
+  fetchEventParticipants,
+  checkInParticipant,
+  moveParticipantToWaitlist,
+  promoteParticipant,
+  verifyWaiver,
+} from "../api/events"
 import BackButton from "../components/BackButton"
 
 const CHECKIN_QUEUE_KEY = "sfa.offline.checkin.queue"
@@ -424,6 +430,7 @@ export default function CheckIn() {
   const [wsDetail, setWsDetail] = useState("Waiting for websocket activity.")
   const [lastCheckInEvent, setLastCheckInEvent] = useState(null)
   const [copySnapshotStatus, setCopySnapshotStatus] = useState("idle")
+  const [badgeActionParticipantId, setBadgeActionParticipantId] = useState(null)
 
   const searchRef = useRef(null)
   const isFlushingRef = useRef(false)
@@ -874,6 +881,49 @@ export default function CheckIn() {
     setIsCheckingIn(false)
   }
 
+  async function handleStatusBadgeAction(participant, action) {
+    if (!participant?.id) return
+
+    setError("")
+    setBadgeActionParticipantId(participant.id)
+
+    try {
+      if (action === "verify_waiver") {
+        await verifyWaiver(participant.id)
+        await refreshParticipants({ source: "badge-verify-waiver" })
+        return
+      }
+
+      if (action === "checkin") {
+        await handleCheckIn([participant.id])
+        return
+      }
+
+      if (action === "promote") {
+        await promoteParticipant(participant.id)
+        await refreshParticipants({ source: "badge-promote" })
+        return
+      }
+
+      if (action === "move_to_waitlist") {
+        await moveParticipantToWaitlist(participant.id)
+        await refreshParticipants({ source: "badge-move-waitlist" })
+        return
+      }
+    } catch (err) {
+      const message = err?.message || "Unknown error"
+      const labels = {
+        verify_waiver: "verify waiver",
+        checkin: "check in",
+        promote: "promote from waitlist",
+        move_to_waitlist: "move to waitlist",
+      }
+      setError(`Failed to ${labels[action] || "run action"}: ${message}`)
+    } finally {
+      setBadgeActionParticipantId(null)
+    }
+  }
+
   useEffect(() => {
     flushQueuedCheckIns("event-change")
   }, [eventId])
@@ -1210,11 +1260,48 @@ export default function CheckIn() {
       </div>
 
       {!eventMode && (
-        <div className="flex justify-end pr-4">
-          <div className="grid w-[440px] grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <span className="text-center">Waiver</span>
-            <span className="text-center">Check-In</span>
-            <span className="text-center">Waitlist</span>
+        <div className="sticky top-0 z-20 flex justify-end pr-4 bg-warmbg/95 backdrop-blur-sm py-2">
+          <div className="w-[440px]">
+            <div className="grid grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <span className="text-center">Waiver</span>
+              <span className="text-center">Check-In</span>
+              <span className="text-center">Waitlist</span>
+            </div>
+            <div className="mt-1 grid grid-cols-3 gap-2 text-[10px] text-gray-600">
+              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  Verified
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  Pending
+                </span>
+              </div>
+              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  In
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  Not In
+                </span>
+              </div>
+              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-yellow-400" />
+                  Waitlisted
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-gray-500" />
+                  Confirmed
+                </span>
+              </div>
+            </div>
+            <p className="mt-1 text-center text-[11px] text-gray-500">
+              Tip: click a status badge to update it.
+            </p>
           </div>
         </div>
       )}
@@ -1223,6 +1310,11 @@ export default function CheckIn() {
 
         {filtered.map((p) => {
           const priorityLevel = getPriorityLevel(p.priority)
+          const isBadgeBusy = isCheckingIn || badgeActionParticipantId === p.id
+          const canVerifyWaiver = !p.waiver_verified && !isBadgeBusy
+          const canCheckInFromBadge = !p.checked_in && !p.is_waitlisted && !isBadgeBusy
+          const canPromoteFromBadge = p.is_waitlisted && !isBadgeBusy
+          const canMoveToWaitlistFromBadge = !p.is_waitlisted && !p.checked_in && !isBadgeBusy
           return (
             <div
               key={p.id}
@@ -1269,34 +1361,81 @@ export default function CheckIn() {
               {!eventMode ? (
                 <div className="w-[410px]">
                   <div className="grid grid-cols-3 gap-2">
-                    <span className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!canVerifyWaiver) return
+                        handleStatusBadgeAction(p, "verify_waiver")
+                      }}
+                      disabled={!canVerifyWaiver}
+                      title={p.waiver_verified ? "Waiver already verified" : "Click to verify waiver"}
+                      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
                       p.waiver_verified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                    }`}>
+                    } ${canVerifyWaiver ? "cursor-pointer hover:ring-1 hover:ring-red-300" : "cursor-default opacity-90"}`}
+                    >
                       <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.waiver_verified ? "bg-green-500" : "bg-red-500"}`} />
-                      {p.waiver_verified ? "Verified" : "Pending"}
-                    </span>
+                      {p.waiver_verified ? "Verified" : "Pending (Verify)"}
+                    </button>
 
-                    <span className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!canCheckInFromBadge) return
+                        handleStatusBadgeAction(p, "checkin")
+                      }}
+                      disabled={!canCheckInFromBadge}
+                      title={
+                        p.checked_in
+                          ? "Already checked in"
+                          : p.is_waitlisted
+                          ? "Promote from waitlist first"
+                          : "Click to check in"
+                      }
+                      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
                       p.checked_in
                         ? "bg-green-100 text-green-700"
                         : p.is_waitlisted
                         ? "bg-gray-100 text-gray-600"
                         : "bg-red-100 text-red-700"
-                    }`}>
+                    } ${canCheckInFromBadge ? "cursor-pointer hover:ring-1 hover:ring-green-300" : "cursor-default opacity-90"}`}
+                    >
                       <span
                         className={`inline-block h-2.5 w-2.5 rounded-full ${
                           p.checked_in ? "bg-green-500" : p.is_waitlisted ? "bg-gray-400" : "bg-red-500"
                         }`}
                       />
-                      {p.checked_in ? "Checked In" : p.is_waitlisted ? "N/A" : "Not Checked In"}
-                    </span>
+                      {p.checked_in ? "Checked In" : p.is_waitlisted ? "N/A" : "Not Checked In (Check In)"}
+                    </button>
 
-                    <span className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (canPromoteFromBadge) {
+                          handleStatusBadgeAction(p, "promote")
+                          return
+                        }
+                        if (canMoveToWaitlistFromBadge) {
+                          handleStatusBadgeAction(p, "move_to_waitlist")
+                        }
+                      }}
+                      disabled={!(canPromoteFromBadge || canMoveToWaitlistFromBadge)}
+                      title={
+                        p.is_waitlisted
+                          ? "Click to promote from waitlist"
+                          : p.checked_in
+                          ? "Checked-in participants cannot be moved to waitlist here"
+                          : "Click to move participant to waitlist"
+                      }
+                      className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
                       p.is_waitlisted ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"
-                    }`}>
+                    } ${(canPromoteFromBadge || canMoveToWaitlistFromBadge) ? "cursor-pointer hover:ring-1 hover:ring-yellow-300" : "cursor-default opacity-90"}`}
+                    >
                       <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.is_waitlisted ? "bg-yellow-400" : "bg-gray-500"}`} />
-                      {p.is_waitlisted ? "Waitlisted" : "Confirmed"}
-                    </span>
+                      {p.is_waitlisted ? "Waitlisted (Promote)" : "Confirmed (Waitlist)"}
+                    </button>
                   </div>
 
                   {!p.checked_in && !p.is_waitlisted && (
