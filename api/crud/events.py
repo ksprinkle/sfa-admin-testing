@@ -7,6 +7,11 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from api.utils.slug import generate_unique_slug
 from api.crud.participants import promote_from_waitlist
+from api.services.session_service import (
+    DEFAULT_SESSION_CAPACITY,
+    create_next_tour_session,
+    is_tour_event,
+)
 import math
 
 AUTO_PUBLISH_DAYS_BEFORE_START = 14
@@ -25,23 +30,28 @@ def create_event(db: Session, event_in: EventCreate):
     # Ensure event.id is available before creating child session rows.
     db.flush()
 
-    # Auto-create sessions if participant_capacity is set
-    if event.participant_capacity and event.start_date and event.start_time:
-        num_sessions = math.ceil(event.participant_capacity / 15)
-        base_time = datetime.combine(event.start_date, event.start_time)
+    # Auto-create sessions.
+    # - Tour: start with one 20-minute session and expand dynamically as needed.
+    # - Chapter/non-tour: pre-create hourly sessions based on participant capacity.
+    if event.start_date and event.start_time:
+        if is_tour_event(event.event_type):
+            create_next_tour_session(db, event, existing_sessions=[])
+        elif event.participant_capacity:
+            num_sessions = math.ceil(event.participant_capacity / DEFAULT_SESSION_CAPACITY)
+            base_time = datetime.combine(event.start_date, event.start_time)
 
-        for i in range(num_sessions):
-            start_time = base_time + timedelta(hours=i)
-            end_time = start_time + timedelta(hours=1)
+            for i in range(num_sessions):
+                start_time = base_time + timedelta(hours=i)
+                end_time = start_time + timedelta(hours=1)
 
-            session = EventSession(
-                event_id=event.id,
-                name=f"Session {i+1}",
-                start_time=start_time,
-                end_time=end_time,
-                capacity=15,
-            )
-            db.add(session)
+                session = EventSession(
+                    event_id=event.id,
+                    name=f"Session {i+1}",
+                    start_time=start_time,
+                    end_time=end_time,
+                    capacity=DEFAULT_SESSION_CAPACITY,
+                )
+                db.add(session)
 
     try:
         db.commit()

@@ -18,7 +18,14 @@ import csv
 import io
 from fastapi.responses import StreamingResponse
 from api.models.sessions import Session as EventSession
-from api.services.session_service import get_next_available_session
+from api.services.session_service import (
+    CHAPTER_SESSION_MINUTES,
+    DEFAULT_SESSION_CAPACITY,
+    create_next_tour_session,
+    get_next_available_session,
+    get_session_participant_count,
+    is_tour_event,
+)
 from api.models.participant_removal_log import ParticipantRemovalLog
 
 
@@ -207,7 +214,8 @@ async def update_participant(
                     func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
                 ).count()
 
-                if count >= 15:
+                session_capacity = session.capacity or DEFAULT_SESSION_CAPACITY
+                if count >= session_capacity:
                     raise HTTPException(status_code=400, detail="Session is full")
 
             participant.session_id = target_session_id
@@ -307,28 +315,32 @@ def create_participant(
         if not event.start_date or not event.start_time:
             raise HTTPException(status_code=400, detail="No sessions configured for this event")
 
-        base_time = datetime.combine(event.start_date, event.start_time)
+        if is_tour_event(event.event_type):
+            first_tour_session = create_next_tour_session(db, event, existing_sessions=[])
+            sessions = [first_tour_session] if first_tour_session else []
+        else:
+            base_time = datetime.combine(event.start_date, event.start_time)
 
-        session1 = EventSession(
-            event_id=event.id,
-            name="Session 1",
-            start_time=base_time,
-            end_time=base_time + timedelta(hours=1),
-            capacity=15,
-        )
+            session1 = EventSession(
+                event_id=event.id,
+                name="Session 1",
+                start_time=base_time,
+                end_time=base_time + timedelta(minutes=CHAPTER_SESSION_MINUTES),
+                capacity=DEFAULT_SESSION_CAPACITY,
+            )
 
-        session2 = EventSession(
-            event_id=event.id,
-            name="Session 2",
-            start_time=base_time + timedelta(hours=1),
-            end_time=base_time + timedelta(hours=2),
-            capacity=15,
-        )
+            session2 = EventSession(
+                event_id=event.id,
+                name="Session 2",
+                start_time=base_time + timedelta(minutes=CHAPTER_SESSION_MINUTES),
+                end_time=base_time + timedelta(minutes=CHAPTER_SESSION_MINUTES * 2),
+                capacity=DEFAULT_SESSION_CAPACITY,
+            )
 
-        db.add_all([session1, session2])
-        db.flush()
+            db.add_all([session1, session2])
+            db.flush()
 
-        sessions = [session1, session2]
+            sessions = [session1, session2]
 
     is_volunteer = _is_volunteer_role(data.role)
     volunteer_type = data.volunteer_type if is_volunteer else None
@@ -364,11 +376,9 @@ def create_participant(
 
         # Final capacity check to prevent exceeding session capacity under race conditions
         if participant.session_id and not is_volunteer:
-            final_count = db.query(func.count(Participant.id)).filter(
-                Participant.session_id == participant.session_id,
-                func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
-            ).scalar()
-            if final_count > 15:
+            session_capacity = next((s.capacity for s in sessions if s.id == participant.session_id), None) or DEFAULT_SESSION_CAPACITY
+            final_count = get_session_participant_count(db, participant.session_id)
+            if final_count > session_capacity:
                 participant.is_waitlisted = True
                 participant.session_id = None
 
@@ -826,9 +836,11 @@ async def update_participant_session(
     count = db.query(Participant).filter(
         Participant.session_id == payload.session_id,
         Participant.removed_at.is_(None),
+        func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
     ).count()
 
-    if count >= 15:
+    session_capacity = session.capacity or DEFAULT_SESSION_CAPACITY
+    if not _is_volunteer_role(participant.role) and count >= session_capacity:
         raise HTTPException(status_code=400, detail="Session is full")
 
     # Manual admin placement overrides the waitlist queue temporarily.

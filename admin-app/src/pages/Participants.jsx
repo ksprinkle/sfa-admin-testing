@@ -43,6 +43,9 @@ const VOLUNTEER_TYPE_OPTIONS = PARTICIPANT_TYPE_OPTIONS.filter((opt) => opt.key 
 const VOLUNTEER_SECONDARY_ROLE_OPTIONS = [
   { key: "buddy", label: "Buddy", dotClass: "bg-cyan-600" },
   { key: "instructor", label: "Instructor", dotClass: "bg-orange-500" },
+  { key: "spotter", label: "Spotter", dotClass: "bg-teal-600" },
+  { key: "board_rescue", label: "Board Rescue", dotClass: "bg-blue-600" },
+  { key: "lifeguard", label: "Lifeguard", dotClass: "bg-rose-600" },
   { key: "registration", label: "Registration", dotClass: "bg-blue-500" },
   { key: "setup_teardown", label: "Setup/Tear Down", dotClass: "bg-amber-600" },
   { key: "equipment_handling", label: "Equipment Handling", dotClass: "bg-slate-600" },
@@ -50,7 +53,7 @@ const VOLUNTEER_SECONDARY_ROLE_OPTIONS = [
 ]
 
 const BEACH_ROLE_KEYS = new Set(["food", "raffle", "beach", "registration", "setup_teardown", "equipment_handling", "snacks_drinks"])
-const WATER_ROLE_KEYS = new Set(["buddy", "instructor"])
+const WATER_ROLE_KEYS = new Set(["buddy", "instructor", "spotter", "board_rescue", "lifeguard"])
 
 function normalizeRole(value) {
   return (value || "").trim().toLowerCase()
@@ -64,6 +67,7 @@ function normalizeVolunteerType(value) {
     "setup-teardown": "setup_teardown",
     "equipment handling": "equipment_handling",
     "snacks/drinks": "snacks_drinks",
+    "board rescue": "board_rescue",
     "surf_buddy": "buddy",
     "surf_instructor": "instructor",
   }
@@ -128,13 +132,19 @@ function normalizeParticipantForUI(participant) {
         .filter((value) => value && value !== volunteerType)
     )
   )
-  const uiGroup = getGroupForRole(volunteerType)
+  const uiGroups = Array.from(
+    new Set(
+      [volunteerType, ...additionalRoles]
+        .map((value) => getGroupForRole(value))
+        .filter(Boolean)
+    )
+  )
 
   return {
     ...participant,
     role,
     volunteer_type: volunteerType,
-    volunteer_group_ui: uiGroup,
+    volunteer_group_ui: uiGroups.join(",") || null,
     volunteer_additional_types: additionalRoles,
     volunteer_is_versatile: versatile,
   }

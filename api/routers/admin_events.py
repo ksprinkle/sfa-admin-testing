@@ -139,10 +139,26 @@ def event_summary(
     volunteer_type_counts = {
         "food": 0,
         "raffle": 0,
-        "beach": 0,
         "buddy": 0,
         "instructor": 0,
+        "spotter": 0,
+        "board_rescue": 0,
+        "lifeguard": 0,
+        "registration": 0,
+        "setup_teardown": 0,
+        "equipment_handling": 0,
+        "snacks_drinks": 0,
     }
+    volunteer_group_counts = {
+        "beach": 0,
+        "water": 0,
+    }
+    volunteer_flexible_group_counts = {
+        "beach": 0,
+        "water": 0,
+    }
+    water_group_roles = {"buddy", "instructor", "spotter", "board_rescue", "lifeguard"}
+    beach_group_roles = {"food", "raffle", "beach", "registration", "setup_teardown", "equipment_handling", "snacks_drinks"}
 
     for p in participants:
         is_volunteer = (p.role or "").strip().lower() == "volunteer"
@@ -151,10 +167,32 @@ def event_summary(
             volunteers += 1
             if p.volunteer_is_versatile:
                 versatile_volunteer_count += 1
-            vt = (p.volunteer_type or "").strip().lower()
-            vt = {"surf_buddy": "buddy", "surf_instructor": "instructor"}.get(vt, vt)
-            if vt in volunteer_type_counts:
-                volunteer_type_counts[vt] += 1
+            selected_roles = set()
+
+            primary = (p.volunteer_type or "").strip().lower()
+            primary = {"surf_buddy": "buddy", "surf_instructor": "instructor"}.get(primary, primary)
+            if primary:
+                selected_roles.add(primary)
+
+            for role in (p.volunteer_additional_types or []):
+                normalized = str(role or "").strip().lower()
+                normalized = {"surf_buddy": "buddy", "surf_instructor": "instructor"}.get(normalized, normalized)
+                if normalized:
+                    selected_roles.add(normalized)
+
+            for role in selected_roles:
+                if role in volunteer_type_counts:
+                    volunteer_type_counts[role] += 1
+
+            # Group totals are separate from role totals.
+            if selected_roles.intersection(beach_group_roles):
+                volunteer_group_counts["beach"] += 1
+                if p.volunteer_is_versatile:
+                    volunteer_flexible_group_counts["beach"] += 1
+            if selected_roles.intersection(water_group_roles):
+                volunteer_group_counts["water"] += 1
+                if p.volunteer_is_versatile:
+                    volunteer_flexible_group_counts["water"] += 1
             continue
 
         if p.is_waitlisted:
@@ -206,6 +244,8 @@ def event_summary(
         "volunteer_remaining": volunteer_remaining,
         "volunteer_fill_percent": volunteer_fill_percent,
         "volunteer_type_counts": volunteer_type_counts,
+        "volunteer_group_counts": volunteer_group_counts,
+        "volunteer_flexible_group_counts": volunteer_flexible_group_counts,
         "versatile_volunteer_count": versatile_volunteer_count,
 }
 

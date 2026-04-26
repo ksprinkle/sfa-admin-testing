@@ -73,7 +73,54 @@ function normalizeInitialData(initialData) {
 }
 
 function cleanOptionalNumber(value) {
-  return value === "" ? null : Number(value)
+  return value === "" || value === null ? null : Number(value)
+}
+
+function CapacitySpinner({ name, value, onChange }) {
+  const isUnlimited = value === "" || value === null
+
+  function stepDown() {
+    if (isUnlimited) return
+    const n = Number(value)
+    onChange(name, n <= 0 ? "" : String(n - 1))
+  }
+
+  function stepUp() {
+    onChange(name, isUnlimited ? "0" : String(Number(value) + 1))
+  }
+
+  return (
+    <div className="flex items-stretch rounded border overflow-hidden">
+      <button
+        type="button"
+        onClick={stepDown}
+        disabled={isUnlimited}
+        className="px-3 py-2 bg-gray-50 hover:bg-gray-100 border-r text-gray-600 font-bold select-none disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="Decrease"
+      >−</button>
+
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        name={name}
+        value={value ?? ""}
+        placeholder="Unlimited"
+        onChange={(e) => {
+          const raw = e.target.value
+          if (raw === "" || /^\d+$/.test(raw)) onChange(name, raw)
+        }}
+        className={`flex-1 px-3 py-2 text-center border-none outline-none ${isUnlimited ? "placeholder-indigo-500 font-medium" : ""}`}
+      />
+
+      <button
+        type="button"
+        onClick={stepUp}
+        className="px-3 py-2 bg-gray-50 hover:bg-gray-100 border-l text-gray-600 font-bold select-none"
+        aria-label="Increase"
+      >+</button>
+    </div>
+  )
 }
 
 function cleanOptionalText(value) {
@@ -118,6 +165,11 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       ...form,
       [name]: type === "checkbox" ? checked : value
     })
+  }
+
+  function handleCapacityChange(name, value) {
+    setFormError("")
+    setForm({ ...form, [name]: value })
   }
 
   function handleSubmit(e) {
@@ -458,28 +510,22 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1">
             <span className="text-sm font-medium text-gray-700">Participant Capacity</span>
-            <input
-              type="number"
+            <CapacitySpinner
               name="participant_capacity"
-              placeholder="Participant Capacity"
               value={form.participant_capacity ?? ""}
-              onChange={handleChange}
-              className="w-full rounded border p-2"
-              min={0}
+              onChange={handleCapacityChange}
             />
+            <p className="text-xs text-gray-400">Use − below 0 to set Unlimited</p>
           </label>
 
           <label className="space-y-1">
             <span className="text-sm font-medium text-gray-700">Volunteer Capacity</span>
-            <input
-              type="number"
+            <CapacitySpinner
               name="volunteer_capacity"
-              placeholder="Volunteer Capacity"
               value={form.volunteer_capacity ?? ""}
-              onChange={handleChange}
-              className="w-full rounded border p-2"
-              min={0}
+              onChange={handleCapacityChange}
             />
+            <p className="text-xs text-gray-400">Use − below 0 to set Unlimited</p>
           </label>
 
           <label className="space-y-1">

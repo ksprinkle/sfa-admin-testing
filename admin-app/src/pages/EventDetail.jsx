@@ -46,12 +46,48 @@ function buildMapUrl(eventInfo) {
   const longitude = eventInfo?.location?.longitude
 
   if (latitude != null && longitude != null) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`
+    return `https://www.google.com/maps/@${latitude},${longitude},17z`
   }
 
   const fallbackLocation = buildLocationSummary(eventInfo)
   if (fallbackLocation !== "Location details not set") {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fallbackLocation)}`
+  }
+
+  return null
+}
+
+function normalizeExternalUrl(rawUrl) {
+  const value = String(rawUrl || "").trim()
+  if (!value) return null
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.startsWith("//")) return `https:${value}`
+  return `https://${value}`
+}
+
+function buildWeatherUrl(eventInfo) {
+  const manualUrl = normalizeExternalUrl(eventInfo?.weather_report_url)
+  if (manualUrl) return manualUrl
+
+  const latitude = eventInfo?.location?.latitude
+  const longitude = eventInfo?.location?.longitude
+
+  if (latitude != null && longitude != null) {
+    return `https://forecast.weather.gov/MapClick.php?lat=${latitude}&lon=${longitude}`
+  }
+
+  return null
+}
+
+function buildSurfUrl(eventInfo) {
+  const manualUrl = normalizeExternalUrl(eventInfo?.surf_report_url)
+  if (manualUrl) return manualUrl
+
+  const latitude = eventInfo?.location?.latitude
+  const longitude = eventInfo?.location?.longitude
+
+  if (latitude != null && longitude != null) {
+    return `https://www.magicseaweed.com/Forecast/Search?q=${latitude},${longitude}`
   }
 
   return null
@@ -93,12 +129,56 @@ function EventDetail() {
   const { eventId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams()
   const participantFilter = (searchParams.get("participants") || "all").toLowerCase()
+  useEffect(() => {
+    if (typeof window !== "undefined" && participantFilter) {
+      window.localStorage.setItem("sfa.lastParticipantFilter", participantFilter);
+    }
+  }, [participantFilter]);
   const volunteerTypeAliases = {
     surf_buddy: "buddy",
     surf_instructor: "instructor",
   }
-  const volunteerTypeFilterRaw = (searchParams.get("volunteer_type") || searchParams.get("volunteerType") || "").trim().toLowerCase()
-  const volunteerTypeFilter = volunteerTypeAliases[volunteerTypeFilterRaw] || volunteerTypeFilterRaw
+  // Restore volunteerTypeFilter from localStorage if not present in URL, and sync URL if needed
+  const [volunteerTypeFilterRaw, setVolunteerTypeFilterRaw] = useState((searchParams.get("volunteer_type") || searchParams.get("volunteerType") || "").trim().toLowerCase());
+  useEffect(() => {
+    let raw = (searchParams.get("volunteer_type") || searchParams.get("volunteerType") || "").trim().toLowerCase();
+    if (!raw && typeof window !== "undefined") {
+      const saved = window.localStorage.getItem("sfa.volunteerTypeFilter");
+      if (saved) {
+        // Update URL to include the saved filter
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.set("participants", "volunteers");
+        nextParams.set("volunteer_type", saved);
+        window.localStorage.setItem("sfa.volunteerTypeFilter", saved);
+        setSearchParams(nextParams, { replace: true });
+        raw = saved;
+      }
+    }
+    setVolunteerTypeFilterRaw(raw);
+  }, [searchParams, setSearchParams]);
+
+  // Always update both URL and localStorage when a pill is clicked
+  const applyVolunteerTypeFilter = (roleKey) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("participants", "volunteers");
+    nextParams.delete("volunteer_role");
+    if (roleKey) {
+      nextParams.set("volunteer_type", roleKey);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("sfa.volunteerTypeFilter", roleKey);
+      }
+    } else {
+      nextParams.delete("volunteer_type");
+      nextParams.delete("volunteerType");
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("sfa.volunteerTypeFilter");
+      }
+    }
+    setSearchParams(nextParams);
+  };
+  const volunteerTypeFilter = volunteerTypeAliases[volunteerTypeFilterRaw] || volunteerTypeFilterRaw;
+  const volunteerRoleFilterRaw = (searchParams.get("volunteer_role") || "").trim().toLowerCase()
+  const volunteerRoleFilter = volunteerTypeAliases[volunteerRoleFilterRaw] || volunteerRoleFilterRaw
 
   // Utility: Refresh participants from API
   async function refreshParticipants() {
@@ -214,11 +294,19 @@ function EventDetail() {
     beach: "Beach",
     buddy: "Buddy",
     instructor: "Instructor",
+    spotter: "Spotter",
+    board_rescue: "Board Rescue",
+    lifeguard: "Lifeguard",
+    registration: "Registration",
+    setup_teardown: "Setup/Tear Down",
+    equipment_handling: "Equipment Handling",
+    snacks_drinks: "Snacks/Drinks",
   }
   const volunteerTypeFilterKeys = ["food", "raffle", "beach", "buddy", "instructor"]
 
-  const activeFilterLabel = volunteerTypeFilter
-    ? `Volunteers: ${volunteerTypeFilterLabels[volunteerTypeFilter] || volunteerTypeFilter}`
+  const activeVolunteerRoleFilter = volunteerRoleFilter || volunteerTypeFilter
+  const activeFilterLabel = activeVolunteerRoleFilter
+    ? `Volunteers: ${volunteerTypeFilterLabels[activeVolunteerRoleFilter] || activeVolunteerRoleFilter}`
     : (participantFilterLabels[participantFilter] || participantFilterLabels.all)
 
   const openParticipantDetails = (participantId) => {
@@ -227,17 +315,6 @@ function EventDetail() {
     navigate(`/participants?participant_id=${encodedId}`)
   }
 
-  const applyVolunteerTypeFilter = (roleKey) => {
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.set("participants", "volunteers")
-    if (roleKey) {
-      nextParams.set("volunteer_type", roleKey)
-    } else {
-      nextParams.delete("volunteer_type")
-      nextParams.delete("volunteerType")
-    }
-    setSearchParams(nextParams)
-  }
 
   const normalizeVolunteerType = (value) => {
     const normalized = (value || "").trim().toLowerCase()
@@ -261,9 +338,13 @@ function EventDetail() {
       if (participant.waiver_verified) return false
     }
 
-    if (volunteerTypeFilter) {
+    if (activeVolunteerRoleFilter) {
       if (!isVolunteer) return false
-      return normalizeVolunteerType(participant.volunteer_type) === volunteerTypeFilter
+      const primaryRole = normalizeVolunteerType(participant.volunteer_type)
+      const additionalRoles = Array.isArray(participant.volunteer_additional_types)
+        ? participant.volunteer_additional_types.map((value) => normalizeVolunteerType(value))
+        : []
+      return primaryRole === activeVolunteerRoleFilter || additionalRoles.includes(activeVolunteerRoleFilter)
     }
 
     return true
@@ -311,6 +392,7 @@ function EventDetail() {
         setLoading(false)
       }
     }
+
     loadAll()
   }, [eventId])
 
@@ -697,7 +779,10 @@ function EventDetail() {
   if (loading) return <div className="p-6">Loading...</div>
 
   const mapUrl = buildMapUrl(eventInfo)
-  const hasResources = mapUrl || eventInfo?.weather_report_url || eventInfo?.surf_report_url
+  const weatherUrl = buildWeatherUrl(eventInfo)
+  const surfUrl = buildSurfUrl(eventInfo)
+  const featuredImageUrl = normalizeExternalUrl(eventInfo?.featured_image)
+  const hasResources = mapUrl || weatherUrl || surfUrl
 
   return (
     <div className="relative p-6 space-y-6" onClick={() => setSelectedIds([])}>
@@ -736,7 +821,7 @@ function EventDetail() {
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
               Viewing: {activeFilterLabel}
             </span>
-            {(participantFilter !== "all" || volunteerTypeFilter) && (
+            {(participantFilter !== "all" || activeVolunteerRoleFilter) && (
               <button
                 type="button"
                 onClick={() => {
@@ -744,6 +829,7 @@ function EventDetail() {
                   nextParams.delete("participants")
                   nextParams.delete("volunteer_type")
                   nextParams.delete("volunteerType")
+                  nextParams.delete("volunteer_role")
                   setSearchParams(nextParams)
                 }}
                 className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
@@ -751,7 +837,7 @@ function EventDetail() {
                 Clear filter
               </button>
             )}
-            {(participantFilter === "volunteers" || volunteerTypeFilter) && (
+            {(participantFilter === "volunteers" || activeVolunteerRoleFilter) && (
               <div className="flex flex-wrap items-center gap-1">
                 <button
                   type="button"
@@ -825,37 +911,52 @@ function EventDetail() {
               </div>
             </div>
 
-            {hasResources && (
-              <div className="flex flex-wrap gap-2">
-                {mapUrl && (
-                  <a
-                    href={mapUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
-                  >
-                    Open map
-                  </a>
+            {(featuredImageUrl || hasResources) && (
+              <div className="w-full space-y-3 lg:max-w-sm">
+                {featuredImageUrl && (
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    <img
+                      src={featuredImageUrl}
+                      alt={eventInfo?.title ? `${eventInfo.title} featured` : "Event featured image"}
+                      className="h-48 w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
                 )}
-                {eventInfo.weather_report_url && (
-                  <a
-                    href={eventInfo.weather_report_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
-                  >
-                    Weather report
-                  </a>
-                )}
-                {eventInfo.surf_report_url && (
-                  <a
-                    href={eventInfo.surf_report_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
-                  >
-                    Surf report
-                  </a>
+
+                {hasResources && (
+                  <div className="flex flex-wrap gap-2">
+                    {mapUrl && (
+                      <a
+                        href={mapUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+                      >
+                        Open map
+                      </a>
+                    )}
+                    {weatherUrl && (
+                      <a
+                        href={weatherUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+                      >
+                        Weather report
+                      </a>
+                    )}
+                    {surfUrl && (
+                      <a
+                        href={surfUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 transition hover:bg-sky-100"
+                      >
+                        Surf report
+                      </a>
+                    )}
+                  </div>
                 )}
               </div>
             )}

@@ -40,6 +40,14 @@ The application is built as a **Progressive Web App (PWA)** so it can run on **p
 
 ## Recent Updates (April 2026)
 
+- Release prep updates (April 26, 2026):
+      - Admin app version set to `0.1.0` in `admin-app/package.json`.
+      - Build fingerprint badge added to the admin shell so phone and laptop can be compared quickly.
+      - Vite now injects `VITE_APP_VERSION` and `VITE_BUILD_ID` (version + git short hash).
+      - Service worker cache strategy updated to network-first for navigations and critical assets to reduce stale client bundles.
+      - Event Type pills/chips hardened against mobile text wrapping (table badge and filter chips).
+      - Dev-only troubleshooting panel/toggles removed from Check-In UI after stability validation.
+
 - Admin dashboard and roster semantics update:
       - "Confirmed" metric renamed to "Registered".
       - Added "Cleared to Participate" metric (checked in + waiver verified).

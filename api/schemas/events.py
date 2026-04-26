@@ -284,6 +284,8 @@ class AdminEventSummary(BaseModel):
     volunteer_remaining: Optional[int]
     volunteer_fill_percent: Optional[float]
     volunteer_type_counts: dict[str, int]
+    volunteer_group_counts: dict[str, int]
+    volunteer_flexible_group_counts: dict[str, int]
     versatile_volunteer_count: int
 
     class Config:

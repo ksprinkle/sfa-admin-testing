@@ -7,10 +7,16 @@ import { deleteEvent, archiveEvent } from "../api/events"
 
 const EVENT_TYPE_FILTER_KEY = "sfa.events.selectedType"
 
+function normalizeEventTypeKey(eventType) {
+  return String(eventType || "").trim().toLowerCase()
+}
+
 function formatEventType(eventType) {
   if (!eventType) return "-"
 
-  return eventType
+  return String(eventType)
+    .replace(/\s+/g, " ")
+    .trim()
     .split(/[_-]/)
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
@@ -18,16 +24,17 @@ function formatEventType(eventType) {
 }
 
 function getEventTypeRowTone(eventType) {
-  const normalized = String(eventType || "").trim().toLowerCase()
+  const normalized = normalizeEventTypeKey(eventType)
+  const normalizedForMatch = normalized.replace(/[_-]/g, " ")
 
-  if (normalized === "chapter") {
+  if (normalizedForMatch === "chapter" || normalizedForMatch.includes("chapter")) {
     return {
       rowClass: "bg-indigo-100/50 hover:bg-indigo-200/55",
       pillClass: "border-indigo-200 bg-indigo-100 text-indigo-900",
     }
   }
 
-  if (normalized === "tour") {
+  if (normalizedForMatch === "tour" || normalizedForMatch.includes("tour")) {
     return {
       rowClass: "bg-emerald-50/45 hover:bg-emerald-100/60",
       pillClass: "border-emerald-200 bg-emerald-100 text-emerald-900",
@@ -40,32 +47,41 @@ function getEventTypeRowTone(eventType) {
   }
 }
 
+function normalizeExternalUrl(rawUrl) {
+  const value = String(rawUrl || "").trim()
+  if (!value) return null
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.startsWith("//")) return `https:${value}`
+  return `https://${value}`
+}
+
 export default function Events() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const statusFilter = (searchParams.get("status") || "all").toLowerCase()
-  const typeFilter = searchParams.get("type") || null
+  const typeFilter = normalizeEventTypeKey(searchParams.get("type")) || null
   const [selectedEventType, setSelectedEventType] = useState(
-    () => typeFilter || window.localStorage.getItem(EVENT_TYPE_FILTER_KEY) || "all"
+    () => normalizeEventTypeKey(typeFilter || window.localStorage.getItem(EVENT_TYPE_FILTER_KEY)) || "all"
   )
 
   const eventTypeCounts = events.reduce((counts, event) => {
-    const key = event.event_type || "unspecified"
+    const key = normalizeEventTypeKey(event.event_type) || "unspecified"
     counts[key] = (counts[key] || 0) + 1
     return counts
   }, {})
 
   const eventTypes = Array.from(
-    new Set(events.map(event => event.event_type).filter(Boolean))
+    new Set(events.map(event => normalizeEventTypeKey(event.event_type)).filter(Boolean))
   ).sort((left, right) => left.localeCompare(right))
 
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
       const eventStatus = (event.status || "").toLowerCase()
       const matchesStatus = statusFilter === "all" || eventStatus === statusFilter
-      const matchesType = selectedEventType === "all" || event.event_type === selectedEventType
+      const eventTypeKey = normalizeEventTypeKey(event.event_type)
+      const matchesType = selectedEventType === "all" || eventTypeKey === selectedEventType
 
       return matchesStatus && matchesType
     })
@@ -93,15 +109,16 @@ export default function Events() {
   }
 
   useEffect(() => {
-    window.localStorage.setItem(EVENT_TYPE_FILTER_KEY, selectedEventType)
+    window.localStorage.setItem(EVENT_TYPE_FILTER_KEY, normalizeEventTypeKey(selectedEventType) || "all")
   }, [selectedEventType])
 
   useEffect(() => {
     if (!typeFilter) return
-    setSelectedEventType(typeFilter)
+    setSelectedEventType(normalizeEventTypeKey(typeFilter))
   }, [typeFilter])
 
   useEffect(() => {
+    if (!eventTypes.length) return
     if (selectedEventType !== "all" && !eventTypes.includes(selectedEventType)) {
       setSelectedEventType("all")
     }
@@ -227,13 +244,14 @@ export default function Events() {
           </p>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => setSelectedEventType("all")}
-            className={`rounded-full border px-3 py-2 text-sm font-medium transition ${selectedEventType === "all" ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+            className={`inline-flex min-w-max shrink-0 flex-nowrap items-center whitespace-nowrap rounded-full border px-3 py-2 text-sm font-medium transition ${selectedEventType === "all" ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+            style={{ whiteSpace: "nowrap" }}
           >
-            All Event Types
+            <span className="whitespace-nowrap">All Event Types</span>
             <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${selectedEventType === "all" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
               {events.length}
             </span>
@@ -242,10 +260,11 @@ export default function Events() {
             <button
               key={eventType}
               type="button"
-              onClick={() => setSelectedEventType(eventType)}
-              className={`rounded-full border px-3 py-2 text-sm font-medium transition ${selectedEventType === eventType ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+              onClick={() => setSelectedEventType(normalizeEventTypeKey(eventType))}
+              className={`inline-flex min-w-max shrink-0 flex-nowrap items-center whitespace-nowrap rounded-full border px-3 py-2 text-sm font-medium transition ${selectedEventType === eventType ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+              style={{ whiteSpace: "nowrap" }}
             >
-              {formatEventType(eventType)}
+              <span className="whitespace-nowrap">{formatEventType(eventType)}</span>
               <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${selectedEventType === eventType ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
                 {eventTypeCounts[eventType] || 0}
               </span>
@@ -277,6 +296,7 @@ export default function Events() {
   const waitlistCount = event.waitlist_count || 0
   const totalParticipants = count + waitlistCount
   const eventTypeTone = getEventTypeRowTone(event.event_type)
+          const featuredImageUrl = normalizeExternalUrl(event.featured_image)
 
   const percent = capacity
     ? Math.min((count / capacity) * 100, 100)
@@ -290,11 +310,24 @@ export default function Events() {
     >
 
       <td className="p-4 font-medium">
-        {event.title}
+        <div className="flex items-center gap-3">
+          {featuredImageUrl && (
+            <img
+              src={featuredImageUrl}
+              alt={event.title ? `${event.title} featured` : "Event featured image"}
+              className="h-10 w-10 rounded-md border border-slate-200 object-cover"
+              loading="lazy"
+            />
+          )}
+          <span>{event.title}</span>
+        </div>
       </td>
 
-      <td className="p-4 text-gray-700">
-        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${eventTypeTone.pillClass}`}>
+      <td className="p-4 text-gray-700 whitespace-nowrap">
+        <span
+          className={`inline-flex min-w-max shrink-0 flex-nowrap items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${eventTypeTone.pillClass}`}
+          style={{ whiteSpace: "nowrap" }}
+        >
           {formatEventType(event.event_type)}
         </span>
       </td>

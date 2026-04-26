@@ -7,6 +7,9 @@ from pydantic import model_validator
 
 PRIMARY_VOLUNTEER_TYPES = {"food", "raffle", "beach", "instructor", "buddy"}
 ADDITIONAL_VOLUNTEER_TYPES = PRIMARY_VOLUNTEER_TYPES | {
+    "spotter",
+    "board_rescue",
+    "lifeguard",
     "registration",
     "setup_teardown",
     "equipment_handling",
@@ -56,6 +59,7 @@ def _normalize_roles(value: Optional[list[str]], allowed_roles: set[str]) -> lis
         "equipment": "equipment_handling",
         "snacks/drinks": "snacks_drinks",
         "snacks drinks": "snacks_drinks",
+        "board rescue": "board_rescue",
         "cleanup": "setup_teardown",
         "surf_instructor": "instructor",
         "surf_buddy": "buddy",

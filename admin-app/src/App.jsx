@@ -12,10 +12,29 @@ import EditEvent from "./pages/EditEvent"
 import CheckIn from "./pages/CheckIn"
 import { clearAuthSession, fetchMyProfile, getAuthChangedEventName, getStoredProfile, getStoredToken } from "./api/auth"
 
+function getBuildFingerprint() {
+  const envFingerprint = import.meta.env.VITE_BUILD_ID || import.meta.env.VITE_APP_VERSION
+  if (envFingerprint) return String(envFingerprint)
+
+  if (typeof document === "undefined") return "unknown"
+
+  const scriptSrc = Array.from(document.scripts)
+    .map((script) => script.src || "")
+    .find((src) => src.includes("/assets/") && /\.js(?:\?.*)?$/.test(src))
+
+  if (!scriptSrc) return import.meta.env.DEV ? "dev-local" : "unknown"
+
+  const hashMatch = scriptSrc.match(/\/assets\/[^/]*?-([A-Za-z0-9_-]{6,})\.js(?:\?.*)?$/)
+  if (hashMatch?.[1]) return hashMatch[1]
+
+  return import.meta.env.DEV ? "dev-local" : "unknown"
+}
+
 function App() {
   const location = useLocation()
   const [token, setToken] = useState(() => getStoredToken())
   const [profile, setProfile] = useState(() => getStoredProfile())
+  const [buildFingerprint, setBuildFingerprint] = useState(() => (import.meta.env.DEV ? "dev-local" : "..."))
 
   useEffect(() => {
     const authChangedEvent = getAuthChangedEventName()
@@ -57,6 +76,19 @@ function App() {
       isCancelled = true
     }
   }, [token, profile?.email])
+
+  useEffect(() => {
+    const refreshBuildFingerprint = () => {
+      setBuildFingerprint(getBuildFingerprint())
+    }
+
+    refreshBuildFingerprint()
+    window.addEventListener("load", refreshBuildFingerprint)
+
+    return () => {
+      window.removeEventListener("load", refreshBuildFingerprint)
+    }
+  }, [])
 
   const handleSignOut = () => {
     clearAuthSession()
@@ -103,6 +135,12 @@ function App() {
         </>
       )}
     </Routes>
+
+      {token && (
+        <div className="fixed bottom-16 right-2 z-40 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur">
+          Build {buildFingerprint}
+        </div>
+      )}
 
       {token && <BottomNav />}
     </div>

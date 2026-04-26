@@ -1,5 +1,26 @@
 # Recent Changes (Spring 2026)
 
+## Latest Updates (April 26, 2026)
+
+### Versioning + Build Visibility
+- Admin app package version updated to `0.1.0`.
+- Added build fingerprint badge in the admin shell for cross-device parity checks.
+- Vite now defines:
+  - `import.meta.env.VITE_APP_VERSION`
+  - `import.meta.env.VITE_BUILD_ID` (`v<version>-<gitShortHash>`)
+
+### PWA Freshness + Mobile UI Reliability
+- Updated service worker strategy to network-first for HTML/JS/CSS/core assets.
+- Bumped service worker cache version to invalidate stale bundles.
+- Hardened Event Type pills/chips with explicit no-wrap behavior for small screens.
+
+### Check-In UI Cleanup
+- Removed dev-only diagnostics panel and simulation toggles from Check-In.
+- Retained production behavior:
+  - websocket realtime updates
+  - polling fallback when websocket is not open
+  - offline queue + retry behavior
+
 ## Latest Updates (April 23, 2026)
 
 ### Metrics + Terminology Alignment
