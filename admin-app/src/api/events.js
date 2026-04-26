@@ -40,6 +40,19 @@ export async function archiveEvent(eventId) {
   return res.json()
 }
 
+export async function duplicateEvent(eventId) {
+  const res = await apiFetch(`/api/admin/events/${eventId}/duplicate`, {
+    method: "POST",
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to duplicate event")
+  }
+
+  return res.json()
+}
+
 export async function deleteEvent(eventId) {
   const res = await apiFetch(`/api/admin/events/${eventId}`, {
     method: "DELETE"

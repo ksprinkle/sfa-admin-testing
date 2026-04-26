@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, duplicateEvent } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
+import SyncStateIndicator from "../components/SyncStateIndicator"
 
 import {
   DndContext,
@@ -21,6 +22,8 @@ import { DragOverlay } from "@dnd-kit/core"
 const EVENT_MODE_KEY = "sfa.event.mode"
 const EVENT_DETAIL_PARTICIPANTS_CACHE_PREFIX = "sfa.offline.eventdetail.participants."
 const EVENT_DETAIL_ACTION_QUEUE_PREFIX = "sfa.offline.eventdetail.queue."
+const NON_RETRYABLE_STATUS_CODES = new Set([400, 404])
+const RECOVERABLE_STATUS_CODES = new Set([409, 429, 500, 502, 503, 504])
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
   { value: 2, label: "Medium", dotClass: "bg-amber-400" },
@@ -122,12 +125,41 @@ function saveCachedEventParticipants(eventId, participants) {
   }
 }
 
+function normalizeQueuedEventAction(action) {
+  if (!action || typeof action !== "object") return null
+  if (!action.type || action.participantId == null) return null
+
+  return {
+    ...action,
+    participantId: String(action.participantId),
+    syncStatus: action.syncStatus === "failed" ? "failed" : "pending",
+    retryable: action.retryable !== false,
+    lastStatus: Number.isFinite(Number(action.lastStatus)) ? Number(action.lastStatus) : null,
+    lastError: String(action.lastError || ""),
+    updatedAt: Number.isFinite(Number(action.updatedAt)) ? Number(action.updatedAt) : Date.now(),
+  }
+}
+
+function dedupeEventQueue(actions) {
+  const byKey = new Map()
+  for (const action of actions || []) {
+    const normalized = normalizeQueuedEventAction(action)
+    if (!normalized) continue
+    const actionKey =
+      normalized.type === "priority_update"
+        ? `${normalized.type}:${normalized.participantId}`
+        : `${normalized.type}:${normalized.participantId}:${normalized.id || normalized.updatedAt}`
+    byKey.set(actionKey, normalized)
+  }
+  return [...byKey.values()]
+}
+
 function getQueuedEventActions(eventId) {
   try {
     const raw = localStorage.getItem(getEventQueueKey(eventId))
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    return Array.isArray(parsed) ? dedupeEventQueue(parsed) : []
   } catch {
     return []
   }
@@ -135,7 +167,7 @@ function getQueuedEventActions(eventId) {
 
 function saveQueuedEventActions(eventId, actions) {
   try {
-    localStorage.setItem(getEventQueueKey(eventId), JSON.stringify(Array.isArray(actions) ? actions : []))
+    localStorage.setItem(getEventQueueKey(eventId), JSON.stringify(dedupeEventQueue(actions)))
   } catch {
     // Ignore storage failures.
   }
@@ -146,17 +178,50 @@ function isOfflineError(err) {
   return !navigator.onLine || msg.includes("failed to fetch") || msg.includes("load failed") || msg.includes("network")
 }
 
+function getQueueErrorMeta(err) {
+  const status = Number(err?.status)
+  const safeStatus = Number.isFinite(status) ? status : null
+  const detail = String(err?.message || "Unknown error")
+
+  if (safeStatus === 404) {
+    return { retryable: false, status: safeStatus, detail, summary: "participant no longer exists" }
+  }
+  if (safeStatus === 400) {
+    return { retryable: false, status: safeStatus, detail, summary: "invalid participant state" }
+  }
+  if (safeStatus === 409) {
+    return { retryable: true, status: safeStatus, detail, summary: "capacity or state conflict" }
+  }
+
+  return {
+    retryable: RECOVERABLE_STATUS_CODES.has(safeStatus) || safeStatus == null || !NON_RETRYABLE_STATUS_CODES.has(safeStatus),
+    status: safeStatus,
+    detail,
+    summary: "server rejected the update",
+  }
+}
+
 function enqueueEventAction(eventId, action) {
+  const normalized = normalizeQueuedEventAction({
+    ...action,
+    syncStatus: "pending",
+    retryable: true,
+    lastStatus: null,
+    lastError: "",
+    updatedAt: Date.now(),
+  })
+  if (!normalized) return getQueuedEventActions(eventId)
+
   const queue = getQueuedEventActions(eventId)
 
-  if (action.type === "priority_update") {
-    const filtered = queue.filter((item) => !(item.type === action.type && String(item.participantId) === String(action.participantId)))
-    const next = [...filtered, action]
+  if (normalized.type === "priority_update") {
+    const filtered = queue.filter((item) => !(item.type === normalized.type && String(item.participantId) === String(normalized.participantId)))
+    const next = [...filtered, normalized]
     saveQueuedEventActions(eventId, next)
     return next
   }
 
-  const next = [...queue, action]
+  const next = [...queue, normalized]
   saveQueuedEventActions(eventId, next)
   return next
 }
@@ -350,9 +415,58 @@ function EventDetail() {
   const [selectedIds, setSelectedIds] = useState([])
   const [activeTransform, setActiveTransform] = useState(null)
   const [dragError, setDragError] = useState(null)
-  const [offlineQueueCount, setOfflineQueueCount] = useState(() => getQueuedEventActions(eventId).length)
+  const [queuedEventActions, setQueuedEventActions] = useState(() => getQueuedEventActions(eventId))
+  const [queueNotice, setQueueNotice] = useState("")
   const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
+  const [duplicateLoading, setDuplicateLoading] = useState(false)
+  const [duplicateError, setDuplicateError] = useState("")
   const queueSyncRef = useRef(false)
+
+  const pendingQueueCount = queuedEventActions.filter((item) => item.syncStatus !== "failed").length
+  const failedQueueCount = queuedEventActions.filter((item) => item.syncStatus === "failed").length
+  const queueStateByParticipant = queuedEventActions.reduce((acc, item) => {
+    const participantId = String(item.participantId)
+    const current = acc[participantId]
+    if (item.syncStatus === "failed") {
+      acc[participantId] = "failed"
+      return acc
+    }
+    if (!current) {
+      acc[participantId] = "pending"
+    }
+    return acc
+  }, {})
+
+  const persistQueuedEventActions = (nextQueue) => {
+    const normalized = dedupeEventQueue(nextQueue)
+    saveQueuedEventActions(eventId, normalized)
+    setQueuedEventActions(normalized)
+    return normalized
+  }
+
+  const retryRecoverableQueueActions = () => {
+    const next = queuedEventActions.map((item) => {
+      if (item.syncStatus === "failed" && item.retryable) {
+        return {
+          ...item,
+          syncStatus: "pending",
+          lastStatus: null,
+          lastError: "",
+          updatedAt: Date.now(),
+        }
+      }
+      return item
+    })
+    persistQueuedEventActions(next)
+    setQueueNotice("")
+    processQueuedEventActions()
+  }
+
+  const dismissFailedQueueActions = () => {
+    const next = queuedEventActions.filter((item) => item.syncStatus !== "failed")
+    persistQueuedEventActions(next)
+    setQueueNotice("")
+  }
 
   const updateParticipantsLocal = (updater) => {
     setParticipants((prev) => {
@@ -397,6 +511,28 @@ function EventDetail() {
     if (!participantId) return
     const encodedId = encodeURIComponent(String(participantId))
     navigate(`/participants?participant_id=${encodedId}`)
+  }
+
+  const handleDuplicateEvent = async () => {
+    if (duplicateLoading) return
+
+    const confirmed = window.confirm("Duplicate this event as a new draft event?")
+    if (!confirmed) return
+
+    setDuplicateError("")
+    setDuplicateLoading(true)
+
+    try {
+      const created = await duplicateEvent(eventId)
+      if (!created?.id) {
+        throw new Error("Duplicate completed but new event id was not returned")
+      }
+      navigate(`/events/${created.id}`)
+    } catch (err) {
+      setDuplicateError(String(err?.message || "Failed to duplicate event"))
+    } finally {
+      setDuplicateLoading(false)
+    }
   }
 
 
@@ -445,7 +581,8 @@ function EventDetail() {
 
     const queued = getQueuedEventActions(eventId)
     if (!queued.length) {
-      setOfflineQueueCount(0)
+      setQueuedEventActions([])
+      setQueueNotice("")
       return
     }
 
@@ -456,6 +593,12 @@ function EventDetail() {
     try {
       for (let i = 0; i < queued.length; i += 1) {
         const action = queued[i]
+
+        if (action.syncStatus === "failed") {
+          remaining.push(action)
+          continue
+        }
+
         try {
           if (action.type === "session_move") {
             await updateParticipantSession(action.participantId, action.targetSessionId)
@@ -469,15 +612,31 @@ function EventDetail() {
           }
         } catch (err) {
           if (isOfflineError(err)) {
-            remaining.push(...queued.slice(i))
+            remaining.push(
+              ...queued.slice(i).map((entry) => ({
+                ...entry,
+                syncStatus: entry.syncStatus === "failed" ? "failed" : "pending",
+                updatedAt: Date.now(),
+              }))
+            )
             break
           }
+
+          const meta = getQueueErrorMeta(err)
+          remaining.push({
+            ...action,
+            syncStatus: "failed",
+            retryable: meta.retryable,
+            lastStatus: meta.status,
+            lastError: meta.detail,
+            updatedAt: Date.now(),
+          })
+          setQueueNotice(`1 queued change failed to sync: ${meta.summary}.`)
           console.error("Queued event action failed", action, err)
         }
       }
     } finally {
-      saveQueuedEventActions(eventId, remaining)
-      setOfflineQueueCount(remaining.length)
+      persistQueuedEventActions(remaining)
       queueSyncRef.current = false
     }
 
@@ -764,7 +923,7 @@ function EventDetail() {
           participantId: id,
           targetSessionId,
         })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedEventActions(nextQueue)
         setDragError("Offline: session move saved locally and queued for sync.")
         return
       }
@@ -891,7 +1050,7 @@ function EventDetail() {
             participantId: p.id,
             priority: newPriority,
           })
-          setOfflineQueueCount(nextQueue.length)
+          persistQueuedEventActions(nextQueue)
           setDragError("Offline: priority change saved locally and queued for sync.")
           return
         }
@@ -934,10 +1093,11 @@ function EventDetail() {
             e.stopPropagation()
             openParticipantDetails(p.id)
           }}
-          className="font-medium text-sky-800 hover:underline cursor-pointer text-left w-full"
+          className="flex items-center gap-1.5 font-medium text-sky-800 hover:underline cursor-pointer text-left w-full"
           title="Open participant details"
         >
-          {p.first_name} {p.last_name}
+          <SyncStateIndicator state={queueStateByParticipant[String(p.id)] || "synced"} />
+          <span>{p.first_name} {p.last_name}</span>
         </button>
         <div className="text-xs text-gray-500">
           {p.email}
@@ -1006,10 +1166,31 @@ function EventDetail() {
         </div>
       )}
 
-      {offlineQueueCount > 0 && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Offline queue active: {offlineQueueCount} pending change{offlineQueueCount === 1 ? "" : "s"}.
-          {!browserOnline ? " Device is offline." : " Syncing will continue while online."}
+      {(pendingQueueCount > 0 || failedQueueCount > 0) && (
+        <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div>
+            Offline queue active: {pendingQueueCount} pending, {failedQueueCount} failed.
+            {!browserOnline ? " Device is offline." : " Syncing will continue while online."}
+          </div>
+          {queueNotice && <div>{queueNotice}</div>}
+          {failedQueueCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={retryRecoverableQueueActions}
+                className="rounded border border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+              >
+                Retry recoverable
+              </button>
+              <button
+                type="button"
+                onClick={dismissFailedQueueActions}
+                className="rounded border border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+              >
+                Dismiss failed
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1086,7 +1267,8 @@ function EventDetail() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
           <BackButton fallbackTo="/events" />
           <button
             onClick={toggleEventMode}
@@ -1102,6 +1284,19 @@ function EventDetail() {
           >
             ↻ Refresh
           </button>
+          <button
+            type="button"
+            onClick={handleDuplicateEvent}
+            disabled={duplicateLoading}
+            className={`px-3 py-1 rounded text-sm font-semibold ${duplicateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-600 text-white hover:bg-sky-700"}`}
+            title="Create a new draft event with the same configuration"
+          >
+            {duplicateLoading ? "Duplicating..." : "Duplicate Event"}
+          </button>
+          </div>
+          {duplicateError && (
+            <p className="text-xs text-red-600">{duplicateError}</p>
+          )}
         </div>
       </div>
 

@@ -78,6 +78,58 @@ def create_event(
 
     return build_admin_event(event)
 
+
+@router.post("/{event_id}/duplicate", response_model=EventOut, status_code=201)
+def duplicate_event(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    source_event = db.query(Event).filter(Event.id == event_id).first()
+    if not source_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    duplicate_payload = EventCreate(
+        title=source_event.title,
+        event_type=source_event.event_type,
+        start_date=source_event.start_date,
+        end_date=source_event.end_date,
+        start_time=source_event.start_time,
+        end_time=source_event.end_time,
+        timezone=source_event.timezone,
+        venue=source_event.venue,
+        city=source_event.city,
+        state=source_event.state,
+        latitude=source_event.latitude,
+        longitude=source_event.longitude,
+        beach_accessibility=source_event.beach_accessibility,
+        beach_access_notes=source_event.beach_access_notes,
+        directions=source_event.directions,
+        parking_info=source_event.parking_info,
+        lodging_info=source_event.lodging_info,
+        weather_report_url=source_event.weather_report_url,
+        surf_report_url=source_event.surf_report_url,
+        internal_notes=source_event.internal_notes,
+        participant_capacity=source_event.participant_capacity,
+        volunteer_capacity=source_event.volunteer_capacity,
+        participant_open=source_event.participant_open,
+        volunteer_open=source_event.volunteer_open,
+        exhibitor_open=source_event.exhibitor_open,
+        website_schedule_published=source_event.website_schedule_published,
+        featured_image=source_event.featured_image,
+        no_show_minutes=source_event.no_show_minutes,
+        status="draft",
+    )
+
+    duplicated_event = crud_create_event(db, duplicate_payload)
+
+    # Ensure duplicated events always start as draft.
+    duplicated_event.status = "draft"
+    db.commit()
+    db.refresh(duplicated_event)
+
+    return build_admin_event(duplicated_event)
+
 #🔹 Get event details (admin view)
 @router.get("/{event_id}", response_model=AdminEventListOut)
 def get_event(
