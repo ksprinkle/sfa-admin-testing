@@ -7,6 +7,32 @@ Latest implementation commit: 3bd41d7
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
+## 0) Auto-Update Block (Copilot Maintained)
+
+Use this block at the end of every coding session.
+
+### Last Session Snapshot
+- Session date:
+- Latest commit hash:
+- Files changed:
+- Build check: Pass/Fail
+- Runtime smoke check: Pass/Fail
+- New risks introduced: Yes/No
+
+### End-of-Session Checklist
+- [ ] Update Date and Latest implementation commit near top of file.
+- [ ] Add newly completed TASK entries (with commit hash evidence).
+- [ ] Move any active item between In Progress and Completed Work.
+- [ ] Re-prioritize Pending / Next Backlog Candidates.
+- [ ] Update API / Data Contract Notes if request/response behavior changed.
+- [ ] Update Frontend Behavior Notes if user-visible behavior changed.
+- [ ] Update Validation Evidence with build/test results from this session.
+- [ ] Update Known Constraints / Gaps when blockers or assumptions change.
+- [ ] Add one-line "Next Session Starter" note at the bottom.
+
+### Next Session Starter
+- Start with:
+
 ## 1) How To Use This Brief With ChatGPT
 
 Copy this file into ChatGPT at the start of planning sessions.
