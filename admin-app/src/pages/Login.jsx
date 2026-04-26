@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { login } from "../api/auth"
+import { fetchMyProfile, login, saveAuthSession } from "../api/auth"
 import { useNavigate } from "react-router-dom"
 
 function Login() {
@@ -14,9 +14,8 @@ function Login() {
 
     try {
       const data = await login(username, password)
-
-      // store token
-      localStorage.setItem("token", data.access_token)
+      const profile = await fetchMyProfile(data.access_token)
+      saveAuthSession(data.access_token, profile)
 
       navigate("/")
     } catch (err) {

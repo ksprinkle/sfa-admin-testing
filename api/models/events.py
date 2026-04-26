@@ -24,8 +24,8 @@ class Event(Base):
     end_time = Column(Time)
     timezone = Column(String, default="America/New_York")
 
-    sessions = relationship("Session", back_populates="event")
-    participants = relationship("Participant", back_populates="event")
+    sessions = relationship("Session", back_populates="event", cascade="all, delete-orphan")
+    participants = relationship("Participant", back_populates="event", cascade="all, delete-orphan")
     
     venue = Column(String)
     city = Column(String)
@@ -64,6 +64,7 @@ class Event(Base):
             return 0
         return session.query(Participant).filter(
             Participant.event_id == self.id,
+            Participant.removed_at.is_(None),
             ((Participant.checked_in == True) |
              ((Participant.role == "surfer") & (Participant.is_waitlisted == False)))
         ).count()
@@ -77,6 +78,7 @@ class Event(Base):
             return 0
         return session.query(Participant).filter(
             Participant.event_id == self.id,
+            Participant.removed_at.is_(None),
             Participant.is_waitlisted == True
         ).count()
 
@@ -89,6 +91,7 @@ class Event(Base):
             return 0
         return session.query(Participant).filter(
             Participant.event_id == self.id,
+            Participant.removed_at.is_(None),
             Participant.checked_in == True
         ).count()
 
@@ -100,7 +103,8 @@ class Event(Base):
         if session is None:
             return 0
         return session.query(Participant).filter(
-            Participant.event_id == self.id
+            Participant.event_id == self.id,
+            Participant.removed_at.is_(None),
         ).count()
 
     @property

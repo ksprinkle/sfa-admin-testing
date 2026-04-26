@@ -74,7 +74,7 @@ export default function ParticipantActionsDropdown({
           <button
             className="block w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
             onClick={() => {
-              onRemove(participant.id)
+              onRemove(participant)
               setOpen(false)
             }}
           >

@@ -22,6 +22,8 @@ def create_event(db: Session, event_in: EventCreate):
     )
 
     db.add(event)
+    # Ensure event.id is available before creating child session rows.
+    db.flush()
 
     # Auto-create sessions if participant_capacity is set
     if event.participant_capacity and event.start_date and event.start_time:
@@ -213,15 +215,12 @@ def promote_waitlist(db: Session, event: Event):
     Promote waitlisted participants if capacity allows.
     Promotes in order of signup (created_at ascending).
     """
-    print("PROMOTE WAITLIST TRIGGERED")
-
     # Unlimited capacity → promote everyone
     if event.participant_capacity is None:
         while promote_from_waitlist(db, event):
             continue
 
         db.refresh(event)
-        print("UNLIMITED CAPACITY PROMOTION")
         return
 
     # Count confirmed

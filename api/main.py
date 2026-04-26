@@ -4,7 +4,7 @@ from api.db.session import engine
 from api.db.base import Base
 
 # Import models so SQLAlchemy registers them
-from api.models import events, participants
+from api.models import events, participants, participant_removal_log
 
 # Import routers
 

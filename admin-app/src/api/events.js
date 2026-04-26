@@ -102,10 +102,17 @@ export async function promoteParticipant(participantId) {
   return res.json()
 }
 
-export async function removeParticipant(participantId) {
+export async function removeParticipant(participantId, removalReasonCode, removalReasonNote = "") {
   const res = await apiFetch(
-    `/api/admin/participants/${participantId}`,
-    { method: "DELETE" }
+    `/api/admin/participants/${participantId}/action`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        action: "remove",
+        removal_reason_code: removalReasonCode,
+        removal_reason_note: removalReasonNote,
+      }),
+    }
   )
 
   if (!res.ok) {
@@ -213,4 +220,76 @@ export async function updateParticipantPriority(participantId, priority) {
   }
 
   return res.json()
+}
+
+export async function updateVolunteerType(participantId, volunteerType) {
+  return updateParticipantType(participantId, { volunteer_type: volunteerType })
+}
+
+export async function updateParticipantType(participantId, payload) {
+  const res = await apiFetch(
+    `/api/admin/participants/${participantId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  )
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to update participant")
+  }
+
+  return res.json()
+}
+
+export async function fetchParticipantRemovalLog(filters = {}) {
+  const params = new URLSearchParams()
+  if (filters.email) params.set("email", filters.email)
+  if (filters.reason_code) params.set("reason_code", filters.reason_code)
+  if (filters.event_id) params.set("event_id", filters.event_id)
+  if (filters.event_type) params.set("event_type", filters.event_type)
+  if (filters.date_from) params.set("date_from", filters.date_from)
+  if (filters.date_to) params.set("date_to", filters.date_to)
+  if (filters.limit) params.set("limit", String(filters.limit))
+
+  const query = params.toString()
+  const res = await apiFetch(`/api/admin/participants/removal-log${query ? `?${query}` : ""}`)
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to fetch removal log")
+  }
+
+  return res.json()
+}
+
+export async function exportParticipantRemovalLogCsv(filters = {}) {
+  const params = new URLSearchParams()
+  if (filters.email) params.set("email", filters.email)
+  if (filters.reason_code) params.set("reason_code", filters.reason_code)
+  if (filters.event_id) params.set("event_id", filters.event_id)
+  if (filters.event_type) params.set("event_type", filters.event_type)
+  if (filters.date_from) params.set("date_from", filters.date_from)
+  if (filters.date_to) params.set("date_to", filters.date_to)
+  if (filters.limit) params.set("limit", String(filters.limit))
+
+  const query = params.toString()
+  const res = await apiFetch(`/api/admin/participants/removal-log/export.csv${query ? `?${query}` : ""}`, {
+    headers: {
+      Accept: "text/csv",
+    },
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(text || "Failed to export removal log CSV")
+  }
+
+  const blob = await res.blob()
+  const contentDisposition = res.headers.get("content-disposition") || ""
+  const filenameMatch = contentDisposition.match(/filename=([^;]+)/i)
+  const filename = (filenameMatch?.[1] || "participant-removal-log.csv").replaceAll('"', "")
+
+  return { blob, filename }
 }

@@ -15,3 +15,10 @@ export async function promoteNoShowSlots(eventId) {
   if (!res.ok) throw new Error("Failed to promote no-show slots")
   return await res.json()
 }
+
+export async function fetchRemovedNoShowCount(eventId) {
+  const res = await apiFetch(`/api/admin/events/${eventId}/no_shows/removed_count`, { cache: "no-store" })
+  if (!res.ok) throw new Error("Failed to fetch removed no-show count")
+  const payload = await res.json().catch(() => ({}))
+  return Number(payload?.count || 0)
+}

@@ -93,6 +93,12 @@ function EventDetail() {
   const { eventId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams()
   const participantFilter = (searchParams.get("participants") || "all").toLowerCase()
+  const volunteerTypeAliases = {
+    surf_buddy: "buddy",
+    surf_instructor: "instructor",
+  }
+  const volunteerTypeFilterRaw = (searchParams.get("volunteer_type") || searchParams.get("volunteerType") || "").trim().toLowerCase()
+  const volunteerTypeFilter = volunteerTypeAliases[volunteerTypeFilterRaw] || volunteerTypeFilterRaw
 
   // Utility: Refresh participants from API
   async function refreshParticipants() {
@@ -202,14 +208,64 @@ function EventDetail() {
     waiver_missing: "Waivers Missing",
   }
 
+  const volunteerTypeFilterLabels = {
+    food: "Food",
+    raffle: "Raffle",
+    beach: "Beach",
+    buddy: "Buddy",
+    instructor: "Instructor",
+  }
+  const volunteerTypeFilterKeys = ["food", "raffle", "beach", "buddy", "instructor"]
+
+  const activeFilterLabel = volunteerTypeFilter
+    ? `Volunteers: ${volunteerTypeFilterLabels[volunteerTypeFilter] || volunteerTypeFilter}`
+    : (participantFilterLabels[participantFilter] || participantFilterLabels.all)
+
+  const openParticipantDetails = (participantId) => {
+    if (!participantId) return
+    const encodedId = encodeURIComponent(String(participantId))
+    navigate(`/participants?participant_id=${encodedId}`)
+  }
+
+  const applyVolunteerTypeFilter = (roleKey) => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set("participants", "volunteers")
+    if (roleKey) {
+      nextParams.set("volunteer_type", roleKey)
+    } else {
+      nextParams.delete("volunteer_type")
+      nextParams.delete("volunteerType")
+    }
+    setSearchParams(nextParams)
+  }
+
+  const normalizeVolunteerType = (value) => {
+    const normalized = (value || "").trim().toLowerCase()
+    return volunteerTypeAliases[normalized] || normalized
+  }
+
   const matchesParticipantFilter = (participant) => {
-    if (participantFilter === "all") return true
-    if (participantFilter === "registered" || participantFilter === "confirmed") return !participant.is_waitlisted
-    if (participantFilter === "waitlisted") return participant.is_waitlisted
-    if (participantFilter === "cleared") return participant.checked_in && participant.waiver_verified
-    if (participantFilter === "volunteers") return (participant.role || "").toLowerCase() === "volunteer"
-    if (participantFilter === "checked_in") return participant.checked_in
-    if (participantFilter === "waiver_missing") return !participant.waiver_verified
+    const isVolunteer = (participant.role || "").toLowerCase() === "volunteer"
+
+    if (participantFilter === "registered" || participantFilter === "confirmed") {
+      if (participant.is_waitlisted) return false
+    } else if (participantFilter === "waitlisted") {
+      if (!participant.is_waitlisted) return false
+    } else if (participantFilter === "cleared") {
+      if (!(participant.checked_in && participant.waiver_verified)) return false
+    } else if (participantFilter === "volunteers") {
+      if (!isVolunteer) return false
+    } else if (participantFilter === "checked_in") {
+      if (!participant.checked_in) return false
+    } else if (participantFilter === "waiver_missing") {
+      if (participant.waiver_verified) return false
+    }
+
+    if (volunteerTypeFilter) {
+      if (!isVolunteer) return false
+      return normalizeVolunteerType(participant.volunteer_type) === volunteerTypeFilter
+    }
+
     return true
   }
 
@@ -289,26 +345,27 @@ function EventDetail() {
   })
 
 
-  // Debug: log all unique session IDs
-  const uniqueSessionIds = Array.from(new Set(sortedParticipants.map(p => p.session_id)));
+  // Build a lookup from session UUID → session name, ordered by start_time/name from API
+  const sessionOrder = (eventInfo?.sessions || []).map(s => s.id)
+  const sessionNameMap = Object.fromEntries((eventInfo?.sessions || []).map(s => [s.id, s.name]))
 
-
-  // Only keep groups for the two most common session IDs
+  // Count participants per session
   const sessionIdCounts = sortedParticipants.reduce((acc, p) => {
     const key = p.session_id || "UNASSIGNED";
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
 
-  const sortedSessionIds = Object.entries(sessionIdCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([id]) => id);
+  // Sort: API-defined session order first, unknown sessions next, UNASSIGNED (waitlist) last
+  const sortedSessionIds = Object.keys(sessionIdCounts).sort((a, b) => {
+    if (a === "UNASSIGNED") return 1
+    if (b === "UNASSIGNED") return -1
+    const idxA = sessionOrder.indexOf(a)
+    const idxB = sessionOrder.indexOf(b)
+    return (idxA === -1 ? 9999 : idxA) - (idxB === -1 ? 9999 : idxB)
+  })
 
-  const sessionIdsForView = participantFilter === "all"
-    ? sortedSessionIds.slice(0, 2)
-    : sortedSessionIds
-
-  const groupedParticipants = sessionIdsForView.map(sessionId =>
+  const groupedParticipants = sortedSessionIds.map(sessionId =>
     sortedParticipants.filter(p => (p.session_id || "UNASSIGNED") === sessionId)
   );
 
@@ -372,6 +429,13 @@ function EventDetail() {
       return {
         text: "Showing waiver-verified participants who are checked in",
         className: "text-green-700",
+      }
+    }
+
+    if (volunteerTypeFilter) {
+      return {
+        text: `Showing ${volunteerTypeFilterLabels[volunteerTypeFilter] || volunteerTypeFilter} volunteers`,
+        className: "text-blue-700",
       }
     }
 
@@ -547,6 +611,10 @@ function EventDetail() {
         part.id === p.id ? { ...part, priority: newPriority } : part
       ));
     };
+    const isVolunteerCard = (p.role || "").trim().toLowerCase() === "volunteer"
+    const baseRoleCardClass = isVolunteerCard
+      ? "bg-cyan-50/45 border-cyan-200"
+      : "bg-amber-50/35 border-amber-200"
     return (
       <div
         ref={setNodeRef}
@@ -568,13 +636,22 @@ function EventDetail() {
         }}
         className={`select-none cursor-grab w-full px-3 py-2 rounded-lg text-sm border ${
           selectedIds.includes(String(p.id))
-            ? "bg-blue-100 border-blue-500"
-            : "bg-gray-50"
+            ? `${baseRoleCardClass} ring-2 ring-blue-300 border-blue-500`
+            : baseRoleCardClass
         }`}
       >
-        <div className="font-medium">
+        <button
+          type="button"
+          onPointerDown={(e) => { e.stopPropagation() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            openParticipantDetails(p.id)
+          }}
+          className="font-medium text-sky-800 hover:underline cursor-pointer text-left w-full"
+          title="Open participant details"
+        >
           {p.first_name} {p.last_name}
-        </div>
+        </button>
         <div className="text-xs text-gray-500">
           {p.email}
         </div>
@@ -645,7 +722,7 @@ function EventDetail() {
             <h1 className="text-2xl font-semibold">Event Participants</h1>
             {eventInfo?.event_type && (
               <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-medium text-sky-800">
-                {formatEventType(eventInfo.event_type)}
+                Event Type: {formatEventType(eventInfo.event_type)}
               </span>
             )}
           </div>
@@ -657,20 +734,56 @@ function EventDetail() {
           )}
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-              Viewing: {participantFilterLabels[participantFilter] || participantFilterLabels.all}
+              Viewing: {activeFilterLabel}
             </span>
-            {participantFilter !== "all" && (
+            {(participantFilter !== "all" || volunteerTypeFilter) && (
               <button
                 type="button"
                 onClick={() => {
                   const nextParams = new URLSearchParams(searchParams)
                   nextParams.delete("participants")
+                  nextParams.delete("volunteer_type")
+                  nextParams.delete("volunteerType")
                   setSearchParams(nextParams)
                 }}
                 className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
               >
                 Clear filter
               </button>
+            )}
+            {(participantFilter === "volunteers" || volunteerTypeFilter) && (
+              <div className="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => applyVolunteerTypeFilter("")}
+                  className={`rounded-full border px-2 py-1 text-[11px] transition ${
+                    volunteerTypeFilter
+                      ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                      : "border-sky-300 bg-sky-50 text-sky-800"
+                  }`}
+                  title="Show all volunteers"
+                >
+                  All Volunteers
+                </button>
+                {volunteerTypeFilterKeys.map((roleKey) => {
+                  const selected = volunteerTypeFilter === roleKey
+                  return (
+                    <button
+                      key={roleKey}
+                      type="button"
+                      onClick={() => applyVolunteerTypeFilter(roleKey)}
+                      className={`rounded-full border px-2 py-1 text-[11px] transition ${
+                        selected
+                          ? "border-sky-300 bg-sky-50 text-sky-800"
+                          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
+                      title={`Show only ${volunteerTypeFilterLabels[roleKey]} volunteers`}
+                    >
+                      {volunteerTypeFilterLabels[roleKey]}
+                    </button>
+                  )
+                })}
+              </div>
             )}
           </div>
         </div>
@@ -836,7 +949,7 @@ function EventDetail() {
           {groupedParticipants.map((group, idx) => {
             const sessionId = group[0]?.session_id || "UNASSIGNED";
             const softStatus = getSessionSoftStatus(idx, group)
-            const sessionLabel = sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : `Session ${idx + 1}`
+            const sessionLabel = sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : (sessionNameMap[sessionId] || `Session ${idx + 1}`)
             const sessionStatus = getSessionStatus(sessionId)
             return (
               <DroppableSession key={sessionId} sessionId={sessionId}>

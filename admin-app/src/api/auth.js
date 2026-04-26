@@ -3,6 +3,43 @@ const API_BASE = import.meta.env.DEV
   ? DEFAULT_API_BASE
   : (import.meta.env.VITE_API_URL || DEFAULT_API_BASE)
 
+export const TOKEN_STORAGE_KEY = "token"
+export const PROFILE_STORAGE_KEY = "auth.profile"
+const AUTH_CHANGED_EVENT = "auth:changed"
+
+function emitAuthChanged() {
+  window.dispatchEvent(new window.CustomEvent(AUTH_CHANGED_EVENT))
+}
+
+export function getStoredToken() {
+  return localStorage.getItem(TOKEN_STORAGE_KEY)
+}
+
+export function getStoredProfile() {
+  const raw = localStorage.getItem(PROFILE_STORAGE_KEY)
+  if (!raw) return null
+
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+export function saveAuthSession(token, profile = null) {
+  localStorage.setItem(TOKEN_STORAGE_KEY, token)
+  if (profile) {
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile))
+  }
+  emitAuthChanged()
+}
+
+export function clearAuthSession() {
+  localStorage.removeItem(TOKEN_STORAGE_KEY)
+  localStorage.removeItem(PROFILE_STORAGE_KEY)
+  emitAuthChanged()
+}
+
 export async function login(username, password) {
   const formData = new URLSearchParams()
   formData.append("username", username)
@@ -33,4 +70,36 @@ export async function login(username, password) {
   }
 
   return res.json()
+}
+
+export async function fetchMyProfile(token = getStoredToken()) {
+  if (!token) {
+    throw new Error("Missing token")
+  }
+
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  })
+
+  if (!res.ok) {
+    let message = "Failed to fetch profile"
+    try {
+      const errorBody = await res.json()
+      if (errorBody?.detail) {
+        message = errorBody.detail
+      }
+    } catch {
+      // Keep fallback message.
+    }
+    throw new Error(message)
+  }
+
+  return res.json()
+}
+
+export function getAuthChangedEventName() {
+  return AUTH_CHANGED_EVENT
 }

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, UniqueConstraint, DateTime, Integer
+from sqlalchemy import Column, String, Boolean, ForeignKey, UniqueConstraint, DateTime, Integer, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -31,8 +31,18 @@ class Participant(Base):
     waiver_verified = Column(Boolean, default=False)
     waiver_signed_at = Column(DateTime, nullable=True)
     
+    volunteer_type = Column(String, nullable=True)  # primary: food | raffle | beach | instructor | buddy
+    volunteer_additional_types = Column(JSON, nullable=False, default=list)
+    volunteer_is_versatile = Column(Boolean, nullable=False, default=False)
+
     checked_in = Column(Boolean, default=False)
     checked_in_at = Column(DateTime, nullable=True)
+
+    removed_at = Column(DateTime, nullable=True)
+    removed_reason_code = Column(String, nullable=True)
+    removed_reason_note = Column(String, nullable=True)
+    removed_by_user_id = Column(String, nullable=True)
+    removed_stage = Column(String, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 

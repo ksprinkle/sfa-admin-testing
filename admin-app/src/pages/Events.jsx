@@ -17,6 +17,29 @@ function formatEventType(eventType) {
     .join(" ")
 }
 
+function getEventTypeRowTone(eventType) {
+  const normalized = String(eventType || "").trim().toLowerCase()
+
+  if (normalized === "chapter") {
+    return {
+      rowClass: "bg-indigo-100/50 hover:bg-indigo-200/55",
+      pillClass: "border-indigo-200 bg-indigo-100 text-indigo-900",
+    }
+  }
+
+  if (normalized === "tour") {
+    return {
+      rowClass: "bg-emerald-50/45 hover:bg-emerald-100/60",
+      pillClass: "border-emerald-200 bg-emerald-100 text-emerald-900",
+    }
+  }
+
+  return {
+    rowClass: "bg-white hover:bg-gray-50",
+    pillClass: "border-gray-200 bg-gray-50 text-gray-700",
+  }
+}
+
 export default function Events() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -197,7 +220,7 @@ export default function Events() {
         </div>
 
         <div className="mt-4">
-          <p className="text-sm font-medium text-gray-700">Filter by type</p>
+          <p className="text-sm font-medium text-gray-700">Filter by Event Type</p>
           <p className="text-xs text-gray-500">
             Showing {filteredEvents.length} of {events.length} events
             {statusFilter !== "all" ? ` (status: ${statusFilter})` : ""}
@@ -210,7 +233,7 @@ export default function Events() {
             onClick={() => setSelectedEventType("all")}
             className={`rounded-full border px-3 py-2 text-sm font-medium transition ${selectedEventType === "all" ? "border-ocean bg-ocean text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
           >
-            All event types
+            All Event Types
             <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${selectedEventType === "all" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
               {events.length}
             </span>
@@ -237,10 +260,11 @@ export default function Events() {
         <thead className="bg-gray-50 border-b sticky top-0 z-10">
           <tr className="text-left text-sm text-gray-600">
             <th className="p-4">Event</th>
-            <th className="p-4">Type</th>
+            <th className="p-4">Event Type</th>
             <th className="p-4">Date</th>
             <th className="p-4">Status</th>
             <th className="p-4">Capacity</th>
+            <th className="p-4">Participants</th>
           </tr>
         </thead>
 
@@ -248,8 +272,11 @@ export default function Events() {
 
           {filteredEvents.map(event => {
 
-  const capacity = event.participant_capacity
+  const capacity = event?.capacity?.participants ?? event?.participant_capacity
   const count = event.participant_count
+  const waitlistCount = event.waitlist_count || 0
+  const totalParticipants = count + waitlistCount
+  const eventTypeTone = getEventTypeRowTone(event.event_type)
 
   const percent = capacity
     ? Math.min((count / capacity) * 100, 100)
@@ -259,15 +286,17 @@ export default function Events() {
     <tr
       key={event.id}
       onClick={() => navigate(`/events/${event.id}`)}
-      className="border-b hover:bg-gray-50 transition cursor-pointer"
+      className={`border-b transition cursor-pointer ${eventTypeTone.rowClass}`}
     >
 
       <td className="p-4 font-medium">
         {event.title}
       </td>
 
-      <td className="p-4 text-gray-600">
-        {formatEventType(event.event_type)}
+      <td className="p-4 text-gray-700">
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${eventTypeTone.pillClass}`}>
+          {formatEventType(event.event_type)}
+        </span>
       </td>
 
       <td className="p-4 text-gray-600">
@@ -306,12 +335,24 @@ export default function Events() {
                 style={{ width: `${percent}%` }}
               />
             </div>
+            <div className="mt-1 text-xs text-gray-500">
+              Waitlist: {waitlistCount}
+            </div>
           </div>
         ) : (
-          <span className="text-sm text-gray-500">
-            {count} / ∞
-          </span>
+          <div>
+            <span className="text-sm text-gray-500">
+              {count} / ∞
+            </span>
+            <div className="mt-1 text-xs text-gray-500">
+              Waitlist: {waitlistCount}
+            </div>
+          </div>
         )}
+      </td>
+      <td className="p-4 text-gray-700">
+        <div className="text-sm font-medium">{totalParticipants}</div>
+        <div className="text-xs text-gray-500">Active {count} + Waitlist {waitlistCount}</div>
       </td>
       <td
         className="p-4 text-right w-24"

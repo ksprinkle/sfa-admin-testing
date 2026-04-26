@@ -8,13 +8,18 @@ from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
 from sqlalchemy.orm import joinedload
-from datetime import datetime, timedelta
-from api.schemas.participants import ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate
+from datetime import date, datetime, timedelta
+from api.schemas.participants import AdminParticipantListOut, ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate, ParticipantRemovalLogOut
 from api.ws_manager import manager
 import json
-from sqlalchemy import func
+from sqlalchemy import func, false
+import logging
+import csv
+import io
+from fastapi.responses import StreamingResponse
 from api.models.sessions import Session as EventSession
 from api.services.session_service import get_next_available_session
+from api.models.participant_removal_log import ParticipantRemovalLog
 
 
 def _is_volunteer_role(value: str | None) -> bool:
@@ -25,6 +30,141 @@ router = APIRouter(
     tags=["Admin Participants"],
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _base_active_participant_query(db: DBSession):
+    return db.query(Participant).filter(Participant.removed_at.is_(None))
+
+
+def _get_removal_stage(participant: Participant) -> str:
+    if participant.checked_in:
+        return "post_checkin"
+    if participant.is_waitlisted:
+        return "waitlist"
+    if participant.waiver_verified:
+        return "waiver_verified"
+    return "registered"
+
+
+def _soft_remove_participant(
+    db: DBSession,
+    participant: Participant,
+    *,
+    reason_code: str,
+    reason_note: str | None,
+    removed_by_user_id: str | None,
+    removed_by_user_email: str | None,
+):
+    stage = _get_removal_stage(participant)
+    timestamp = datetime.utcnow()
+
+    participant.removed_at = timestamp
+    participant.removed_reason_code = reason_code
+    participant.removed_reason_note = (reason_note or "").strip() or None
+    participant.removed_by_user_id = removed_by_user_id
+    participant.removed_stage = stage
+
+    db.add(
+        ParticipantRemovalLog(
+            participant_id=str(participant.id),
+            event_id=str(participant.event_id),
+            first_name=participant.first_name,
+            last_name=participant.last_name,
+            email=participant.email,
+            role=participant.role,
+            was_waitlisted="true" if participant.is_waitlisted else "false",
+            was_checked_in="true" if participant.checked_in else "false",
+            was_waiver_verified="true" if participant.waiver_verified else "false",
+            removed_reason_code=reason_code,
+            removed_reason_note=(reason_note or "").strip() or None,
+            removed_stage=stage,
+            removed_by_user_id=removed_by_user_id,
+            removed_by_user_email=removed_by_user_email,
+        )
+    )
+
+
+def _parse_date_filter(value: str | None, field_name: str) -> date | None:
+    if not value:
+        return None
+
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}; use YYYY-MM-DD") from exc
+
+
+def _build_removal_log_query(
+    db: DBSession,
+    *,
+    email: str | None,
+    reason_code: str | None,
+    event_id: str | None,
+    event_type: str | None,
+    date_from: str | None,
+    date_to: str | None,
+):
+    query = db.query(ParticipantRemovalLog)
+
+    if email:
+        like_email = f"%{email.strip().lower()}%"
+        query = query.filter(func.lower(ParticipantRemovalLog.email).like(like_email))
+
+    if reason_code:
+        query = query.filter(ParticipantRemovalLog.removed_reason_code == reason_code.strip().lower())
+
+    if event_id:
+        query = query.filter(ParticipantRemovalLog.event_id == event_id.strip())
+
+    if event_type:
+        normalized_event_type = event_type.strip().lower()
+        matching_event_id_rows = (
+            db.query(Event.id)
+            .filter(func.lower(func.coalesce(Event.event_type, "")) == normalized_event_type)
+            .all()
+        )
+        matching_event_ids = [str(row.id) for row in matching_event_id_rows]
+        if not matching_event_ids:
+            return query.filter(false())
+        query = query.filter(ParticipantRemovalLog.event_id.in_(matching_event_ids))
+
+    parsed_from = _parse_date_filter(date_from, "date_from")
+    parsed_to = _parse_date_filter(date_to, "date_to")
+
+    if parsed_from:
+        query = query.filter(func.date(ParticipantRemovalLog.created_at) >= parsed_from.isoformat())
+    if parsed_to:
+        query = query.filter(func.date(ParticipantRemovalLog.created_at) <= parsed_to.isoformat())
+
+    return query
+
+
+def _build_event_lookup(db: DBSession, event_ids: set[str]) -> dict[str, dict[str, str | None]]:
+    if not event_ids:
+        return {}
+
+    # Removal logs persist event_id as text while Event.id is UUID in the ORM.
+    # Convert to UUID objects before filtering to avoid UUID processor errors.
+    parsed_event_ids: list[UUID] = []
+    for event_id in event_ids:
+        try:
+            parsed_event_ids.append(UUID(str(event_id)))
+        except (ValueError, TypeError):
+            continue
+
+    if not parsed_event_ids:
+        return {}
+
+    events = db.query(Event.id, Event.title, Event.event_type).filter(Event.id.in_(parsed_event_ids)).all()
+    return {
+        str(event.id): {
+            "title": event.title,
+            "event_type": event.event_type,
+        }
+        for event in events
+    }
+
 
 @router.patch("/{participant_id}", response_model=ParticipantOut)
 async def update_participant(
@@ -33,7 +173,7 @@ async def update_participant(
     db: DBSession = Depends(get_db),
     _current_user = Depends(require_admin),
 ):
-    participant = db.query(Participant).filter(Participant.id == participant_id).first()
+    participant = _base_active_participant_query(db).filter(Participant.id == participant_id).first()
 
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
@@ -62,6 +202,7 @@ async def update_participant(
             if not _is_volunteer_role(effective_role):
                 count = db.query(Participant).filter(
                     Participant.session_id == target_session_id,
+                    Participant.removed_at.is_(None),
                     Participant.id != participant.id,
                     func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
                 ).count()
@@ -92,12 +233,19 @@ async def update_participant(
         "waiver_signed",
         "waiver_verified",
         "notes",
+        "volunteer_type",
+        "volunteer_additional_types",
+        "volunteer_is_versatile",
     ]:
         if field in updates:
             setattr(participant, field, updates[field])
 
     if _is_volunteer_role(participant.role):
         participant.is_waitlisted = False
+    else:
+        participant.volunteer_type = None
+        participant.volunteer_additional_types = []
+        participant.volunteer_is_versatile = False
 
     if "checked_in" in updates:
         if updates["checked_in"]:
@@ -183,6 +331,9 @@ def create_participant(
         sessions = [session1, session2]
 
     is_volunteer = _is_volunteer_role(data.role)
+    volunteer_type = data.volunteer_type if is_volunteer else None
+    volunteer_additional_types = data.volunteer_additional_types if is_volunteer else []
+    volunteer_is_versatile = data.volunteer_is_versatile if is_volunteer else False
 
     # Use centralized session assignment for participant roles.
     if is_volunteer:
@@ -204,6 +355,9 @@ def create_participant(
             role=data.role,
             is_minor=data.is_minor,
             is_waitlisted=is_waitlisted,
+            volunteer_type=volunteer_type,
+            volunteer_additional_types=volunteer_additional_types,
+            volunteer_is_versatile=volunteer_is_versatile,
         )
 
         db.add(participant)
@@ -233,7 +387,7 @@ def participant_action(
     db: DBSession = Depends(get_db),
     _current_user = Depends(require_admin),
 ):
-    participant = db.query(Participant).filter(
+    participant = _base_active_participant_query(db).filter(
         Participant.id == participant_id
     ).first()
 
@@ -261,40 +415,64 @@ def participant_action(
         participant.session_id = None
         db.commit()
         promote_from_waitlist(db, participant.event, exclude_participant_id=participant.id)
-        # Broadcast update
+        # Broadcast update from sync route context; never fail request if push fails.
         import asyncio
-        asyncio.create_task(manager.broadcast(json.dumps({
-            "type": "participant_update",
-            "participant_id": str(participant.id),
-            "action": "move_to_waitlist"
-        })))
+        try:
+            asyncio.run(manager.broadcast(json.dumps({
+                "type": "participant_update",
+                "participant_id": str(participant.id),
+                "action": "move_to_waitlist"
+            })))
+        except Exception as exc:
+            logger.warning("participant_update broadcast failed after move_to_waitlist: %s", exc)
         return {"message": "Participant moved to waitlist"}
 
     elif action.action == "promote":
         participant.is_waitlisted = False
 
     elif action.action == "remove":
-        db.delete(participant)
+        reason_code = action.removal_reason_code or "admin_correction"
+        was_waitlisted = bool(participant.is_waitlisted)
+        event = participant.event
+        _soft_remove_participant(
+            db,
+            participant,
+            reason_code=reason_code,
+            reason_note=action.removal_reason_note,
+            removed_by_user_id=str(getattr(_current_user, "id", "") or ""),
+            removed_by_user_email=getattr(_current_user, "email", None),
+        )
         db.commit()
-        # Broadcast update
+
+        # If a confirmed participant was removed, immediately fill the freed spot.
+        if not was_waitlisted:
+            promote_from_waitlist(db, event)
+
+        # Broadcast update from sync route context; never fail request if push fails.
         import asyncio
-        asyncio.create_task(manager.broadcast(json.dumps({
-            "type": "participant_update",
-            "participant_id": str(participant_id),
-            "action": "remove"
-        })))
+        try:
+            asyncio.run(manager.broadcast(json.dumps({
+                "type": "participant_update",
+                "participant_id": str(participant_id),
+                "action": "remove"
+            })))
+        except Exception as exc:
+            logger.warning("participant_update broadcast failed after remove: %s", exc)
         return {"message": "Participant removed"}
 
     db.commit()
     db.refresh(participant)
 
-    # Broadcast update
+    # Broadcast update from sync route context; never fail request if push fails.
     import asyncio
-    asyncio.create_task(manager.broadcast(json.dumps({
-        "type": "participant_update",
-        "participant_id": str(participant.id),
-        "action": action.action
-    })))
+    try:
+        asyncio.run(manager.broadcast(json.dumps({
+            "type": "participant_update",
+            "participant_id": str(participant.id),
+            "action": action.action
+        })))
+    except Exception as exc:
+        logger.warning("participant_update broadcast failed after action '%s': %s", action.action, exc)
 
     return {"message": f"{action.action} successful"}
 
@@ -307,7 +485,7 @@ def promote_participant(
 ):
 
     participant = (
-        db.query(Participant)
+        _base_active_participant_query(db)
         .filter(Participant.id == participant_id)
         .first()
     )
@@ -324,6 +502,7 @@ def promote_participant(
     if event.participant_capacity is not None and not is_volunteer:
         confirmed_count = db.query(Participant).filter(
             Participant.event_id == event.id,
+            Participant.removed_at.is_(None),
             Participant.is_waitlisted == False,
             func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
         ).count()
@@ -347,7 +526,7 @@ def remove_participant(
 ):
 
     participant = (
-        db.query(Participant)
+        _base_active_participant_query(db)
         .filter(Participant.id == participant_id)
         .first()
     )
@@ -358,7 +537,14 @@ def remove_participant(
     event = participant.event
     was_waitlisted = participant.is_waitlisted
 
-    db.delete(participant)
+    _soft_remove_participant(
+        db,
+        participant,
+        reason_code="admin_correction",
+        reason_note="Removed through legacy delete endpoint",
+        removed_by_user_id=str(getattr(_current_user, "id", "") or ""),
+        removed_by_user_email=getattr(_current_user, "email", None),
+    )
     db.commit()
 
     if not was_waitlisted:
@@ -367,14 +553,14 @@ def remove_participant(
     return {"message": "Participant removed"}
 
 #🔹 List all participants with optional search
-@router.get("/",)
+@router.get("/", response_model=list[AdminParticipantListOut])
 def list_all_participants(
     search: str | None = None,
     db: DBSession = Depends(get_db),
     _current_user = Depends(require_admin),
 ):
 
-    query = db.query(Participant).options(joinedload(Participant.event))
+    query = db.query(Participant).options(joinedload(Participant.event)).filter(Participant.removed_at.is_(None))
 
     if search:
         search = f"%{search.lower()}%"
@@ -386,20 +572,197 @@ def list_all_participants(
 
     participants = query.all()
 
+    email_keys = {
+        (p.email or "").strip().lower()
+        for p in participants
+        if (p.email or "").strip()
+    }
+    no_show_counts: dict[str, int] = {}
+    if email_keys:
+        count_rows = (
+            db.query(
+                func.lower(ParticipantRemovalLog.email).label("email_key"),
+                func.count(ParticipantRemovalLog.id).label("no_show_count"),
+            )
+            .filter(
+                func.lower(ParticipantRemovalLog.email).in_(email_keys),
+                ParticipantRemovalLog.removed_reason_code == "no_show",
+            )
+            .group_by(func.lower(ParticipantRemovalLog.email))
+            .all()
+        )
+        no_show_counts = {
+            row.email_key: int(row.no_show_count or 0)
+            for row in count_rows
+        }
+
     return [
         {
             "id": p.id,
             "first_name": p.first_name,
             "last_name": p.last_name,
             "email": p.email,
+            "role": p.role,
+            "is_minor": p.is_minor,
             "checked_in": p.checked_in,
             "is_waitlisted": p.is_waitlisted,
+            "waiver_signed": p.waiver_signed,
             "waiver_verified": p.waiver_verified,
             "event_title": p.event.title if p.event else None,
+            "event_type": p.event.event_type if p.event else None,
+            "no_show_count": no_show_counts.get((p.email or "").strip().lower(), 0),
             "priority": p.priority,
+            "removed_at": p.removed_at,
+            "removed_reason_code": p.removed_reason_code,
+            "removed_reason_note": p.removed_reason_note,
+            "removed_stage": p.removed_stage,
+            "volunteer_type": p.volunteer_type,
+            "volunteer_additional_types": p.volunteer_additional_types or [],
+            "volunteer_is_versatile": p.volunteer_is_versatile,
         }
         for p in participants
     ]
+
+
+@router.get("/removal-log", response_model=list[ParticipantRemovalLogOut])
+def list_participant_removal_log(
+    email: str | None = None,
+    reason_code: str | None = None,
+    event_id: str | None = None,
+    event_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 200,
+    db: DBSession = Depends(get_db),
+    _current_user = Depends(require_admin),
+):
+    query = _build_removal_log_query(
+        db,
+        email=email,
+        reason_code=reason_code,
+        event_id=event_id,
+        event_type=event_type,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    rows = (
+        query
+        .order_by(ParticipantRemovalLog.created_at.desc())
+        .limit(max(1, min(limit, 1000)))
+        .all()
+    )
+
+    event_ids = {str(row.event_id) for row in rows if row.event_id}
+    event_lookup = _build_event_lookup(db, event_ids)
+
+    return [
+        {
+            "id": row.id,
+            "participant_id": row.participant_id,
+            "event_id": row.event_id,
+            "event_title": (event_lookup.get(str(row.event_id)) or {}).get("title"),
+            "event_type": (event_lookup.get(str(row.event_id)) or {}).get("event_type"),
+            "first_name": row.first_name,
+            "last_name": row.last_name,
+            "email": row.email,
+            "role": row.role,
+            "was_waitlisted": row.was_waitlisted,
+            "was_checked_in": row.was_checked_in,
+            "was_waiver_verified": row.was_waiver_verified,
+            "removed_reason_code": row.removed_reason_code,
+            "removed_reason_note": row.removed_reason_note,
+            "removed_stage": row.removed_stage,
+            "removed_by_user_id": row.removed_by_user_id,
+            "removed_by_user_email": row.removed_by_user_email,
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+
+
+@router.get("/removal-log/export.csv")
+def export_participant_removal_log_csv(
+    email: str | None = None,
+    reason_code: str | None = None,
+    event_id: str | None = None,
+    event_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 5000,
+    db: DBSession = Depends(get_db),
+    _current_user = Depends(require_admin),
+):
+    query = _build_removal_log_query(
+        db,
+        email=email,
+        reason_code=reason_code,
+        event_id=event_id,
+        event_type=event_type,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    rows = (
+        query
+        .order_by(ParticipantRemovalLog.created_at.desc())
+        .limit(max(1, min(limit, 20000)))
+        .all()
+    )
+
+    event_ids = {str(row.event_id) for row in rows if row.event_id}
+    event_lookup = _build_event_lookup(db, event_ids)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "created_at",
+        "event_title",
+        "event_type",
+        "event_id",
+        "participant_id",
+        "first_name",
+        "last_name",
+        "email",
+        "role",
+        "removed_reason_code",
+        "removed_reason_note",
+        "removed_stage",
+        "was_waitlisted",
+        "was_checked_in",
+        "was_waiver_verified",
+        "removed_by_user_id",
+        "removed_by_user_email",
+    ])
+
+    for row in rows:
+        writer.writerow([
+            row.created_at.isoformat() if row.created_at else "",
+            (event_lookup.get(str(row.event_id)) or {}).get("title") or "",
+            (event_lookup.get(str(row.event_id)) or {}).get("event_type") or "",
+            row.event_id,
+            row.participant_id,
+            row.first_name,
+            row.last_name,
+            row.email,
+            row.role,
+            row.removed_reason_code,
+            row.removed_reason_note or "",
+            row.removed_stage,
+            row.was_waitlisted,
+            row.was_checked_in,
+            row.was_waiver_verified,
+            row.removed_by_user_id or "",
+            row.removed_by_user_email or "",
+        ])
+
+    csv_text = output.getvalue()
+    output.close()
+    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+
+    return StreamingResponse(
+        iter([csv_text]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=participant-removal-log-{timestamp}.csv"},
+    )
 
 #🔹 List participants for an event (admin view)
 @router.patch("/{participant_id}/checkin")
@@ -409,7 +772,7 @@ async def check_in_participant(
     _current_user = Depends(require_admin),
 ):
     participant = (
-    db.query(Participant)
+    _base_active_participant_query(db)
     .filter(Participant.id == participant_id)
     .first()
 )
@@ -451,7 +814,7 @@ async def update_participant_session(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    participant = db.query(Participant).filter(Participant.id == participant_id).first()
+    participant = _base_active_participant_query(db).filter(Participant.id == participant_id).first()
 
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
@@ -461,7 +824,8 @@ async def update_participant_session(
         return {"success": True}
 
     count = db.query(Participant).filter(
-        Participant.session_id == payload.session_id
+        Participant.session_id == payload.session_id,
+        Participant.removed_at.is_(None),
     ).count()
 
     if count >= 15:
@@ -492,7 +856,7 @@ async def update_participant_priority(
     db: DBSession = Depends(get_db),
     _current_user = Depends(require_admin),
 ):
-    participant = db.query(Participant).filter(Participant.id == participant_id).first()
+    participant = _base_active_participant_query(db).filter(Participant.id == participant_id).first()
 
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from api.models.events import Event
 from api.models.participants import Participant
 from api.models.sessions import Session as EventSession
+from api.models.participant_removal_log import ParticipantRemovalLog
 
 
 def get_no_show_candidates(db: Session, event_id):
@@ -18,6 +19,7 @@ def get_no_show_candidates(db: Session, event_id):
     # Only show no-shows if there are waitlisted participants
     waitlisted_count = db.query(Participant).filter(
         Participant.event_id == event_id,
+        Participant.removed_at.is_(None),
         Participant.is_waitlisted == True
     ).count()
     if waitlisted_count == 0:
@@ -29,6 +31,7 @@ def get_no_show_candidates(db: Session, event_id):
         .join(EventSession, Participant.session_id == EventSession.id)
         .filter(
             Participant.event_id == event_id,
+            Participant.removed_at.is_(None),
             Participant.checked_in == False,
             Participant.is_waitlisted == False,
             EventSession.start_time != None,
@@ -41,6 +44,7 @@ def get_no_show_candidates(db: Session, event_id):
     session_counts = {
         s.id: db.query(Participant).filter(
             Participant.session_id == s.id,
+            Participant.removed_at.is_(None),
             Participant.is_waitlisted == False
         ).count()
         for s in db.query(EventSession).filter(EventSession.id.in_(session_ids)).all()
@@ -60,8 +64,32 @@ def promote_no_show_slots(db: Session, event_id):
     promoted = []
     for ns in no_shows:
         from api.crud.participants import promote_from_waitlist
-        # Remove the no-show participant (admin action required)
-        db.delete(ns)
+        stage = "post_checkin" if ns.checked_in else ("waitlist" if ns.is_waitlisted else ("waiver_verified" if ns.waiver_verified else "registered"))
+        timestamp = datetime.utcnow()
+        ns.removed_at = timestamp
+        ns.removed_reason_code = "no_show"
+        ns.removed_reason_note = "Auto-removed by no-show promotion"
+        ns.removed_by_user_id = None
+        ns.removed_stage = stage
+
+        db.add(
+            ParticipantRemovalLog(
+                participant_id=str(ns.id),
+                event_id=str(ns.event_id),
+                first_name=ns.first_name,
+                last_name=ns.last_name,
+                email=ns.email,
+                role=ns.role,
+                was_waitlisted="true" if ns.is_waitlisted else "false",
+                was_checked_in="true" if ns.checked_in else "false",
+                was_waiver_verified="true" if ns.waiver_verified else "false",
+                removed_reason_code="no_show",
+                removed_reason_note="Auto-removed by no-show promotion",
+                removed_stage=stage,
+                removed_by_user_id=None,
+                removed_by_user_email="system",
+            )
+        )
         db.commit()
         # Promote from waitlist
         p = promote_from_waitlist(db, event)

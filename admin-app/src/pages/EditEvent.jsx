@@ -9,15 +9,19 @@ function EditEvent() {
   const navigate = useNavigate()
 
   const [event, setEvent] = useState(null)
+  const [submitError, setSubmitError] = useState("")
 
   useEffect(() => {
 
     async function loadEvent() {
 
-      const res = await apiFetch(`/admin/events/${eventId}`)
+      const res = await apiFetch(`/api/admin/events/${eventId}`)
+      if (!res?.ok) {
+        setSubmitError("Failed to load event details.")
+        return
+      }
 
       const data = await res.json()
-
       setEvent(data)
 
     }
@@ -28,10 +32,28 @@ function EditEvent() {
 
   async function handleSubmit(data) {
 
-    await apiFetch(`/admin/events/${eventId}`, {
+    setSubmitError("")
+
+    const res = await apiFetch(`/api/admin/events/${eventId}`, {
       method: "PUT",
       body: JSON.stringify(data)
     })
+
+    if (!res?.ok) {
+      let detail = "Failed to update event"
+      try {
+        const errorBody = await res.json()
+        if (Array.isArray(errorBody?.detail)) {
+          detail = errorBody.detail.map((item) => item?.msg || JSON.stringify(item)).join("; ")
+        } else if (typeof errorBody?.detail === "string") {
+          detail = errorBody.detail
+        }
+      } catch {
+        // Keep fallback detail
+      }
+      setSubmitError(detail)
+      return
+    }
 
     navigate(`/events/${eventId}`)
 
@@ -46,6 +68,12 @@ function EditEvent() {
       <h1 className="text-2xl font-semibold mb-6">
         Edit Event
       </h1>
+
+      {submitError && (
+        <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {submitError}
+        </div>
+      )}
 
       <EventForm
         initialData={event}

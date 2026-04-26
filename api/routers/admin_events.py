@@ -20,6 +20,7 @@ from api.models.participants import Participant
 from api.schemas.events import AdminEventSummary
 from datetime import datetime
 from api.services.no_show_service import get_no_show_candidates, promote_no_show_slots
+from api.models.participant_removal_log import ParticipantRemovalLog
 
 router = APIRouter(
     prefix="/admin/events",
@@ -49,6 +50,23 @@ def promote_no_shows(
     promoted = promote_no_show_slots(db, event_id)
     return [str(p.id) for p in promoted] if promoted else []
 
+
+@router.get("/{event_id}/no_shows/removed_count")
+def get_removed_no_show_count(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    count = (
+        db.query(ParticipantRemovalLog)
+        .filter(
+            ParticipantRemovalLog.event_id == str(event_id),
+            ParticipantRemovalLog.removed_reason_code == "no_show",
+        )
+        .count()
+    )
+    return {"count": count}
+
 #🔹 Create new event
 @router.post("/", response_model=EventOut, status_code=201)
 def create_event(
@@ -75,15 +93,15 @@ def get_event(
         raise HTTPException(status_code=404, detail="Event not found")
 
     participant_count = len(
-        [p for p in event.participants if not p.is_waitlisted]
+        [p for p in event.participants if p.removed_at is None and not p.is_waitlisted]
     )
 
     waitlist_count = len(
-        [p for p in event.participants if p.is_waitlisted]
+        [p for p in event.participants if p.removed_at is None and p.is_waitlisted]
     )
 
     checked_in_count = len(
-        [p for p in event.participants if p.checked_in]
+        [p for p in event.participants if p.removed_at is None and p.checked_in]
     )
 
     return build_admin_event(event)
@@ -109,7 +127,7 @@ def event_summary(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    participants = event.participants
+    participants = [p for p in event.participants if p.removed_at is None]
 
     registered = 0
     waitlisted = 0
@@ -117,12 +135,26 @@ def event_summary(
     cleared_to_participate = 0
     volunteers = 0
     waivers_missing = 0
+    versatile_volunteer_count = 0
+    volunteer_type_counts = {
+        "food": 0,
+        "raffle": 0,
+        "beach": 0,
+        "buddy": 0,
+        "instructor": 0,
+    }
 
     for p in participants:
         is_volunteer = (p.role or "").strip().lower() == "volunteer"
 
         if is_volunteer:
             volunteers += 1
+            if p.volunteer_is_versatile:
+                versatile_volunteer_count += 1
+            vt = (p.volunteer_type or "").strip().lower()
+            vt = {"surf_buddy": "buddy", "surf_instructor": "instructor"}.get(vt, vt)
+            if vt in volunteer_type_counts:
+                volunteer_type_counts[vt] += 1
             continue
 
         if p.is_waitlisted:
@@ -173,6 +205,8 @@ def event_summary(
         "volunteer_capacity": event.volunteer_capacity,
         "volunteer_remaining": volunteer_remaining,
         "volunteer_fill_percent": volunteer_fill_percent,
+        "volunteer_type_counts": volunteer_type_counts,
+        "versatile_volunteer_count": versatile_volunteer_count,
 }
 
 # 🔹 List all events (admin view)
@@ -243,7 +277,8 @@ def list_event_participants(
     current_user = Depends(require_admin),
 ):
     query = db.query(Participant).filter(
-        Participant.event_id == event_id
+        Participant.event_id == event_id,
+        Participant.removed_at.is_(None),
     )
 
     if checked_in is not None:
@@ -256,6 +291,27 @@ def list_all_participants(
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
-    return db.query(Participant).all()
+    participants = db.query(Participant).options(joinedload(Participant.event)).filter(Participant.removed_at.is_(None)).all()
+
+    return [
+        {
+            "id": p.id,
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "email": p.email,
+            "role": p.role,
+            "is_minor": p.is_minor,
+            "checked_in": p.checked_in,
+            "is_waitlisted": p.is_waitlisted,
+            "priority": p.priority,
+            "waiver_signed": p.waiver_signed,
+            "waiver_verified": p.waiver_verified,
+            "event_title": p.event.title if p.event else None,
+            "volunteer_type": p.volunteer_type,
+            "volunteer_additional_types": p.volunteer_additional_types or [],
+            "volunteer_is_versatile": p.volunteer_is_versatile,
+        }
+        for p in participants
+    ]
 
 

@@ -1,0 +1,75 @@
+no-jargon, click-by-click deployment walkthrough for your app on Render.
+
+Goal
+
+Put backend API on the internet.
+Put admin app on the internet.
+Make them talk to each other securely.
+Confirm cellular/beach usage works.
+Before You Start
+
+Your code is pushed to GitHub.
+You have a Render account.
+You can log in to your GitHub repo and Render.
+Part 1: Create Everything in Render
+
+In Render dashboard, click New then Blueprint.
+Connect/select your GitHub repo.
+Render will detect render.yaml.
+Click Apply.
+Wait for 3 items to be created:
+sfa-api (web service)
+sfa-admin (static site)
+sfa-db (postgres database)
+Part 2: Set CORS (important)
+
+Open service sfa-admin.
+Copy its public URL (looks like https://sfa-admin-xxxx.onrender.com).
+Open service sfa-api.
+Go to Environment.
+Find variable CORS_ORIGINS.
+Set it to the exact admin URL you copied.
+Save and redeploy sfa-api.
+Part 3: Verify API Is Alive
+
+Open sfa-api service URL + /openapi.json
+Example: https://your-api.onrender.com/openapi.json
+If JSON loads, API is up.
+Open base URL:
+https://your-api.onrender.com/
+You should see backend status response.
+Part 4: Verify Frontend
+
+Open sfa-admin URL.
+Login.
+Go to check-in page.
+Confirm participants load.
+Part 5: Quick Sync Test
+
+Open app on laptop and phone at same time.
+Check in one participant on phone.
+Confirm laptop updates automatically.
+Part 6: Offline Queue Test
+
+On phone, turn airplane mode ON.
+Check in 2 people.
+Turn airplane mode OFF.
+Wait a few seconds.
+Confirm queue goes to zero and laptop reflects changes.
+If Something Fails
+
+Frontend loads but API calls fail:
+Check VITE_API_URL in sfa-admin env vars points to sfa-api URL.
+Login works but cross-device sync fails:
+Confirm websocket path is /api/ws/updates.
+Confirm API is HTTPS and app is HTTPS.
+Browser CORS errors:
+Re-check CORS_ORIGINS exactly matches admin URL (no trailing slash differences if possible).
+DB/migration errors during deploy:
+Open sfa-api logs and share first error block; we can fix quickly.
+What You Can Ignore For Now
+
+Release tag scripts.
+Summary script.
+Any advanced release process.
+Only do those once deployment is stable.

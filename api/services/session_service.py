@@ -15,6 +15,7 @@ def get_next_available_session(db, event_id: str):
             db.query(Participant)
             .filter(
                 Participant.session_id == session.id,
+                Participant.removed_at.is_(None),
                 func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
             )
             .count()

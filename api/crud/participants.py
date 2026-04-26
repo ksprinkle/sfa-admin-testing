@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from api.models.participants import Participant
 from api.models.events import Event
@@ -39,6 +39,7 @@ def get_confirmed_participant_count(db: Session, event_id):
         db.query(func.count(Participant.id))
         .filter(
             Participant.event_id == event_id,
+            Participant.removed_at.is_(None),
             Participant.is_waitlisted == False,
             func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
         )
@@ -49,7 +50,10 @@ def get_confirmed_participant_count(db: Session, event_id):
 def get_participants_for_event(db: Session, event_id):
     return (
         db.query(Participant)
-        .filter(Participant.event_id == event_id)
+        .filter(
+            Participant.event_id == event_id,
+            Participant.removed_at.is_(None),
+        )
         .order_by(Participant.created_at.asc())
         .all()
     )
@@ -60,6 +64,7 @@ def get_waitlist_query(db: Session, event: Event, exclude_participant_id=None):
         db.query(Participant)
         .filter(
             Participant.event_id == event.id,
+            Participant.removed_at.is_(None),
             Participant.is_waitlisted == True,
             func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
         )
@@ -68,8 +73,16 @@ def get_waitlist_query(db: Session, event: Event, exclude_participant_id=None):
     if exclude_participant_id is not None:
         query = query.filter(Participant.id != exclude_participant_id)
 
+    # Promotion order: explicit priorities first (1 high, 2 medium, 3 low), then unset (0).
+    priority_rank = case(
+        (Participant.priority == 1, 1),
+        (Participant.priority == 2, 2),
+        (Participant.priority == 3, 3),
+        else_=4,
+    )
+
     return query.order_by(
-        Participant.priority.asc(),
+        priority_rank.asc(),
         Participant.created_at.asc(),
         Participant.id.asc(),
     )

@@ -68,10 +68,19 @@ def build_admin_event(event):
 
         featured_image=event.featured_image,
 
-        # Match summary logic: checked-in participants are always confirmed
+        sessions=sorted(
+            [{"id": str(s.id), "name": s.name, "start_time": s.start_time.isoformat() if s.start_time else None}
+             for s in event.sessions],
+            key=lambda s: (s["start_time"] or "", s["name"]),
+        ),
+
+        # Event card capacity uses confirmed participant registrations only,
+        # excluding volunteers and waitlisted surfers.
         participant_count=len([
             p for p in event.participants
-            if p.checked_in or (p.role == "surfer" and not p.is_waitlisted)
+            if p.removed_at is None
+            and (p.role or "").strip().lower() != "volunteer"
+            and not p.is_waitlisted
         ]),
         waitlist_count=event.waitlist_count,
         checked_in_count=event.checked_in_count,

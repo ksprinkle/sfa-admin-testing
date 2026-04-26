@@ -12,8 +12,53 @@ function formatEventType(eventType) {
     .join(" ")
 }
 
+function getEventTypeTone(eventType) {
+  const normalized = String(eventType || "").trim().toLowerCase()
+
+  if (normalized === "chapter") {
+    return {
+      cardClass: "border border-indigo-200 bg-indigo-100/50",
+      labelClass: "text-indigo-900",
+      valueClass: "text-indigo-900",
+      pillClass: "border-indigo-200 bg-indigo-100 text-indigo-900",
+    }
+  }
+
+  if (normalized === "tour") {
+    return {
+      cardClass: "border border-emerald-200 bg-emerald-50/45",
+      labelClass: "text-emerald-900",
+      valueClass: "text-emerald-900",
+      pillClass: "border-emerald-200 bg-emerald-100 text-emerald-900",
+    }
+  }
+
+  return {
+    cardClass: "border border-gray-200 bg-white",
+    labelClass: "text-gray-500",
+    valueClass: "text-ocean",
+    pillClass: "border-gray-300 bg-gray-100 text-gray-700",
+  }
+}
+
+const DEFAULT_VOLUNTEER_COUNTS = { food: 0, raffle: 0, beach: 0, buddy: 0, instructor: 0 }
+
+function normalizeVolunteerTypeCounts(rawCounts) {
+  const counts = { ...DEFAULT_VOLUNTEER_COUNTS }
+  if (!rawCounts || typeof rawCounts !== "object") return counts
+
+  for (const [rawKey, rawValue] of Object.entries(rawCounts)) {
+    const key = rawKey === "surf_buddy" ? "buddy" : rawKey === "surf_instructor" ? "instructor" : rawKey
+    if (!(key in counts)) continue
+    counts[key] += Number(rawValue) || 0
+  }
+
+  return counts
+}
+
 function Dashboard() {
   const [events, setEvents] = useState([])
+  const [liveEvents, setLiveEvents] = useState([])
   const [event, setEvent] = useState(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate();
@@ -24,6 +69,8 @@ function Dashboard() {
   const [clearedToParticipate, setClearedToParticipate] = useState(0)
   const [volunteers, setVolunteers] = useState(0)
   const [waiversMissing, setWaiversMissing] = useState(0)
+  const [versatileVolunteers, setVersatileVolunteers] = useState(0)
+  const [volunteerTypeCounts, setVolunteerTypeCounts] = useState(DEFAULT_VOLUNTEER_COUNTS)
 
   // For now, just show the first published event and its stats. 
   // In the future we can add a dropdown to select different events, or show aggregate stats across all events. 
@@ -40,9 +87,11 @@ function Dashboard() {
       const events = await fetchEvents()
       setEvents(events)
 
-      // pick first published event, fallback to the next event by date
-      const active = events.find(e => e.status?.toLowerCase() === "published") || events[0] || null
-      console.log(events)
+      const published = events.filter((candidate) => candidate.status?.toLowerCase() === "published")
+      setLiveEvents(published)
+
+      // Pick a default event for summary cards while still showing all live events.
+      const active = published[0] || events[0] || null
 
       if (!active) {
         setLoading(false)
@@ -60,6 +109,8 @@ function Dashboard() {
       setClearedToParticipate(summary.cleared_to_participate_count ?? 0)
       setVolunteers(summary.volunteer_count ?? 0)
       setWaiversMissing(summary.waivers_missing)
+      setVersatileVolunteers(summary.versatile_volunteer_count ?? 0)
+      setVolunteerTypeCounts(normalizeVolunteerTypeCounts(summary.volunteer_type_counts))
 
     } catch (err) {
       console.error(err)
@@ -93,7 +144,9 @@ useEffect(() => {
     return <div className="p-4">No active event found.</div>
   }
 
-  const participantCapacity = event.capacity?.participants;
+  const participantCapacity = event?.capacity?.participants ?? event?.participant_capacity;
+  const hasMultipleLiveEvents = liveEvents.length > 1
+  const eventParticipantsTotal = registered + waitlisted
   const percentFull = participantCapacity
     ? Math.min((registered / participantCapacity) * 100, 100)
     : 0;
@@ -183,23 +236,28 @@ useEffect(() => {
         </div>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {eventsByType.map(([eventType, count]) => (
-            <StatCard
-              key={eventType}
-              label={formatEventType(eventType)}
-              value={count}
-              color="text-ocean"
-              onClick={() => navigate(`/events?type=${encodeURIComponent(eventType)}`)}
-              title={`Filter events by ${formatEventType(eventType)}`}
-            />
-          ))}
+          {eventsByType.map(([eventType, count]) => {
+            const tone = getEventTypeTone(eventType)
+            return (
+              <StatCard
+                key={eventType}
+                label={formatEventType(eventType)}
+                value={count}
+                color={tone.valueClass}
+                labelColor={tone.labelClass}
+                cardClass={tone.cardClass}
+                onClick={() => navigate(`/events?type=${encodeURIComponent(eventType)}`)}
+                title={`Filter events by ${formatEventType(eventType)}`}
+              />
+            )
+          })}
         </div>
       </div>
 
       {/* Live Event Stats */}
       <div
-      onClick={() => navigate(`/events/${event.id}`)}
-      className="cursor-pointer hover:bg-gray-100 transition rounded-lg p-2 relative"
+      onClick={!hasMultipleLiveEvents ? () => navigate(`/events/${event.id}`) : undefined}
+      className={`${hasMultipleLiveEvents ? "" : "cursor-pointer hover:bg-gray-100"} transition rounded-lg p-2 relative`}
     >
       <button
         onClick={(e) => { e.stopPropagation(); loadData(); }}
@@ -208,12 +266,65 @@ useEffect(() => {
         ↻ Refresh
       </button>
       <h2 className="text-lg font-semibold text-ocean">
-        {event.status?.toLowerCase() === "published" ? "Live Event" : "Next event"}
+        {event.status?.toLowerCase() === "published" ? (hasMultipleLiveEvents ? `Live Events (${liveEvents.length})` : "Live Event") : "Next event"}
       </h2>
 
       <p className="text-sm text-gray-600">
         {event.title} • {event.start_date}
       </p>
+      <p className="text-xs font-medium text-gray-500">
+        Event Type: {formatEventType(event.event_type)}
+      </p>
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+        <span className="rounded-full border border-ocean/30 bg-ocean/10 px-2 py-0.5 text-ocean">
+          Active: {participantCapacity ? `${registered}/${participantCapacity}` : `${registered}/no max`}
+        </span>
+        <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800">
+          Waitlist: {waitlisted}
+        </span>
+        <span className="rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-gray-700">
+          Participants: {eventParticipantsTotal}
+        </span>
+      </div>
+
+      {hasMultipleLiveEvents && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-amber-700">
+            Multiple events are currently live. Use one of the quick actions below to avoid checking into the wrong event.
+          </p>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {liveEvents.map((liveEvent) => {
+              const tone = getEventTypeTone(liveEvent.event_type)
+              return (
+              <div key={liveEvent.id} className={`rounded-lg p-3 ${tone.cardClass}`}>
+                <p className="text-sm font-semibold text-gray-800">{liveEvent.title}</p>
+                <p className="text-xs text-gray-600">
+                  {liveEvent.start_date}
+                  <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 ${tone.pillClass}`}>
+                    {formatEventType(liveEvent.event_type)}
+                  </span>
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/events/${liveEvent.id}`)}
+                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                  >
+                    Open Event
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/events/${liveEvent.id}/checkin`)}
+                    className="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700"
+                  >
+                    Check In
+                  </button>
+                </div>
+              </div>
+            )})}
+          </div>
+        </div>
+      )}
     </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -259,6 +370,44 @@ useEffect(() => {
           onClick={() => navigate(`/events/${event.id}?participants=waiver_missing`)}
           title="Open event roster filtered to missing waivers"
         />
+      </div>
+
+      {/* Volunteer Type Breakdown */}
+      <div className="bg-white rounded-xl shadow p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Volunteer Breakdown</h2>
+            <p className="text-xs text-gray-500">Signed up by role for this event</p>
+          </div>
+          <span className="text-xs font-medium text-gray-500">{volunteers} total • {versatileVolunteers} flexible</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {[
+            { key: "food",            label: "Food",         color: "text-green-700",  bg: "bg-green-50"  },
+            { key: "raffle",          label: "Raffle",       color: "text-purple-700", bg: "bg-purple-50" },
+            { key: "beach",           label: "Beach",        color: "text-sky-700",    bg: "bg-sky-50"    },
+            { key: "buddy",      label: "Buddy",      color: "text-cyan-700",   bg: "bg-cyan-50"   },
+            { key: "instructor", label: "Instructor", color: "text-orange-700", bg: "bg-orange-50" },
+          ].map(({ key, label, color, bg }) => (
+            <div
+              key={key}
+              className={`${bg} rounded-lg p-3 text-center cursor-pointer transition hover:brightness-95`}
+              onClick={() => navigate(`/events/${event.id}?participants=volunteers&volunteer_type=${encodeURIComponent(key)}`)}
+              role="button"
+              tabIndex={0}
+              title={`Open volunteer roster filtered to ${label}`}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  navigate(`/events/${event.id}?participants=volunteers&volunteer_type=${encodeURIComponent(key)}`)
+                }
+              }}
+            >
+              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className={`text-2xl font-semibold ${color}`}>{volunteerTypeCounts[key] ?? 0}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
 
@@ -324,16 +473,22 @@ useEffect(() => {
 
       </div>
 
+      {hasMultipleLiveEvents && (
+        <p className="text-xs text-gray-500">
+          Main summary cards are showing the first live event. When multiple live events overlap, use the event-specific buttons above.
+        </p>
+      )}
+
     </div>
   )
 }
 
-function StatCard({ label, value, color, onClick, title }) {
+function StatCard({ label, value, color, onClick, title, cardClass = "", labelColor = "text-gray-500" }) {
   const clickable = typeof onClick === "function"
 
   return (
     <div
-      className={`bg-white rounded-xl shadow p-4 ${clickable ? "cursor-pointer transition hover:bg-gray-50" : ""}`}
+      className={`rounded-xl shadow p-4 ${cardClass || "bg-white"} ${clickable ? "cursor-pointer transition hover:brightness-[0.98]" : ""}`}
       onClick={onClick}
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
@@ -345,7 +500,7 @@ function StatCard({ label, value, color, onClick, title }) {
         }
       } : undefined}
     >
-      <p className="text-xs text-gray-500">{label}</p>
+      <p className={`text-xs ${labelColor}`}>{label}</p>
       <p className={`text-2xl font-semibold ${color}`}>
         {value}
       </p>

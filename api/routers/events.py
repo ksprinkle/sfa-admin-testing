@@ -3,18 +3,19 @@ from sqlalchemy.orm import Session
 from api.db.session import get_db
 from api.crud.events import get_upcoming_events
 from api.models.events import Event
+from api.models.participants import Participant as ParticipantModel
 from api.schemas.events import EventOut
 from fastapi import HTTPException
 from api.crud.events import get_event_by_slug
 from api.schemas.events import EventCreate
 from api.crud.events import create_event
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 from datetime import date
 from typing import Optional
 from api.schemas.events import EventUpdate
 from api.crud.events import update_event
-from api.schemas.participants import ParticipantCreate, ParticipantOut
+from api.schemas.participants import ParticipantCreate, ParticipantOut, VolunteerSignup
 from api.crud.participants import create_participant
 from api.crud.participants import get_confirmed_participant_count
 from api.crud.participants import get_participants_for_event
@@ -26,6 +27,7 @@ from api.utils.event_counts import (
     volunteer_count,
     checked_in_count,
 )
+from sqlalchemy import func
 router = APIRouter(prefix="/events", tags=["Events"])
 
 # PUBLIC List upcoming events with optional filters and participant counts
@@ -196,10 +198,79 @@ def signup_participant(
 
     return participant
 
+# PUBLIC volunteer self-registration for an event
+# food / raffle : open as soon as volunteer_open is True
+# beach / instructor / buddy : open only within 14 days of the event
+_BEACH_RESTRICTED = {"beach", "instructor", "buddy"}
+
+@router.post("/{slug}/volunteers", response_model=ParticipantOut, status_code=201)
+def signup_volunteer(
+    slug: str,
+    volunteer_in: VolunteerSignup,
+    db: Session = Depends(get_db),
+):
+    event = get_event_by_slug(db, slug, is_admin=True)
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if not event.volunteer_open:
+        raise HTTPException(status_code=400, detail="Volunteer registration is closed")
+
+    selected_roles = {volunteer_in.volunteer_type, *volunteer_in.volunteer_additional_types}
+
+    if selected_roles.intersection(_BEACH_RESTRICTED):
+        days_until = (event.start_date - date.today()).days
+        if days_until > 14:
+            open_date = event.start_date - timedelta(days=14)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Beach, Instructor, and Buddy volunteer roles may only register within 14 days of the event. "
+                    f"Registration opens {open_date.strftime('%B %d, %Y').replace(' 0', ' ')}."
+                ),
+            )
+
+    confirmed_vol_count = (
+        db.query(func.count(ParticipantModel.id))
+        .filter(
+            ParticipantModel.event_id == event.id,
+            ParticipantModel.removed_at.is_(None),
+            func.lower(func.trim(func.coalesce(ParticipantModel.role, ""))) == "volunteer",
+            ParticipantModel.is_waitlisted == False,
+        )
+        .scalar()
+    )
+
+    is_waitlisted = (
+        event.volunteer_capacity is not None
+        and confirmed_vol_count >= event.volunteer_capacity
+    )
+
+    participant_in = ParticipantCreate(
+        event_id=event.id,
+        first_name=volunteer_in.first_name,
+        last_name=volunteer_in.last_name,
+        email=volunteer_in.email,
+        role="volunteer",
+        is_minor=volunteer_in.is_minor,
+        volunteer_type=volunteer_in.volunteer_type,
+        volunteer_additional_types=volunteer_in.volunteer_additional_types,
+        volunteer_is_versatile=volunteer_in.volunteer_is_versatile,
+    )
+
+    participant = create_participant(db, event, participant_in, is_waitlisted=is_waitlisted)
+
+    db.commit()
+    db.refresh(participant)
+
+    return participant
+
+
 def build_event_out(event: Event) -> EventOut:
     participant_count = len([
         p for p in event.participants
-        if not p.is_waitlisted
+        if p.removed_at is None and not p.is_waitlisted
     ])
 
     return EventOut(
@@ -266,15 +337,7 @@ def list_participants(
 
     participants = get_participants_for_event(db, event.id)
 
-    return [
-        ParticipantOut(
-            id=str(p.id),
-            first_name=p.first_name,
-            last_name=p.last_name,
-            email=p.email,
-        )
-        for p in participants
-    ]
+    return participants
    
 
 

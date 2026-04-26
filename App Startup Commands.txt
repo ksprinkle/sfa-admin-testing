@@ -1,0 +1,40 @@
+Backend startup from venv:
+
+Use this backend command going forward:
+1,python -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000 --reload --no-access-log
+
+2,python -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000 --reload
+
+
+Frontend startup from new terminal window: (React App)
+
+npm run dev -- --host 0.0.0.0 --port 5173
+
+	Frontend Quick rule of thumb:
+
+http://192.168.0.127 -> port 80 (usually nothing running in dev)
+http://192.168.0.127:5173 -> Vite frontend
+http://192.168.0.127:8000 -> FastAPI backend
+So your expectation was correct; the issue was timing/service state, not the link format.
+
+To clear things up a bit more, the Food and Raffle pills only need to be available for Tour events and not Chapter events which will be determined from the event type.  
+
+** PS Script Quiet Start Back & Front end.
+
+Done. I added the one-click quiet launcher script at start-dev-quiet.ps1.
+
+What it does:
+
+Starts backend in quiet mode:
+uvicorn with no access logs and warning-level logs
+Starts frontend in quieter mode:
+Vite with warn log level
+Opens each in its own PowerShell window by default
+How to run:
+
+From repo root:
+powershell -ExecutionPolicy Bypass -File start-dev-quiet.ps1
+Optional mode:
+
+Keep backend in current terminal and only open frontend in a new window:
+powershell -ExecutionPolicy Bypass -File start-dev-quiet.ps1 -NoNewWindows

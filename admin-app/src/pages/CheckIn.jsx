@@ -48,7 +48,7 @@ function getDebugTone(status) {
   switch (status) {
     case "success":
     case "open":
-      return "bg-green-100 text-green-700 border-green-200"
+      return "bg-green-100 text-green-900 border-green-300"
     case "running":
     case "connecting":
       return "bg-blue-100 text-blue-700 border-blue-200"
@@ -433,6 +433,7 @@ export default function CheckIn() {
   const [badgeActionParticipantId, setBadgeActionParticipantId] = useState(null)
 
   const searchRef = useRef(null)
+  const participantListRef = useRef(null)
   const isFlushingRef = useRef(false)
 
   const isOnline = browserOnline && !forceOffline
@@ -750,7 +751,8 @@ export default function CheckIn() {
 
   // Utility: Refresh participants from API
   async function refreshParticipants(options = {}) {
-    const { focusSearchInput = false, source = "manual-refresh" } = options
+    const { focusSearchInput = false, source = "manual-refresh", preserveScroll = false } = options
+    const priorScrollTop = preserveScroll ? participantListRef.current?.scrollTop : null
 
     updateRefreshDebug({
       source,
@@ -779,6 +781,13 @@ export default function CheckIn() {
 
       const data = await fetchEventParticipants(eventId)
       setParticipants(data)
+      if (preserveScroll && typeof priorScrollTop === "number") {
+        requestAnimationFrame(() => {
+          if (participantListRef.current) {
+            participantListRef.current.scrollTop = priorScrollTop
+          }
+        })
+      }
       updateRefreshDebug({
         source,
         status: "success",
@@ -797,8 +806,9 @@ export default function CheckIn() {
     }
   }
 
-  async function handleCheckIn(participantIds) {
+  async function handleCheckIn(participantIds, options = {}) {
     if (participantIds.length === 0) return
+    const { preserveWorkingPosition = participantIds.length === 1 } = options
 
     setIsCheckingIn(true)
     setError("")
@@ -856,7 +866,11 @@ export default function CheckIn() {
     // Skipping refresh for offline-only failures keeps the optimistic update
     // intact and prevents stale server data from wiping the local state.
     if (serverSuccesses.length > 0) {
-      await refreshParticipants({ focusSearchInput: true })
+      await refreshParticipants({
+        focusSearchInput: !preserveWorkingPosition,
+        preserveScroll: preserveWorkingPosition,
+        source: preserveWorkingPosition ? "checkin-row-action" : "checkin-bulk-action",
+      })
     }
 
     // Show error only for hard failures (waiver). Offline queuing uses the
@@ -873,11 +887,13 @@ export default function CheckIn() {
       setError(`Offline detected. ${queuedOffline.length} check-in${queuedOffline.length === 1 ? "" : "s"} queued and will retry automatically.`)
     }
 
-    // Clear selection
-    setSelectedParticipants([])
-    setActiveResultId(null)
-    setSearch("")
-    focusSearch()
+    // Keep context for single-item row actions; reset for bulk actions.
+    if (!preserveWorkingPosition) {
+      setSelectedParticipants([])
+      setActiveResultId(null)
+      setSearch("")
+      focusSearch()
+    }
     setIsCheckingIn(false)
   }
 
@@ -890,24 +906,24 @@ export default function CheckIn() {
     try {
       if (action === "verify_waiver") {
         await verifyWaiver(participant.id)
-        await refreshParticipants({ source: "badge-verify-waiver" })
+        await refreshParticipants({ source: "badge-verify-waiver", preserveScroll: true })
         return
       }
 
       if (action === "checkin") {
-        await handleCheckIn([participant.id])
+        await handleCheckIn([participant.id], { preserveWorkingPosition: true })
         return
       }
 
       if (action === "promote") {
         await promoteParticipant(participant.id)
-        await refreshParticipants({ source: "badge-promote" })
+        await refreshParticipants({ source: "badge-promote", preserveScroll: true })
         return
       }
 
       if (action === "move_to_waitlist") {
         await moveParticipantToWaitlist(participant.id)
-        await refreshParticipants({ source: "badge-move-waitlist" })
+        await refreshParticipants({ source: "badge-move-waitlist", preserveScroll: true })
         return
       }
     } catch (err) {
@@ -1066,13 +1082,14 @@ export default function CheckIn() {
   // websocket reconnect is delayed on some devices/networks.
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible" && isOnline) {
+      const shouldPoll = pauseRealtime || wsStatus !== "open"
+      if (document.visibilityState === "visible" && isOnline && shouldPoll) {
         refreshParticipants({ source: "polling-fallback" })
       }
     }, 4000)
 
     return () => window.clearInterval(intervalId)
-  }, [eventId, isOnline, slowRefresh, forceOffline])
+  }, [eventId, isOnline, slowRefresh, forceOffline, pauseRealtime, wsStatus])
 
   const filtered = participants
     .filter((p) =>
@@ -1241,7 +1258,7 @@ export default function CheckIn() {
       )}
 
       {/* Selection Controls */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         <button
           onClick={selectAllVisible}
           className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
@@ -1257,59 +1274,51 @@ export default function CheckIn() {
         <span className="text-sm text-gray-600 self-center">
           {selectedCount} selected ({checkableSelected} can be checked in)
         </span>
+        {!eventMode && (
+          <div className="ml-auto flex flex-wrap items-center gap-3 text-[11px] text-gray-600">
+            <span className="font-semibold uppercase tracking-wide text-gray-500">Legend</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
+              Verified
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-orange-600" />
+              Pending
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-yellow-400" />
+              Waitlisted
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-gray-500" />
+              Confirmed
+            </span>
+            <span className="text-gray-500">Tip: click a status badge to update it.</span>
+          </div>
+        )}
       </div>
 
-      {!eventMode && (
-        <div className="sticky top-0 z-20 flex justify-end pr-4 bg-warmbg/95 backdrop-blur-sm py-2">
-          <div className="w-[440px]">
-            <div className="grid grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <span className="text-center">Waiver</span>
-              <span className="text-center">Check-In</span>
-              <span className="text-center">Waitlist</span>
-            </div>
-            <div className="mt-1 grid grid-cols-3 gap-2 text-[10px] text-gray-600">
-              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  Verified
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-red-500" />
-                  Pending
-                </span>
-              </div>
-              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  In
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-red-500" />
-                  Not In
-                </span>
-              </div>
-              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-yellow-400" />
-                  Waitlisted
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-gray-500" />
-                  Confirmed
-                </span>
+      <div ref={participantListRef} className="max-h-[68vh] overflow-auto rounded-xl border border-gray-200 bg-white/40 p-2">
+        {!eventMode && (
+          <div className="sticky top-0 z-20 flex justify-end pr-4 bg-white/95 backdrop-blur-sm py-2">
+            <div className="w-[440px]">
+              <div className="grid grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <span className="text-center">Waiver</span>
+                <span className="text-center">Check-In</span>
+                <span className="text-center">Waitlist</span>
               </div>
             </div>
-            <p className="mt-1 text-center text-[11px] text-gray-500">
-              Tip: click a status badge to update it.
-            </p>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="space-y-2">
+        <div className="space-y-2">
 
         {filtered.map((p) => {
           const priorityLevel = getPriorityLevel(p.priority)
+          const isVolunteerRow = (p.role || "").trim().toLowerCase() === "volunteer"
+          const baseRoleRowClass = isVolunteerRow
+            ? "bg-cyan-50/45 hover:bg-cyan-100/60 border border-transparent"
+            : "bg-amber-50/35 hover:bg-amber-100/50 border border-transparent"
           const isBadgeBusy = isCheckingIn || badgeActionParticipantId === p.id
           const canVerifyWaiver = !p.waiver_verified && !isBadgeBusy
           const canCheckInFromBadge = !p.checked_in && !p.is_waitlisted && !isBadgeBusy
@@ -1321,7 +1330,10 @@ export default function CheckIn() {
               onMouseDown={handleRowMouseDown}
               onClick={() => toggleParticipantSelection(p.id)}
               className={`flex justify-between items-center p-4 rounded shadow cursor-pointer transition
-              ${selectedParticipants.includes(p.id) ? "bg-blue-100 border-2 border-blue-600 ring-2 ring-blue-300" : "bg-white hover:bg-gray-50 border border-transparent"}
+              ${selectedParticipants.includes(p.id)
+                ? `${baseRoleRowClass} border-2 border-blue-600 ring-2 ring-blue-300`
+                : baseRoleRowClass
+              }
             `}
             >
 
@@ -1371,10 +1383,10 @@ export default function CheckIn() {
                       disabled={!canVerifyWaiver}
                       title={p.waiver_verified ? "Waiver already verified" : "Click to verify waiver"}
                       className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
-                      p.waiver_verified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                    } ${canVerifyWaiver ? "cursor-pointer hover:ring-1 hover:ring-red-300" : "cursor-default opacity-90"}`}
+                      p.waiver_verified ? "bg-green-100 text-green-900" : "bg-orange-100 text-orange-900"
+                    } ${canVerifyWaiver ? "cursor-pointer hover:ring-1 hover:ring-amber-300" : "cursor-default opacity-90"}`}
                     >
-                      <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.waiver_verified ? "bg-green-500" : "bg-red-500"}`} />
+                      <span className={`inline-block h-2.5 w-2.5 rounded-full ${p.waiver_verified ? "bg-green-500" : "bg-orange-600"}`} />
                       {p.waiver_verified ? "Verified" : "Pending (Verify)"}
                     </button>
 
@@ -1395,15 +1407,15 @@ export default function CheckIn() {
                       }
                       className={`inline-flex items-center justify-center gap-1.5 rounded-full px-0.5 py-0.5 text-xs font-medium whitespace-nowrap ${
                       p.checked_in
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-green-100 text-green-900"
                         : p.is_waitlisted
                         ? "bg-gray-100 text-gray-600"
-                        : "bg-red-100 text-red-700"
+                        : "bg-orange-200 text-orange-900"
                     } ${canCheckInFromBadge ? "cursor-pointer hover:ring-1 hover:ring-green-300" : "cursor-default opacity-90"}`}
                     >
                       <span
                         className={`inline-block h-2.5 w-2.5 rounded-full ${
-                          p.checked_in ? "bg-green-500" : p.is_waitlisted ? "bg-gray-400" : "bg-red-500"
+                          p.checked_in ? "bg-green-500" : p.is_waitlisted ? "bg-gray-400" : "bg-orange-600"
                         }`}
                       />
                       {p.checked_in ? "Checked In" : p.is_waitlisted ? "N/A" : "Not Checked In (Check In)"}
@@ -1446,7 +1458,7 @@ export default function CheckIn() {
                           handleCheckIn([p.id])
                         }}
                         disabled={isCheckingIn}
-                        className="bg-success text-white rounded px-4 py-2 disabled:opacity-50"
+                        className="rounded border border-green-900 bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-green-300 hover:bg-green-800 disabled:opacity-50"
                       >
                         Check In
                       </button>
@@ -1454,7 +1466,7 @@ export default function CheckIn() {
                   )}
                 </div>
               ) : p.checked_in ? (
-                <span className="inline-flex items-center gap-2 text-green-700 font-medium">
+                <span className="inline-flex items-center gap-2 text-green-900 font-medium">
                   <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
                   Checked In
                 </span>
@@ -1464,8 +1476,8 @@ export default function CheckIn() {
                   Waitlisted
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-2 text-red-700 font-medium mb-2">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                <span className="inline-flex items-center gap-2 text-orange-900 font-medium mb-2">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-600" />
                   Not Checked In
                   </span>
               )}
@@ -1477,7 +1489,7 @@ export default function CheckIn() {
                     handleCheckIn([p.id])
                   }}
                   disabled={isCheckingIn}
-                  className={`bg-success text-white rounded disabled:opacity-50 ${eventMode ? "px-6 py-3 text-lg font-semibold" : "px-4 py-2"}`}
+                  className={`rounded border border-green-900 bg-green-700 text-white shadow-sm ring-1 ring-green-300 hover:bg-green-800 disabled:opacity-50 ${eventMode ? "px-6 py-3 text-lg font-semibold" : "px-4 py-2"}`}
                 >
                   Check In
                 </button>
@@ -1488,6 +1500,7 @@ export default function CheckIn() {
           )
         })}
 
+        </div>
       </div>
 
       {/* Bulk Check-In Button */}
@@ -1496,7 +1509,7 @@ export default function CheckIn() {
         onClick={() => handleCheckIn(selectedCheckableIds)}
         className={`w-full py-4 rounded-xl text-lg font-semibold transition
           ${checkableSelected > 0 && !isCheckingIn
-            ? "bg-green-600 text-white hover:bg-green-700"
+            ? "border-2 border-green-900 bg-green-700 text-white ring-2 ring-green-300 hover:bg-green-800"
             : "bg-gray-300 text-gray-500 cursor-not-allowed"
           } ${eventMode ? "py-5 text-xl" : ""}`}
       >
