@@ -7,6 +7,18 @@ Copy and paste these 3 lines into Copilot at session start:
 2. Treat ROADMAP_INTENT.md as planning input only unless commit-backed here.
 3. Implement approved items only, then update this brief with commit evidence.
 
+## New Chat Starter (Copy/Paste)
+
+Use this when opening a brand-new chat so session context stays aligned.
+
+Use PROJECT_SYNC_BRIEF.md as implementation truth and current state.
+Treat ROADMAP_INTENT.md as planning intent only.
+Today's objective: <one sentence>.
+In scope: <items>. Out of scope: <items>.
+Success criteria: <list>.
+Start from branch <name>, commit <hash>.
+Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with results and commit evidence.
+
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
