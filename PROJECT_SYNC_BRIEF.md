@@ -1,5 +1,12 @@
 # Project Sync Brief
 
+## Copilot Intake Starter
+
+Copy and paste these 3 lines into Copilot at session start:
+1. Use PROJECT_SYNC_BRIEF.md as implementation truth and current state.
+2. Treat ROADMAP_INTENT.md as planning input only unless commit-backed here.
+3. Implement approved items only, then update this brief with commit evidence.
+
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
