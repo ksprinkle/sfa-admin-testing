@@ -1,5 +1,14 @@
 # Roadmap Intent Template (Planning Only)
 
+## Session Start Copy Block
+
+Copy and paste these 5 lines into ChatGPT at session start:
+1. Use PROJECT_SYNC_BRIEF.md as implementation truth.
+2. Treat ROADMAP_INTENT.md as planning intent only.
+3. Return only prioritized backlog items with acceptance criteria and non-goals.
+4. Do not mark any item implemented without commit evidence from PROJECT_SYNC_BRIEF.md.
+5. Flag conflicts or assumptions explicitly before proposing the roadmap.
+
 Purpose
 - Capture planning direction from ChatGPT.
 - Keep planning separate from implementation truth.
