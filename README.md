@@ -47,6 +47,11 @@ The application is built as a **Progressive Web App (PWA)** so it can run on **p
       - Service worker cache strategy updated to network-first for navigations and critical assets to reduce stale client bundles.
       - Event Type pills/chips hardened against mobile text wrapping (table badge and filter chips).
       - Dev-only troubleshooting panel/toggles removed from Check-In UI after stability validation.
+      - Offline-first participant mutations added on key admin pages:
+            - Check-In now restores cached roster data and preserves optimistic offline check-ins locally.
+            - Participants now applies changes locally while offline and queues action sync for check-in, waiver, promote, remove, priority, and volunteer-type edits.
+            - Event Participants (Event Detail) now applies session moves/priority locally while offline and queues sync retries.
+      - Offline queue status banners now show pending change counts so operators can confirm local actions are safely queued.
 
 - Admin dashboard and roster semantics update:
       - "Confirmed" metric renamed to "Registered".

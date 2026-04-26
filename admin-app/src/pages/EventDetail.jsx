@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
@@ -19,6 +19,8 @@ import {
 import { DragOverlay } from "@dnd-kit/core"
 
 const EVENT_MODE_KEY = "sfa.event.mode"
+const EVENT_DETAIL_PARTICIPANTS_CACHE_PREFIX = "sfa.offline.eventdetail.participants."
+const EVENT_DETAIL_ACTION_QUEUE_PREFIX = "sfa.offline.eventdetail.queue."
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
   { value: 2, label: "Medium", dotClass: "bg-amber-400" },
@@ -91,6 +93,72 @@ function buildSurfUrl(eventInfo) {
   }
 
   return null
+}
+
+function getEventParticipantsCacheKey(eventId) {
+  return `${EVENT_DETAIL_PARTICIPANTS_CACHE_PREFIX}${String(eventId || "")}`
+}
+
+function getEventQueueKey(eventId) {
+  return `${EVENT_DETAIL_ACTION_QUEUE_PREFIX}${String(eventId || "")}`
+}
+
+function getCachedEventParticipants(eventId) {
+  try {
+    const raw = localStorage.getItem(getEventParticipantsCacheKey(eventId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveCachedEventParticipants(eventId, participants) {
+  try {
+    localStorage.setItem(getEventParticipantsCacheKey(eventId), JSON.stringify(Array.isArray(participants) ? participants : []))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function getQueuedEventActions(eventId) {
+  try {
+    const raw = localStorage.getItem(getEventQueueKey(eventId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveQueuedEventActions(eventId, actions) {
+  try {
+    localStorage.setItem(getEventQueueKey(eventId), JSON.stringify(Array.isArray(actions) ? actions : []))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function isOfflineError(err) {
+  const msg = String(err?.message || "").toLowerCase()
+  return !navigator.onLine || msg.includes("failed to fetch") || msg.includes("load failed") || msg.includes("network")
+}
+
+function enqueueEventAction(eventId, action) {
+  const queue = getQueuedEventActions(eventId)
+
+  if (action.type === "priority_update") {
+    const filtered = queue.filter((item) => !(item.type === action.type && String(item.participantId) === String(action.participantId)))
+    const next = [...filtered, action]
+    saveQueuedEventActions(eventId, next)
+    return next
+  }
+
+  const next = [...queue, action]
+  saveQueuedEventActions(eventId, next)
+  return next
 }
 
 function EventDetail() {
@@ -185,8 +253,13 @@ function EventDetail() {
     try {
       const data = await fetchEventParticipants(eventId)
       setParticipants(data || [])
+      saveCachedEventParticipants(eventId, data || [])
     } catch (err) {
       console.error("Failed to refresh participants", err)
+      const cached = getCachedEventParticipants(eventId)
+      if (cached.length > 0) {
+        setParticipants(cached)
+      }
     }
   }
 
@@ -277,6 +350,17 @@ function EventDetail() {
   const [selectedIds, setSelectedIds] = useState([])
   const [activeTransform, setActiveTransform] = useState(null)
   const [dragError, setDragError] = useState(null)
+  const [offlineQueueCount, setOfflineQueueCount] = useState(() => getQueuedEventActions(eventId).length)
+  const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
+  const queueSyncRef = useRef(false)
+
+  const updateParticipantsLocal = (updater) => {
+    setParticipants((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      saveCachedEventParticipants(eventId, next)
+      return next
+    })
+  }
 
   const participantFilterLabels = {
     all: "All participants",
@@ -352,6 +436,95 @@ function EventDetail() {
 
   const visibleParticipants = participants.filter(matchesParticipantFilter)
 
+  async function processQueuedEventActions() {
+    if (queueSyncRef.current) return
+    if (!navigator.onLine) {
+      setBrowserOnline(false)
+      return
+    }
+
+    const queued = getQueuedEventActions(eventId)
+    if (!queued.length) {
+      setOfflineQueueCount(0)
+      return
+    }
+
+    queueSyncRef.current = true
+    const remaining = []
+    let needsRefresh = false
+
+    try {
+      for (let i = 0; i < queued.length; i += 1) {
+        const action = queued[i]
+        try {
+          if (action.type === "session_move") {
+            await updateParticipantSession(action.participantId, action.targetSessionId)
+            needsRefresh = true
+            continue
+          }
+          if (action.type === "priority_update") {
+            await updateParticipantPriority(action.participantId, action.priority)
+            needsRefresh = true
+            continue
+          }
+        } catch (err) {
+          if (isOfflineError(err)) {
+            remaining.push(...queued.slice(i))
+            break
+          }
+          console.error("Queued event action failed", action, err)
+        }
+      }
+    } finally {
+      saveQueuedEventActions(eventId, remaining)
+      setOfflineQueueCount(remaining.length)
+      queueSyncRef.current = false
+    }
+
+    if (needsRefresh) {
+      await refreshParticipants()
+    }
+  }
+
+  useEffect(() => {
+    const onOnline = () => {
+      setBrowserOnline(true)
+      processQueuedEventActions()
+    }
+    const onOffline = () => {
+      setBrowserOnline(false)
+    }
+
+    window.addEventListener("online", onOnline)
+    window.addEventListener("offline", onOffline)
+
+    return () => {
+      window.removeEventListener("online", onOnline)
+      window.removeEventListener("offline", onOffline)
+    }
+  }, [eventId])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine && getQueuedEventActions(eventId).length > 0) {
+        processQueuedEventActions()
+      }
+    }, 5000)
+
+    const onFocus = () => {
+      if (navigator.onLine && getQueuedEventActions(eventId).length > 0) {
+        processQueuedEventActions()
+      }
+    }
+
+    window.addEventListener("focus", onFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [eventId])
+
   // ✅ stable sensors setup
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -380,11 +553,14 @@ function EventDetail() {
         ])
 
         setParticipants(data || [])
+        saveCachedEventParticipants(eventId, data || [])
         setEventInfo(eventData || null)
         setEventStartAt(toEventStartDate(eventData?.start_date, eventData?.start_time))
+        await processQueuedEventActions()
         await refreshNoShows()
       } catch (err) {
-        setParticipants([])
+        const cached = getCachedEventParticipants(eventId)
+        setParticipants(cached)
         setEventInfo(null)
         setNoShows([])
         setEventStartAt(null)
@@ -571,7 +747,7 @@ function EventDetail() {
 
   // ✅ stable move logic extracted to a function
   async function handleMoveParticipant(id, targetSessionId) {
-    setParticipants(prev =>
+    updateParticipantsLocal(prev =>
       prev.map(p =>
         String(p.id) === String(id)
           ? { ...p, session_id: targetSessionId, is_waitlisted: false }
@@ -579,7 +755,22 @@ function EventDetail() {
       )
     )
 
-    await updateParticipantSession(id, targetSessionId)
+    try {
+      await updateParticipantSession(id, targetSessionId)
+    } catch (err) {
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueEventAction(eventId, {
+          type: "session_move",
+          participantId: id,
+          targetSessionId,
+        })
+        setOfflineQueueCount(nextQueue.length)
+        setDragError("Offline: session move saved locally and queued for sync.")
+        return
+      }
+      await refreshParticipants()
+      throw err
+    }
   }
 
   // ✅ stable drag handlers with proper multi-select logic
@@ -688,10 +879,24 @@ function EventDetail() {
       let newPriority = clampedPriority + delta;
       if (newPriority < 1) newPriority = 1;
       if (newPriority > 3) newPriority = 3;
-      await updateParticipantPriority(p.id, newPriority);
-      setParticipants(prev => prev.map(part =>
+      updateParticipantsLocal(prev => prev.map(part =>
         part.id === p.id ? { ...part, priority: newPriority } : part
       ));
+      try {
+        await updateParticipantPriority(p.id, newPriority);
+      } catch (err) {
+        if (isOfflineError(err)) {
+          const nextQueue = enqueueEventAction(eventId, {
+            type: "priority_update",
+            participantId: p.id,
+            priority: newPriority,
+          })
+          setOfflineQueueCount(nextQueue.length)
+          setDragError("Offline: priority change saved locally and queued for sync.")
+          return
+        }
+        await refreshParticipants()
+      }
     };
     const isVolunteerCard = (p.role || "").trim().toLowerCase() === "volunteer"
     const baseRoleCardClass = isVolunteerCard
@@ -798,6 +1003,13 @@ function EventDetail() {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {offlineQueueCount > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Offline queue active: {offlineQueueCount} pending change{offlineQueueCount === 1 ? "" : "s"}.
+          {!browserOnline ? " Device is offline." : " Syncing will continue while online."}
         </div>
       )}
 

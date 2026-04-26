@@ -11,6 +11,7 @@ import BackButton from "../components/BackButton"
 
 const CHECKIN_QUEUE_KEY = "sfa.offline.checkin.queue"
 const EVENT_MODE_KEY = "sfa.event.mode"
+const CHECKIN_PARTICIPANTS_CACHE_PREFIX = "sfa.offline.checkin.participants."
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
   { value: 2, label: "Medium", dotClass: "bg-amber-400" },
@@ -57,6 +58,30 @@ function saveQueuedCheckIns(ids) {
   localStorage.setItem(CHECKIN_QUEUE_KEY, JSON.stringify([...new Set(ids.map((id) => String(id)))]))
 }
 
+function getParticipantsCacheKey(eventId) {
+  return `${CHECKIN_PARTICIPANTS_CACHE_PREFIX}${String(eventId || "")}`
+}
+
+function getCachedParticipants(eventId) {
+  try {
+    const raw = localStorage.getItem(getParticipantsCacheKey(eventId))
+    if (!raw) return []
+
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveCachedParticipants(eventId, participants) {
+  try {
+    localStorage.setItem(getParticipantsCacheKey(eventId), JSON.stringify(Array.isArray(participants) ? participants : []))
+  } catch {
+    // Ignore localStorage write failures on constrained devices.
+  }
+}
+
 function isConnectivityError(err, isOnlineOverride = navigator.onLine) {
   if (!isOnlineOverride) return true
 
@@ -98,6 +123,14 @@ export default function CheckIn() {
   const isFlushingRef = useRef(false)
 
   const isOnline = browserOnline
+
+  const updateParticipantsLocal = (updater) => {
+    setParticipants((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      saveCachedParticipants(eventId, next)
+      return next
+    })
+  }
 
   useEffect(() => {
     refreshParticipants({ source: "initial-load" })
@@ -221,6 +254,7 @@ export default function CheckIn() {
     try {
       const data = await fetchEventParticipants(eventId)
       setParticipants(data)
+      saveCachedParticipants(eventId, data)
       if (preserveScroll && typeof priorScrollTop === "number") {
         requestAnimationFrame(() => {
           if (participantListRef.current) {
@@ -233,6 +267,11 @@ export default function CheckIn() {
       }
     } catch (err) {
       console.error("Failed to refresh participants", err)
+      const cached = getCachedParticipants(eventId)
+      if (cached.length > 0 && participants.length === 0) {
+        setParticipants(cached)
+        setError("Offline mode: showing the last synced roster on this device.")
+      }
     }
   }
 
@@ -248,7 +287,7 @@ export default function CheckIn() {
     let serverSuccesses = []
 
     for (const id of participantIds) {
-      setParticipants((prev) =>
+      updateParticipantsLocal((prev) =>
         prev.map((p) => (p.id === id ? { ...p, checked_in: true } : p))
       )
 
@@ -260,7 +299,7 @@ export default function CheckIn() {
 
         const isOffline = isConnectivityError(err, isOnline)
         if (!isOffline) {
-          setParticipants((prev) =>
+          updateParticipantsLocal((prev) =>
             prev.map((p) => (p.id === id ? { ...p, checked_in: false } : p))
           )
         }

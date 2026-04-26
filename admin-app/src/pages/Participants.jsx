@@ -339,6 +339,67 @@ const REMOVAL_REASON_CODE_LABELS = {
   other: "Other",
 }
 
+const PARTICIPANTS_CACHE_KEY = "sfa.offline.participants.cache"
+const PARTICIPANT_ACTION_QUEUE_KEY = "sfa.offline.participants.queue"
+
+function getCachedParticipants() {
+  try {
+    const raw = localStorage.getItem(PARTICIPANTS_CACHE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveCachedParticipants(participants) {
+  try {
+    localStorage.setItem(PARTICIPANTS_CACHE_KEY, JSON.stringify(Array.isArray(participants) ? participants : []))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function getQueuedParticipantActions() {
+  try {
+    const raw = localStorage.getItem(PARTICIPANT_ACTION_QUEUE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveQueuedParticipantActions(actions) {
+  try {
+    localStorage.setItem(PARTICIPANT_ACTION_QUEUE_KEY, JSON.stringify(Array.isArray(actions) ? actions : []))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function isOfflineError(err) {
+  const msg = String(err?.message || "").toLowerCase()
+  return !navigator.onLine || msg.includes("failed to fetch") || msg.includes("load failed") || msg.includes("network")
+}
+
+function enqueueParticipantAction(action) {
+  const queue = getQueuedParticipantActions()
+
+  if (action.type === "update_priority" || action.type === "update_type") {
+    const filtered = queue.filter((item) => !(item.type === action.type && String(item.participantId) === String(action.participantId)))
+    const next = [...filtered, action]
+    saveQueuedParticipantActions(next)
+    return next
+  }
+
+  const next = [...queue, action]
+  saveQueuedParticipantActions(next)
+  return next
+}
+
 // PriorityDropdown component (moved to top level)
 function PriorityDropdown({ current, onChange }) {
   const [open, setOpen] = useState(false);
@@ -419,24 +480,29 @@ export default function Participants() {
     date_to: "",
   })
   const [focusedParticipantId, setFocusedParticipantId] = useState("")
+  const [offlineQueueCount, setOfflineQueueCount] = useState(() => getQueuedParticipantActions().length)
+  const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
   const participantRowRefs = useRef({})
   const focusAppliedRef = useRef(false)
+  const actionSyncRef = useRef(false)
 
   async function handlePriorityChange(participantId, newPriority) {
     // Optimistic update
-    setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, priority: newPriority } : p))
+    updateParticipantsLocal(prev => prev.map(p => p.id === participantId ? { ...p, priority: newPriority } : p))
     setPriorityError("")
     try {
       await updateParticipantPriority(participantId, newPriority);
     } catch (err) {
       console.error('Priority update error:', err);
-      // Roll back
-      setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, priority: p.priority } : p))
       const msg = err?.message || "Unknown error"
-      const isOffline = !navigator.onLine || msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("network")
-      setPriorityError(isOffline
-        ? "Priority change couldn't be saved — no connection. Changes will be lost on refresh."
-        : `Failed to update priority: ${msg}`)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({ type: "update_priority", participantId, priority: newPriority })
+        setOfflineQueueCount(nextQueue.length)
+        setPriorityError("Priority saved locally and queued for sync while offline.")
+        return
+      }
+      await refreshParticipants()
+      setPriorityError(`Failed to update priority: ${msg}`)
     }
   }
   // Use a ref to always get the latest refreshParticipants
@@ -447,7 +513,8 @@ export default function Participants() {
   const refreshParticipants = useCallback(async () => {
     try {
       const data = await fetchAllParticipants();
-      setParticipants((prev) => data.map((rawParticipant) => {
+      setParticipants((prev) => {
+        const next = data.map((rawParticipant) => {
         const normalized = normalizeParticipantForUI(rawParticipant)
         const previous = prev.find((p) => p.id === normalized.id)
         if (normalized.role === "volunteer" && previous?.volunteer_group_ui) {
@@ -458,9 +525,16 @@ export default function Participants() {
         }
 
         return normalized
-      }));
+        })
+        saveCachedParticipants(next)
+        return next
+      });
     } catch (err) {
       console.error("Failed to refresh participants", err);
+      const cached = getCachedParticipants().map((item) => normalizeParticipantForUI(item))
+      if (cached.length > 0) {
+        setParticipants(cached)
+      }
     }
   }, []);
 
@@ -486,6 +560,89 @@ export default function Participants() {
   useEffect(() => {
     refreshRemovalLogRef.current = refreshRemovalLog
   }, [refreshRemovalLog])
+
+  const updateParticipantsLocal = useCallback((updater) => {
+    setParticipants((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      saveCachedParticipants(next)
+      return next
+    })
+  }, [])
+
+  const processQueuedParticipantActions = useCallback(async () => {
+    if (actionSyncRef.current) return
+    if (!navigator.onLine) {
+      setBrowserOnline(false)
+      return
+    }
+
+    const queued = getQueuedParticipantActions()
+    if (!queued.length) {
+      setOfflineQueueCount(0)
+      return
+    }
+
+    actionSyncRef.current = true
+    const remaining = []
+    let needsParticipantRefresh = false
+    let needsRemovalRefresh = false
+
+    try {
+      for (let i = 0; i < queued.length; i += 1) {
+        const action = queued[i]
+        try {
+          if (action.type === "checkin") {
+            await checkInParticipant(action.participantId)
+            needsParticipantRefresh = true
+            continue
+          }
+          if (action.type === "verify_waiver") {
+            await verifyWaiver(action.participantId)
+            needsParticipantRefresh = true
+            continue
+          }
+          if (action.type === "promote") {
+            await promoteParticipant(action.participantId)
+            needsParticipantRefresh = true
+            continue
+          }
+          if (action.type === "remove") {
+            await removeParticipant(action.participantId, action.reasonCode, action.reasonNote || "")
+            needsParticipantRefresh = true
+            needsRemovalRefresh = true
+            continue
+          }
+          if (action.type === "update_priority") {
+            await updateParticipantPriority(action.participantId, action.priority)
+            needsParticipantRefresh = true
+            continue
+          }
+          if (action.type === "update_type") {
+            await updateParticipantType(action.participantId, action.payload || {})
+            needsParticipantRefresh = true
+            continue
+          }
+        } catch (err) {
+          if (isOfflineError(err)) {
+            remaining.push(...queued.slice(i))
+            break
+          }
+          console.error("Queued participant action failed", action, err)
+        }
+      }
+    } finally {
+      saveQueuedParticipantActions(remaining)
+      setOfflineQueueCount(remaining.length)
+      actionSyncRef.current = false
+    }
+
+    if (needsParticipantRefresh) {
+      await refreshParticipants()
+    }
+    if (needsRemovalRefresh) {
+      await refreshRemovalLog()
+    }
+  }, [refreshParticipants, refreshRemovalLog])
 
   // WebSocket: Listen for real-time updates and refresh participants
   useEffect(() => {
@@ -606,7 +763,47 @@ export default function Participants() {
   useEffect(() => {
     refreshParticipants();
     refreshRemovalLog();
-  }, [refreshParticipants, refreshRemovalLog]);
+    processQueuedParticipantActions()
+  }, [refreshParticipants, refreshRemovalLog, processQueuedParticipantActions]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      setBrowserOnline(true)
+      processQueuedParticipantActions()
+    }
+    const onOffline = () => {
+      setBrowserOnline(false)
+    }
+
+    window.addEventListener("online", onOnline)
+    window.addEventListener("offline", onOffline)
+
+    return () => {
+      window.removeEventListener("online", onOnline)
+      window.removeEventListener("offline", onOffline)
+    }
+  }, [processQueuedParticipantActions])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine && getQueuedParticipantActions().length > 0) {
+        processQueuedParticipantActions()
+      }
+    }, 5000)
+
+    const onFocus = () => {
+      if (navigator.onLine && getQueuedParticipantActions().length > 0) {
+        processQueuedParticipantActions()
+      }
+    }
+
+    window.addEventListener("focus", onFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [processQueuedParticipantActions])
 
   useEffect(() => {
     if (!requestedParticipantId || participants.length === 0 || focusAppliedRef.current) return
@@ -639,18 +836,27 @@ export default function Participants() {
 
   async function handleCheckIn(participantId) {
     setActionError("")
+    updateParticipantsLocal((prev) => prev.map((p) =>
+      p.id === participantId ? { ...p, checked_in: true, is_waitlisted: false } : p
+    ))
     try {
       await checkInParticipant(participantId)
       await refreshParticipants()
     } catch (err) {
       console.error(err)
       const msg = err.message || "Failed to check in participant"
-      const isOffline = !navigator.onLine || msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("load failed") || msg.toLowerCase().includes("network")
-      if (isOffline) {
-        setActionError("Check-in couldn't be saved — no connection. Try again when Wi-Fi is back.")
+      const offline = isOfflineError(err)
+      if (offline) {
+        const nextQueue = enqueueParticipantAction({ type: "checkin", participantId })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: check-in saved locally and queued for sync.")
       } else if (msg.includes("Waiver not verified")) {
+        updateParticipantsLocal((prev) => prev.map((p) =>
+          p.id === participantId ? { ...p, checked_in: false } : p
+        ))
         setActionError("Cannot check in: waiver must be verified first.")
       } else {
+        await refreshParticipants()
         setActionError(`Check-in failed: ${msg}`)
       }
     }
@@ -688,34 +894,67 @@ export default function Participants() {
     }
 
     setActionError("")
+    updateParticipantsLocal((prev) => prev.filter((p) => p.id !== participant.id))
     try {
       await removeParticipant(participant.id, selectedReason.code, (reasonNote || "").trim())
       await refreshParticipants()
       await refreshRemovalLog()
     } catch (err) {
       console.error(err)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({
+          type: "remove",
+          participantId: participant.id,
+          reasonCode: selectedReason.code,
+          reasonNote: (reasonNote || "").trim(),
+        })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: removal saved locally and queued for sync.")
+        return
+      }
+      await refreshParticipants()
       setActionError(`Failed to remove: ${err.message || "Unknown error"}`)
     }
   }
 
   async function handlePromote(participantId) {
     setActionError("")
+    updateParticipantsLocal((prev) => prev.map((p) =>
+      p.id === participantId ? { ...p, is_waitlisted: false } : p
+    ))
     try {
       await promoteParticipant(participantId)
       await refreshParticipants()
     } catch (err) {
       console.error(err)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({ type: "promote", participantId })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: promotion saved locally and queued for sync.")
+        return
+      }
+      await refreshParticipants()
       setActionError(`Failed to promote: ${err.message || "Unknown error"}`)
     }
   }
 
   async function handleVerifyWaiver(participantId) {
     setActionError("")
+    updateParticipantsLocal((prev) => prev.map((p) =>
+      p.id === participantId ? { ...p, waiver_verified: true } : p
+    ))
     try {
       await verifyWaiver(participantId)
       await refreshParticipants()
     } catch (err) {
       console.error(err)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({ type: "verify_waiver", participantId })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: waiver verification saved locally and queued for sync.")
+        return
+      }
+      await refreshParticipants()
       setActionError(`Failed to verify waiver: ${err.message || "Unknown error"}`)
     }
   }
@@ -739,7 +978,7 @@ export default function Participants() {
           .filter((value) => value && value !== nextVolunteerType)
           .filter((value) => isRoleAllowedForGroups(value, nextGroups))
 
-    setParticipants(prev => prev.map(p => p.id === participantId
+    updateParticipantsLocal(prev => prev.map(p => p.id === participantId
       ? {
           ...p,
           role: nextRole,
@@ -757,6 +996,20 @@ export default function Participants() {
       })
     } catch (err) {
       console.error(err)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({
+          type: "update_type",
+          participantId,
+          payload: {
+            role: nextRole,
+            volunteer_type: nextVolunteerType,
+            volunteer_additional_types: nextAdditional,
+          },
+        })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: participant type change saved locally and queued for sync.")
+        return
+      }
       setActionError(`Failed to update participant type: ${err.message || "Unknown error"}`)
       await refreshParticipants()
     }
@@ -785,7 +1038,7 @@ export default function Participants() {
           .filter((value) => value && value !== nextVolunteerType)
           .filter((value) => isRoleAllowedForGroups(value, nextGroups))
 
-    setParticipants((prev) => prev.map((p) => p.id === participantId
+    updateParticipantsLocal((prev) => prev.map((p) => p.id === participantId
       ? {
           ...p,
           role: "volunteer",
@@ -803,6 +1056,20 @@ export default function Participants() {
       })
     } catch (err) {
       console.error(err)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({
+          type: "update_type",
+          participantId,
+          payload: {
+            role: "volunteer",
+            volunteer_type: nextVolunteerType,
+            volunteer_additional_types: nextAdditional,
+          },
+        })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: volunteer group change saved locally and queued for sync.")
+        return
+      }
       setActionError(`Failed to update volunteer group: ${err.message || "Unknown error"}`)
       await refreshParticipants()
     }
@@ -816,7 +1083,7 @@ export default function Participants() {
       .filter((value) => value !== primaryRole)
       .filter((value) => isRoleAllowedForGroups(value, selectedGroups))
 
-    setParticipants(prev => prev.map(p => p.id === participantId
+    updateParticipantsLocal(prev => prev.map(p => p.id === participantId
       ? { ...p, volunteer_additional_types: normalized }
       : p
     ))
@@ -824,6 +1091,16 @@ export default function Participants() {
       await updateParticipantType(participantId, { volunteer_additional_types: normalized })
     } catch (err) {
       console.error(err)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({
+          type: "update_type",
+          participantId,
+          payload: { volunteer_additional_types: normalized },
+        })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: additional volunteer roles saved locally and queued for sync.")
+        return
+      }
       setActionError(`Failed to update additional volunteer roles: ${err.message || "Unknown error"}`)
       await refreshParticipants()
     }
@@ -836,7 +1113,7 @@ export default function Participants() {
       : []
     const normalizedAdditional = currentAdditional
 
-    setParticipants(prev => prev.map(p => p.id === participantId
+    updateParticipantsLocal(prev => prev.map(p => p.id === participantId
       ? { ...p, volunteer_is_versatile: nextValue, volunteer_additional_types: normalizedAdditional }
       : p
     ))
@@ -847,6 +1124,19 @@ export default function Participants() {
       })
     } catch (err) {
       console.error(err)
+      if (isOfflineError(err)) {
+        const nextQueue = enqueueParticipantAction({
+          type: "update_type",
+          participantId,
+          payload: {
+            volunteer_is_versatile: nextValue,
+            volunteer_additional_types: normalizedAdditional,
+          },
+        })
+        setOfflineQueueCount(nextQueue.length)
+        setActionError("Offline: flexible volunteer setting saved locally and queued for sync.")
+        return
+      }
       setActionError(`Failed to update flexible volunteer setting: ${err.message || "Unknown error"}`)
       await refreshParticipants()
     }
@@ -995,6 +1285,13 @@ export default function Participants() {
       {priorityError && (
         <div className="mb-3 bg-amber-100 border border-amber-400 text-amber-800 px-4 py-2 rounded text-sm">
           {priorityError}
+        </div>
+      )}
+
+      {offlineQueueCount > 0 && (
+        <div className="mb-3 bg-amber-100 border border-amber-400 text-amber-800 px-4 py-2 rounded text-sm">
+          Offline queue active: {offlineQueueCount} pending change{offlineQueueCount === 1 ? "" : "s"}.
+          {!browserOnline ? " Device is offline." : " Syncing will continue while online."}
         </div>
       )}
 

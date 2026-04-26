@@ -21,6 +21,17 @@
   - polling fallback when websocket is not open
   - offline queue + retry behavior
 
+### Offline-First Action Sync (Cross-Page)
+- Participants page now supports offline-first mutations with queued sync:
+  - check-in, waiver verify, promote, remove
+  - priority updates
+  - participant/volunteer type and role updates
+- Event Detail page now supports offline-first mutations with queued sync:
+  - drag/drop session moves
+  - priority updates
+- Check-In page now restores cached roster data when offline and persists optimistic check-in state locally.
+- Added visible offline queue banners to show pending sync counts while connectivity is unavailable.
+
 ## Latest Updates (April 23, 2026)
 
 ### Metrics + Terminology Alignment
