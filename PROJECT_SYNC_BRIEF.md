@@ -1,0 +1,128 @@
+# Project Sync Brief
+
+Date: 2026-04-26
+Prepared by: GitHub Copilot (implementation record)
+Branch: master
+Latest implementation commit: 3bd41d7
+Previous release-prep commit: be77f16
+Local release tag: v0.1.0 (local only; remote not configured)
+
+## 1) How To Use This Brief With ChatGPT
+
+Copy this file into ChatGPT at the start of planning sessions.
+
+Prompt pattern to use with ChatGPT:
+- "Use this as the source of truth for current implementation state."
+- "Do not mark anything implemented unless listed in Completed Work with commit hash evidence."
+- "Return recommendations as numbered backlog items with acceptance criteria."
+
+Operating rule:
+- All coding changes happen through Copilot in this repo.
+- ChatGPT is planning/advisory only.
+
+## 2) Current Product State
+
+- Admin PWA is actively used on laptop/phone for event operations.
+- Build/version fingerprint is visible in app UI.
+- Service worker behavior was adjusted to reduce stale bundles.
+- Event Type chip/pill wrapping on mobile is fixed.
+- Offline-first behavior now exists across key participant mutation flows.
+
+## 3) Completed Work (Recent)
+
+### TASK-001: Build parity visibility and stale-cache reduction
+Status: Done
+Commits: be77f16
+Outcome:
+- Added build fingerprint badge.
+- Injected VITE_APP_VERSION and VITE_BUILD_ID via Vite config.
+- Updated service worker strategy and cache versioning.
+
+### TASK-002: Event Type mobile wrapping fix
+Status: Done
+Commits: be77f16
+Outcome:
+- Hardened no-wrap behavior for filter chips and Event Type badge cells.
+
+### TASK-003: Remove dev diagnostics from Check-In
+Status: Done
+Commits: be77f16
+Outcome:
+- Removed temporary debugging controls/panel.
+- Retained realtime websocket + polling fallback + queue behavior.
+
+### TASK-004: Offline-first check-in local resilience
+Status: Done
+Commits: 3bd41d7
+Outcome:
+- Check-In restores cached roster data while offline.
+- Optimistic local check-in state persists and queues sync.
+
+### TASK-005: Participants page offline-first mutations
+Status: Done
+Commits: 3bd41d7
+Outcome:
+- Local optimistic updates + queued sync for:
+  - check-in
+  - waiver verify
+  - promote
+  - remove
+  - priority updates
+  - participant/volunteer type and role updates
+- Added offline queue status banner.
+
+### TASK-006: Event Detail offline-first mutations
+Status: Done
+Commits: 3bd41d7
+Outcome:
+- Local optimistic updates + queued sync for:
+  - drag/drop session moves
+  - priority updates
+- Added offline queue status banner.
+
+## 4) In Progress
+
+- None currently marked in-progress.
+
+## 5) Pending / Next Backlog Candidates
+
+- Add per-row "pending sync" indicators in Participants and Event Detail.
+- Add queue conflict resolution UX for server-side rejects after reconnect.
+- Add automated smoke script for offline queue scenarios.
+- Add release publish workflow once git remote is configured.
+
+## 6) API / Data Contract Notes
+
+- Priority update endpoint uses query parameter (`priority`) not JSON body.
+- Volunteer capacity currently informational, not enforced for participant seat limits.
+- Real-time updates use websocket endpoint `/api/ws/updates`.
+
+## 7) Frontend Behavior Notes
+
+- Primary admin app is under `admin-app`.
+- In dev, API base resolves to current host (`window.location.hostname`) to support phone/laptop testing on LAN.
+- Participants/Event Detail/Check-In now each include offline queue and sync retry behavior for supported actions.
+
+## 8) Validation Evidence
+
+- Frontend production build succeeded after latest changes.
+- Backend health endpoints previously validated (`/`, `/openapi.json`).
+- Manual phone validation confirmed offline-first behavior now works for tested flows.
+
+## 9) Known Constraints / Gaps
+
+- Git remote is not configured in this local repo, so push/tag publish is pending setup.
+- Some untracked image assets are present and intentionally not auto-committed.
+
+## 10) Session Update Protocol (for Copilot)
+
+At end of each implementation session, update:
+1. Date/time and latest commit hash.
+2. Completed Work with TASK IDs and outcomes.
+3. Pending backlog and priorities.
+4. Any behavior changes that affect operations.
+
+Definition of done for a TASK:
+- code merged in local commit,
+- build/errors checked,
+- behavior notes documented in this brief.
