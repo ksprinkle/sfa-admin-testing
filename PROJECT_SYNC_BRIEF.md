@@ -7,6 +7,11 @@ Latest implementation commit: 3bd41d7
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
+## Companion Documents
+
+- Planning intent template: ROADMAP_INTENT.md
+- Use this file for implementation truth and commit-backed status.
+
 ## 0) Auto-Update Block (Copilot Maintained)
 
 Use this block at the end of every coding session.
