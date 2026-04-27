@@ -22,7 +22,7 @@ Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with 
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: f706c7b
+Latest implementation commit: 5ce8bcf
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -339,6 +339,30 @@ Behavior summary:
   - default schedule values persisted when schedule fields omitted
   - custom schedule values persisted when provided via request
   - temporary smoke templates cleaned up.
+
+### TASK-014: Edit EventTemplate
+Status: Done
+Commit hash: 5ce8bcf
+Files changed:
+- admin-app/src/api/events.js
+- admin-app/src/pages/EventTemplates.jsx
+Behavior summary:
+- Reused existing backend endpoint `PUT /api/admin/event-templates/{template_id}` for template edits; no backend route redesign was required.
+- Added frontend API helper `updateEventTemplate(templateId, data)`.
+- Reused existing Create Template form as dual create/edit form (no separate form component):
+  - Template card now includes `Edit` button.
+  - Clicking `Edit` loads selected template values (including schedule fields) into the left form.
+  - Form switches to edit mode and submit label changes to `Update Template`.
+  - Added `Cancel Edit` to exit edit mode and reset form state.
+- Editable fields in edit mode include:
+  - base template fields (name, location, capacity, event_type, start/end time)
+  - session config (session_count, session_capacity)
+  - schedule fields (schedule_rule_type, schedule_months, schedule_weekday, schedule_week_numbers)
+- On successful update, template list is updated inline and edit mode exits without navigation.
+- Edit-template validation passed:
+  - create/update/get/preview/delete flow executed against event-template endpoints
+  - updated schedule-related fields persisted and preview generation still returned deterministic dates
+  - admin frontend build passed after inline edit mode changes.
 
 ## 9) Known Constraints / Gaps
 
