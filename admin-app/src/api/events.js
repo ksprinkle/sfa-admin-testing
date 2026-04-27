@@ -49,6 +49,20 @@ export async function createEventTemplate(data) {
   return res.json()
 }
 
+export async function updateEventTemplate(templateId, data) {
+  const res = await apiFetch(`/api/admin/event-templates/${templateId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to update event template")
+  }
+
+  return res.json()
+}
+
 export async function deleteEventTemplate(templateId) {
   const res = await apiFetch(`/api/admin/event-templates/${templateId}`, {
     method: "DELETE",

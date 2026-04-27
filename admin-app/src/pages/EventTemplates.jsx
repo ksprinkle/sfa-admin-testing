@@ -8,6 +8,7 @@ import {
   deleteEventTemplate,
   fetchEventTemplates,
   generateAnnualEventsFromTemplate,
+  updateEventTemplate,
 } from "../api/events"
 
 
@@ -45,6 +46,29 @@ function parseIntegerCsv(value) {
 }
 
 
+function toTimeInputValue(value) {
+  return String(value || "").slice(0, 5)
+}
+
+
+function templateToForm(template) {
+  return {
+    name: String(template?.name || ""),
+    location: String(template?.location || ""),
+    capacity: String(template?.capacity || ""),
+    event_type: String(template?.event_type || ""),
+    default_start_time: toTimeInputValue(template?.default_start_time || "09:00"),
+    default_end_time: toTimeInputValue(template?.default_end_time || "12:00"),
+    session_count: String(template?.session_count || "1"),
+    session_capacity: String(template?.session_capacity || "15"),
+    schedule_rule_type: String(template?.schedule_rule_type || "nth_weekday"),
+    schedule_months: Array.isArray(template?.schedule_months) ? template.schedule_months.join(",") : "5,6,7,8,9",
+    schedule_weekday: String(template?.schedule_weekday ?? "5"),
+    schedule_week_numbers: Array.isArray(template?.schedule_week_numbers) ? template.schedule_week_numbers.join(",") : "2,3",
+  }
+}
+
+
 function EventTemplates() {
   const navigate = useNavigate()
   const [templates, setTemplates] = useState([])
@@ -58,6 +82,7 @@ function EventTemplates() {
   const [generatingTemplateId, setGeneratingTemplateId] = useState("")
   const [previewByTemplate, setPreviewByTemplate] = useState({})
   const [deletingTemplateId, setDeletingTemplateId] = useState("")
+  const [editingTemplateId, setEditingTemplateId] = useState("")
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
 
@@ -81,30 +106,54 @@ function EventTemplates() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleCreateTemplate = async (e) => {
+  const handleCreateOrUpdateTemplate = async (e) => {
     e.preventDefault()
     setSaving(true)
     setMessage("")
     setError("")
 
+    const payload = {
+      ...form,
+      capacity: Number(form.capacity),
+      session_count: Number(form.session_count),
+      session_capacity: Number(form.session_capacity),
+      schedule_weekday: Number(form.schedule_weekday),
+      schedule_months: parseIntegerCsv(form.schedule_months),
+      schedule_week_numbers: parseIntegerCsv(form.schedule_week_numbers),
+    }
+
     try {
-      const created = await createEventTemplate({
-        ...form,
-        capacity: Number(form.capacity),
-        session_count: Number(form.session_count),
-        session_capacity: Number(form.session_capacity),
-        schedule_weekday: Number(form.schedule_weekday),
-        schedule_months: parseIntegerCsv(form.schedule_months),
-        schedule_week_numbers: parseIntegerCsv(form.schedule_week_numbers),
-      })
-      setTemplates((prev) => [...prev, created].sort((left, right) => String(left.name).localeCompare(String(right.name))))
+      if (editingTemplateId) {
+        const updated = await updateEventTemplate(editingTemplateId, payload)
+        setTemplates((prev) => prev.map((item) => (String(item.id) === String(editingTemplateId) ? updated : item)))
+        setMessage("Template updated successfully")
+        setEditingTemplateId("")
+      } else {
+        const created = await createEventTemplate(payload)
+        setTemplates((prev) => [...prev, created].sort((left, right) => String(left.name).localeCompare(String(right.name))))
+        setMessage("Template created successfully")
+      }
       setForm(DEFAULT_FORM)
     } catch (err) {
       console.error(err)
-      setError(err?.message || "Failed to create event template")
+      setError(err?.message || (editingTemplateId ? "Failed to update event template" : "Failed to create event template"))
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleStartEditTemplate = (template) => {
+    setEditingTemplateId(String(template.id))
+    setForm(templateToForm(template))
+    setMessage("")
+    setError("")
+  }
+
+  const handleCancelEdit = () => {
+    setEditingTemplateId("")
+    setForm(DEFAULT_FORM)
+    setMessage("")
+    setError("")
   }
 
   const handleDeleteTemplate = async (template) => {
@@ -226,8 +275,19 @@ function EventTemplates() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Create Template</h2>
-          <form onSubmit={handleCreateTemplate} className="mt-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-gray-900">{editingTemplateId ? "Edit Template" : "Create Template"}</h2>
+            {editingTemplateId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Cancel Edit
+              </button>
+            )}
+          </div>
+          <form onSubmit={handleCreateOrUpdateTemplate} className="mt-4 space-y-3">
             <input
               value={form.name}
               onChange={(e) => handleFieldChange("name", e.target.value)}
@@ -342,7 +402,7 @@ function EventTemplates() {
               disabled={saving}
               className={`w-full rounded px-4 py-2 font-medium ${saving ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-ocean text-white hover:opacity-95"}`}
             >
-              {saving ? "Saving..." : "Create Template"}
+              {saving ? (editingTemplateId ? "Updating..." : "Saving...") : (editingTemplateId ? "Update Template" : "Create Template")}
             </button>
           </form>
         </section>
@@ -399,6 +459,16 @@ function EventTemplates() {
                         className={`rounded border px-3 py-2 text-sm ${deleting ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500" : "border-red-300 bg-white text-red-700 hover:bg-red-50"}`}
                       >
                         {deleting ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => handleStartEditTemplate(template)}
+                        className="rounded border border-sky-300 bg-white px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
+                      >
+                        Edit
                       </button>
                     </div>
 
