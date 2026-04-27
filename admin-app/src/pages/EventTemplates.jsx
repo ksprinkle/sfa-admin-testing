@@ -7,11 +7,17 @@ import {
   createEventTemplate,
   deleteEventTemplate,
   fetchEventTemplates,
+  generateAnnualEventsFromTemplate,
 } from "../api/events"
 
 
 function getTodayIsoDate() {
   return new Date().toISOString().slice(0, 10)
+}
+
+
+function getCurrentYear() {
+  return new Date().getFullYear()
 }
 
 
@@ -32,10 +38,13 @@ function EventTemplates() {
   const [templates, setTemplates] = useState([])
   const [form, setForm] = useState(DEFAULT_FORM)
   const [templateDates, setTemplateDates] = useState({})
+  const [templateYears, setTemplateYears] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [creatingTemplateEventId, setCreatingTemplateEventId] = useState("")
+  const [generatingTemplateId, setGeneratingTemplateId] = useState("")
   const [deletingTemplateId, setDeletingTemplateId] = useState("")
+  const [message, setMessage] = useState("")
   const [error, setError] = useState("")
 
   async function loadTemplates() {
@@ -61,6 +70,7 @@ function EventTemplates() {
   const handleCreateTemplate = async (e) => {
     e.preventDefault()
     setSaving(true)
+    setMessage("")
     setError("")
 
     try {
@@ -85,6 +95,7 @@ function EventTemplates() {
     if (!confirmed) return
 
     setDeletingTemplateId(String(template.id))
+    setMessage("")
     setError("")
     try {
       await deleteEventTemplate(template.id)
@@ -106,6 +117,7 @@ function EventTemplates() {
     }
 
     setCreatingTemplateEventId(templateId)
+    setMessage("")
     setError("")
     try {
       const event = await createEventFromTemplate(template.id, selectedDate)
@@ -115,6 +127,28 @@ function EventTemplates() {
       setError(err?.message || "Failed to create event from template")
     } finally {
       setCreatingTemplateEventId("")
+    }
+  }
+
+  const handleGenerateSeason = async (template) => {
+    const templateId = String(template.id)
+    const year = Number(templateYears[templateId] || getCurrentYear())
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      setError("Year must be between 2000 and 2100")
+      return
+    }
+
+    setGeneratingTemplateId(templateId)
+    setMessage("")
+    setError("")
+    try {
+      const result = await generateAnnualEventsFromTemplate(template.id, year)
+      setMessage(`Generated ${result.created_count} event(s), skipped ${result.skipped_count} existing for ${result.year}.`)
+    } catch (err) {
+      console.error(err)
+      setError(err?.message || "Failed to generate annual events")
+    } finally {
+      setGeneratingTemplateId("")
     }
   }
 
@@ -131,6 +165,12 @@ function EventTemplates() {
       {error && (
         <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {message && (
+        <div className="rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {message}
         </div>
       )}
 
@@ -237,7 +277,9 @@ function EventTemplates() {
               {templates.map((template) => {
                 const templateId = String(template.id)
                 const selectedDate = templateDates[templateId] || getTodayIsoDate()
+                const selectedYear = templateYears[templateId] || String(getCurrentYear())
                 const creating = creatingTemplateEventId === templateId
+                const generating = generatingTemplateId === templateId
                 const deleting = deletingTemplateId === templateId
 
                 return (
@@ -278,6 +320,26 @@ function EventTemplates() {
                         className={`rounded px-4 py-2 font-medium ${creating || !selectedDate ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-ocean text-white hover:opacity-95"}`}
                       >
                         {creating ? "Creating Event..." : "Create Event"}
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <input
+                        type="number"
+                        min="2000"
+                        max="2100"
+                        step="1"
+                        value={selectedYear}
+                        onChange={(e) => setTemplateYears((prev) => ({ ...prev, [templateId]: e.target.value }))}
+                        className="rounded border border-gray-300 px-3 py-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateSeason(template)}
+                        disabled={generating}
+                        className={`rounded px-4 py-2 font-medium ${generating ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-slate-700 text-white hover:bg-slate-800"}`}
+                      >
+                        {generating ? "Generating..." : "Generate Season"}
                       </button>
                     </div>
                   </article>

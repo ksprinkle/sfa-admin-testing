@@ -76,6 +76,20 @@ export async function createEventFromTemplate(templateId, date) {
   return res.json()
 }
 
+export async function generateAnnualEventsFromTemplate(templateId, year) {
+  const res = await apiFetch(`/api/admin/event-templates/${templateId}/generate-annual-events`, {
+    method: "POST",
+    body: JSON.stringify({ year: Number(year) }),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to generate annual events from template")
+  }
+
+  return res.json()
+}
+
 export async function archiveEvent(eventId) {
   const res = await apiFetch(`/api/admin/events/${eventId}`, {
     method: "PUT",

@@ -41,3 +41,17 @@ class EventTemplateOut(EventTemplateBase):
 
 class CreateEventFromTemplateIn(BaseModel):
     date: date
+
+
+class GenerateAnnualEventsFromTemplateIn(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+
+
+class GenerateAnnualEventsFromTemplateOut(BaseModel):
+    year: int
+    total_rule_dates: int
+    created_count: int
+    skipped_count: int
+    created_event_ids: list[UUID]
+    created_dates: list[date]
+    skipped_dates: list[date]
