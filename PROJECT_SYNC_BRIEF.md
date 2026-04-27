@@ -22,7 +22,7 @@ Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with 
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 3bd41d7
+Latest implementation commit: a14746a
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -129,6 +129,46 @@ Outcome:
   - drag/drop session moves
   - priority updates
 - Added offline queue status banner.
+
+### TASK-007: Duplicate Event admin tool
+Status: Done
+Commit hash: 7dcef27
+Files changed:
+- api/routers/admin_events.py
+- admin-app/src/api/events.js
+- admin-app/src/pages/EventDetail.jsx
+Behavior summary:
+- Added admin endpoint `POST /api/admin/events/{event_id}/duplicate` that duplicates event configuration and creates a new draft event.
+- Reused existing event creation + session auto-generation logic (no direct session row copy).
+- Confirmed duplicated events do not copy participants/waitlist/check-in state and navigate to the new event from Event Detail.
+- Added `Duplicate Event` button in Event Detail with confirm prompt, disabled/loading state, and graceful error display.
+
+### TASK-008: EventTemplate foundation
+Status: Done
+Commit hash: a14746a
+Files changed:
+- api/models/__init__.py
+- api/main.py
+- api/models/event_templates.py
+- api/schemas/event_templates.py
+- api/routers/admin_event_templates.py
+- alembic/versions/e6c1f4b2a9d8_add_event_templates.py
+- admin-app/src/api/events.js
+- admin-app/src/App.jsx
+- admin-app/src/pages/Events.jsx
+- admin-app/src/pages/EventTemplates.jsx
+Behavior summary:
+- Added persistent `EventTemplate` model and migration with minimal reusable fields for name/location/capacity/event type/default time and session planning metadata.
+- Added admin template API endpoints:
+  - `POST /api/admin/event-templates`
+  - `GET /api/admin/event-templates`
+  - `GET /api/admin/event-templates/{template_id}`
+  - `PUT /api/admin/event-templates/{template_id}`
+  - `DELETE /api/admin/event-templates/{template_id}`
+  - `POST /api/admin/event-templates/{template_id}/create-event`
+- Implemented create-from-template flow by mapping template values into existing `EventCreate` fields and reusing existing `crud.create_event` logic for session auto-creation; no existing event creation endpoint behavior was changed.
+- Added new admin UI page `EventTemplates` for listing, creating, deleting templates, and creating draft events from templates by date.
+- Added route `/event-templates` and a `Templates` action button on Events page for quick access.
 
 ## 4) In Progress
 
