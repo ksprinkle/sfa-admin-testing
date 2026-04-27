@@ -30,6 +30,28 @@ const PRIORITY_LEVELS = [
   { value: 3, label: "Low", dotClass: "bg-gray-500" },
   { value: 0, label: "Unset", dotClass: "bg-gray-300" },
 ]
+const CHAPTER_SCHEDULE_DEFAULT = {
+  schedule_rule_type: "nth_weekday",
+  schedule_months: [5, 6, 7, 8, 9],
+  schedule_weekday: 5,
+  schedule_week_numbers: [2, 3],
+}
+const WEEKDAY_OPTIONS = [
+  { value: 0, label: "Monday" },
+  { value: 1, label: "Tuesday" },
+  { value: 2, label: "Wednesday" },
+  { value: 3, label: "Thursday" },
+  { value: 4, label: "Friday" },
+  { value: 5, label: "Saturday" },
+  { value: 6, label: "Sunday" },
+]
+
+function parseIntegerCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((n) => Number.isInteger(n))
+}
 
 function formatEventType(eventType) {
   if (!eventType) return "Unspecified"
@@ -423,6 +445,12 @@ function EventDetail() {
   const [saveTemplateLoading, setSaveTemplateLoading] = useState(false)
   const [saveTemplateError, setSaveTemplateError] = useState("")
   const [saveTemplateMessage, setSaveTemplateMessage] = useState("")
+  const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false)
+  const [saveTemplateNameInput, setSaveTemplateNameInput] = useState("")
+  const [useChapterSchedule, setUseChapterSchedule] = useState(true)
+  const [scheduleMonthsInput, setScheduleMonthsInput] = useState(CHAPTER_SCHEDULE_DEFAULT.schedule_months.join(","))
+  const [scheduleWeekdayInput, setScheduleWeekdayInput] = useState(String(CHAPTER_SCHEDULE_DEFAULT.schedule_weekday))
+  const [scheduleWeekNumbersInput, setScheduleWeekNumbersInput] = useState(CHAPTER_SCHEDULE_DEFAULT.schedule_week_numbers.join(","))
   const queueSyncRef = useRef(false)
 
   const pendingQueueCount = queuedEventActions.filter((item) => item.syncStatus !== "failed").length
@@ -549,25 +577,60 @@ function EventDetail() {
     }
   }
 
+  const handleOpenSaveTemplateModal = () => {
+    if (saveTemplateLoading) return
+
+    setSaveTemplateNameInput(String(eventInfo?.title || ""))
+    setUseChapterSchedule(true)
+    setScheduleMonthsInput(CHAPTER_SCHEDULE_DEFAULT.schedule_months.join(","))
+    setScheduleWeekdayInput(String(CHAPTER_SCHEDULE_DEFAULT.schedule_weekday))
+    setScheduleWeekNumbersInput(CHAPTER_SCHEDULE_DEFAULT.schedule_week_numbers.join(","))
+    setSaveTemplateError("")
+    setSaveTemplateModalOpen(true)
+  }
+
+  const handleCloseSaveTemplateModal = () => {
+    if (saveTemplateLoading) return
+    setSaveTemplateModalOpen(false)
+  }
+
   const handleSaveAsTemplate = async () => {
     if (saveTemplateLoading) return
 
-    const confirmed = window.confirm("Create template from this event?")
-    if (!confirmed) return
+    const templateName = String(saveTemplateNameInput || eventInfo?.title || "Event Template").trim() || "Event Template"
 
-    const defaultName = String(eventInfo?.title || "")
-    const nameInput = window.prompt("Template name", defaultName)
-    if (nameInput == null) return
+    let schedulePayload
+    if (useChapterSchedule) {
+      schedulePayload = { ...CHAPTER_SCHEDULE_DEFAULT }
+    } else {
+      const months = parseIntegerCsv(scheduleMonthsInput)
+      const weekNumbers = parseIntegerCsv(scheduleWeekNumbersInput)
+      const weekday = Number(scheduleWeekdayInput)
 
-    const templateName = String(nameInput).trim() || defaultName || "Event Template"
+      if (!months.length || !weekNumbers.length || !Number.isInteger(weekday)) {
+        setSaveTemplateError("Enter valid schedule fields before saving")
+        return
+      }
+
+      schedulePayload = {
+        schedule_rule_type: "nth_weekday",
+        schedule_months: months,
+        schedule_weekday: weekday,
+        schedule_week_numbers: weekNumbers,
+      }
+    }
 
     setSaveTemplateError("")
     setSaveTemplateMessage("")
     setSaveTemplateLoading(true)
 
     try {
-      const created = await saveEventAsTemplate(eventId, templateName)
-      setSaveTemplateMessage(`Template created successfully: ${created?.name || templateName}`)
+      const created = await saveEventAsTemplate(eventId, {
+        template_name: templateName,
+        ...schedulePayload,
+      })
+      setSaveTemplateMessage(`Template created with schedule rules: ${created?.name || templateName}`)
+      setSaveTemplateModalOpen(false)
     } catch (err) {
       setSaveTemplateError(String(err?.message || "Failed to create template from event"))
     } finally {
@@ -1337,7 +1400,7 @@ function EventDetail() {
           </button>
           <button
             type="button"
-            onClick={handleSaveAsTemplate}
+            onClick={handleOpenSaveTemplateModal}
             disabled={saveTemplateLoading}
             className={`px-3 py-1 rounded text-sm font-semibold ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
             title="Create an event template from this event"
@@ -1356,6 +1419,98 @@ function EventDetail() {
           )}
         </div>
       </div>
+
+      {saveTemplateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Save as Template</h3>
+            <p className="mt-1 text-sm text-slate-600">Create template from this event?</p>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Template Name</span>
+                <input
+                  type="text"
+                  value={saveTemplateNameInput}
+                  onChange={(e) => setSaveTemplateNameInput(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  placeholder="Template name"
+                />
+              </label>
+
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={useChapterSchedule}
+                  onChange={(e) => setUseChapterSchedule(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>Use Chapter Schedule (2nd & 3rd Saturday, May-Sep)</span>
+              </label>
+
+              {!useChapterSchedule && (
+                <div className="rounded border border-slate-200 bg-slate-50 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm text-slate-700">
+                      <span className="mb-1 block">Months</span>
+                      <input
+                        type="text"
+                        value={scheduleMonthsInput}
+                        onChange={(e) => setScheduleMonthsInput(e.target.value)}
+                        className="w-full rounded border border-gray-300 px-3 py-2"
+                        placeholder="5,6,7,8,9"
+                      />
+                    </label>
+
+                    <label className="text-sm text-slate-700">
+                      <span className="mb-1 block">Weekday</span>
+                      <select
+                        value={scheduleWeekdayInput}
+                        onChange={(e) => setScheduleWeekdayInput(e.target.value)}
+                        className="w-full rounded border border-gray-300 px-3 py-2"
+                      >
+                        {WEEKDAY_OPTIONS.map((option) => (
+                          <option key={option.value} value={String(option.value)}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="text-sm text-slate-700 sm:col-span-2">
+                      <span className="mb-1 block">Weeks</span>
+                      <input
+                        type="text"
+                        value={scheduleWeekNumbersInput}
+                        onChange={(e) => setScheduleWeekNumbersInput(e.target.value)}
+                        className="w-full rounded border border-gray-300 px-3 py-2"
+                        placeholder="2,3"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCloseSaveTemplateModal}
+                disabled={saveTemplateLoading}
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAsTemplate}
+                disabled={saveTemplateLoading}
+                className={`rounded px-4 py-2 text-sm font-semibold ${saveTemplateLoading ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+              >
+                {saveTemplateLoading ? "Saving..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {eventInfo && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

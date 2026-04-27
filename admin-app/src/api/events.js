@@ -118,8 +118,7 @@ export async function duplicateEvent(eventId) {
   return res.json()
 }
 
-export async function saveEventAsTemplate(eventId, templateName) {
-  const payload = templateName ? { template_name: templateName } : {}
+export async function saveEventAsTemplate(eventId, payload = {}) {
   const res = await apiFetch(`/api/admin/events/${eventId}/save-as-template`, {
     method: "POST",
     body: JSON.stringify(payload),

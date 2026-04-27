@@ -10,7 +10,7 @@ from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
 from api.models.event_templates import EventTemplate
-from api.schemas.event_templates import EventTemplateOut
+from api.schemas.event_templates import EventTemplateCreate, EventTemplateOut
 from api.schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
 from api.crud.events import (
     create_event as crud_create_event,
@@ -34,6 +34,10 @@ router = APIRouter(
 
 class SaveEventAsTemplateIn(BaseModel):
     template_name: str | None = None
+    schedule_rule_type: str | None = None
+    schedule_months: list[int] | None = None
+    schedule_weekday: int | None = None
+    schedule_week_numbers: list[int] | None = None
 
 
 # --- No-show endpoints must be after router is defined ---
@@ -167,7 +171,12 @@ def save_event_as_template(
     first_session = ordered_sessions[0] if ordered_sessions else None
     first_session_capacity = int(first_session.capacity) if first_session and first_session.capacity else None
 
-    template = EventTemplate(
+    schedule_rule_type = payload.schedule_rule_type if payload and payload.schedule_rule_type is not None else "nth_weekday"
+    schedule_months = payload.schedule_months if payload and payload.schedule_months is not None else [5, 6, 7, 8, 9]
+    schedule_weekday = payload.schedule_weekday if payload and payload.schedule_weekday is not None else 5
+    schedule_week_numbers = payload.schedule_week_numbers if payload and payload.schedule_week_numbers is not None else [2, 3]
+
+    template_in = EventTemplateCreate(
         name=(payload.template_name.strip() if payload and payload.template_name else event.title),
         location=event.venue or "TBD",
         capacity=event.participant_capacity or first_session_capacity or 15,
@@ -176,7 +185,13 @@ def save_event_as_template(
         default_end_time=event.end_time or (first_session.end_time.time() if first_session and first_session.end_time else time(12, 0)),
         session_count=session_count,
         session_capacity=first_session_capacity or 15,
+        schedule_rule_type=schedule_rule_type,
+        schedule_months=schedule_months,
+        schedule_weekday=schedule_weekday,
+        schedule_week_numbers=schedule_week_numbers,
     )
+
+    template = EventTemplate(**template_in.model_dump())
 
     db.add(template)
     db.commit()
