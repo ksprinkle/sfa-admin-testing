@@ -22,7 +22,7 @@ Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with 
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 429734e
+Latest implementation commit: f706c7b
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -267,6 +267,29 @@ Behavior summary:
   - disabled state while saving
   - success and error messages.
 
+### TASK-013: Save as Template with schedule rule input
+Status: Done
+Commit hash: f706c7b
+Files changed:
+- api/routers/admin_events.py
+- admin-app/src/api/events.js
+- admin-app/src/pages/EventDetail.jsx
+Behavior summary:
+- Enhanced existing endpoint `POST /api/admin/events/{event_id}/save-as-template` to accept optional schedule fields:
+  - `schedule_rule_type`
+  - `schedule_months`
+  - `schedule_weekday`
+  - `schedule_week_numbers`
+- If schedule fields are omitted, endpoint applies default chapter schedule values:
+  - `nth_weekday`, months `[5,6,7,8,9]`, weekday `5`, week numbers `[2,3]`
+- Endpoint now reuses existing `EventTemplateCreate` schema validation when constructing template data.
+- Replaced Event Detail prompt flow with a minimal modal:
+  - template name input (prefilled)
+  - default checked `Use Chapter Schedule` toggle
+  - optional basic custom schedule inputs when unchecked (months CSV, weekday dropdown, weeks CSV)
+  - confirm action posts template name + schedule fields
+- Save button remains disabled while saving and shows success/error status.
+
 ## 4) In Progress
 
 - None currently marked in-progress.
@@ -312,6 +335,10 @@ Behavior summary:
   - created template successfully used for create-event flow
   - resulting event was draft with sessions
   - temporary smoke data cleaned up.
+- Save-as-template schedule-rule validation passed:
+  - default schedule values persisted when schedule fields omitted
+  - custom schedule values persisted when provided via request
+  - temporary smoke templates cleaned up.
 
 ## 9) Known Constraints / Gaps
 
