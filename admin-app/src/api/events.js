@@ -76,10 +76,10 @@ export async function createEventFromTemplate(templateId, date) {
   return res.json()
 }
 
-export async function generateAnnualEventsFromTemplate(templateId, year) {
+export async function generateAnnualEventsFromTemplate(templateId, year, preview = false) {
   const res = await apiFetch(`/api/admin/event-templates/${templateId}/generate-annual`, {
     method: "POST",
-    body: JSON.stringify({ year: Number(year) }),
+    body: JSON.stringify({ year: Number(year), preview: Boolean(preview) }),
   })
 
   if (!res.ok) {

@@ -115,9 +115,21 @@ class CreateEventFromTemplateIn(BaseModel):
 
 class GenerateAnnualEventsFromTemplateIn(BaseModel):
     year: int = Field(ge=2000, le=2100)
+    preview: bool = False
 
 
 class GenerateAnnualEventsFromTemplateOut(BaseModel):
     created: int
     skipped: int
     dates: list[date]
+
+
+class GenerateAnnualPreviewDateOut(BaseModel):
+    date: date
+    exists: bool
+
+
+class GenerateAnnualPreviewOut(BaseModel):
+    preview: bool = True
+    year: int
+    dates: list[GenerateAnnualPreviewDateOut]

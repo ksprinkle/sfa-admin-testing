@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Union
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -13,6 +14,8 @@ from api.schemas.event_templates import (
     EventTemplateCreate,
     GenerateAnnualEventsFromTemplateIn,
     GenerateAnnualEventsFromTemplateOut,
+    GenerateAnnualPreviewDateOut,
+    GenerateAnnualPreviewOut,
     EventTemplateOut,
     EventTemplateUpdate,
 )
@@ -112,7 +115,7 @@ def create_event_from_template(
 
 @router.post(
     "/{template_id}/generate-annual",
-    response_model=GenerateAnnualEventsFromTemplateOut,
+    response_model=Union[GenerateAnnualEventsFromTemplateOut, GenerateAnnualPreviewOut],
     status_code=status.HTTP_201_CREATED,
 )
 def generate_annual_events_from_template(
@@ -128,19 +131,25 @@ def generate_annual_events_from_template(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    if payload.preview:
+        preview_dates = [
+            GenerateAnnualPreviewDateOut(
+                date=target_date,
+                exists=_event_exists_for_template_date(db, template, target_date),
+            )
+            for target_date in rule_dates
+        ]
+        return GenerateAnnualPreviewOut(
+            preview=True,
+            year=payload.year,
+            dates=preview_dates,
+        )
+
     created = 0
     skipped = 0
 
     for target_date in rule_dates:
-        existing = (
-            db.query(Event.id)
-            .filter(
-                Event.start_date == target_date,
-                ((Event.template_id == template.id) | (Event.title == template.name)),
-            )
-            .first()
-        )
-        if existing:
+        if _event_exists_for_template_date(db, template, target_date):
             skipped += 1
             continue
 
@@ -179,3 +188,15 @@ def _create_event_from_template_date(db: Session, template: EventTemplate, targe
     db.commit()
     db.refresh(event)
     return event
+
+
+def _event_exists_for_template_date(db: Session, template: EventTemplate, target_date) -> bool:
+    existing = (
+        db.query(Event.id)
+        .filter(
+            Event.start_date == target_date,
+            ((Event.template_id == template.id) | (Event.title == template.name)),
+        )
+        .first()
+    )
+    return existing is not None

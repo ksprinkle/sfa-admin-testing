@@ -54,7 +54,9 @@ function EventTemplates() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [creatingTemplateEventId, setCreatingTemplateEventId] = useState("")
+  const [previewingTemplateId, setPreviewingTemplateId] = useState("")
   const [generatingTemplateId, setGeneratingTemplateId] = useState("")
+  const [previewByTemplate, setPreviewByTemplate] = useState({})
   const [deletingTemplateId, setDeletingTemplateId] = useState("")
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
@@ -153,12 +155,45 @@ function EventTemplates() {
       return
     }
 
+    setPreviewingTemplateId(templateId)
+    setMessage("")
+    setError("")
+    try {
+      const result = await generateAnnualEventsFromTemplate(template.id, year, true)
+      setPreviewByTemplate((prev) => ({
+        ...prev,
+        [templateId]: {
+          year,
+          dates: Array.isArray(result?.dates) ? result.dates : [],
+        },
+      }))
+    } catch (err) {
+      console.error(err)
+      setError(err?.message || "Failed to preview annual events")
+    } finally {
+      setPreviewingTemplateId("")
+    }
+  }
+
+  const handleConfirmGenerate = async (template) => {
+    const templateId = String(template.id)
+    const preview = previewByTemplate[templateId]
+    if (!preview?.year) {
+      setError("Run preview before confirming generation")
+      return
+    }
+
     setGeneratingTemplateId(templateId)
     setMessage("")
     setError("")
     try {
-      const result = await generateAnnualEventsFromTemplate(template.id, year)
+      const result = await generateAnnualEventsFromTemplate(template.id, preview.year, false)
       setMessage(`Created ${result.created} event(s), skipped ${result.skipped} existing.`)
+      setPreviewByTemplate((prev) => {
+        const next = { ...prev }
+        delete next[templateId]
+        return next
+      })
     } catch (err) {
       console.error(err)
       setError(err?.message || "Failed to generate annual events")
@@ -331,8 +366,13 @@ function EventTemplates() {
                 const selectedDate = templateDates[templateId] || getTodayIsoDate()
                 const selectedYear = templateYears[templateId] || String(getCurrentYear())
                 const creating = creatingTemplateEventId === templateId
+                const previewing = previewingTemplateId === templateId
                 const generating = generatingTemplateId === templateId
                 const deleting = deletingTemplateId === templateId
+                const preview = previewByTemplate[templateId]
+                const previewDates = Array.isArray(preview?.dates) ? preview.dates : []
+                const previewNewCount = previewDates.filter((item) => !item?.exists).length
+                const previewExistingCount = previewDates.filter((item) => item?.exists).length
 
                 return (
                   <article key={templateId} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -392,12 +432,60 @@ function EventTemplates() {
                       <button
                         type="button"
                         onClick={() => handleGenerateSeason(template)}
-                        disabled={generating}
-                        className={`rounded px-4 py-2 font-medium ${generating ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-slate-700 text-white hover:bg-slate-800"}`}
+                        disabled={previewing || generating}
+                        className={`rounded px-4 py-2 font-medium ${previewing || generating ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-slate-700 text-white hover:bg-slate-800"}`}
                       >
-                        {generating ? "Generating..." : "Generate Season"}
+                        {previewing ? "Previewing..." : "Generate Annual Events"}
                       </button>
                     </div>
+
+                    {preview && (
+                      <div className="mt-4 rounded-lg border border-slate-300 bg-white p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <h4 className="text-sm font-semibold text-slate-900">{preview.year} Events Preview</h4>
+                          <div className="text-xs text-slate-600">New: {previewNewCount} | Existing: {previewExistingCount}</div>
+                        </div>
+
+                        <div className="mt-3 max-h-52 overflow-auto rounded border border-slate-200">
+                          <ul className="divide-y divide-slate-200">
+                            {previewDates.map((item) => {
+                              const isExisting = Boolean(item?.exists)
+                              return (
+                                <li key={String(item?.date)} className="flex items-center justify-between px-3 py-2 text-sm">
+                                  <span className="font-medium text-slate-800">{item?.date}</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${isExisting ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                                    {isExisting ? "Already exists" : "New"}
+                                  </span>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewByTemplate((prev) => {
+                              const next = { ...prev }
+                              delete next[templateId]
+                              return next
+                            })}
+                            disabled={generating}
+                            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100"
+                          >
+                            Close Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmGenerate(template)}
+                            disabled={generating}
+                            className={`rounded px-4 py-2 text-sm font-medium ${generating ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-emerald-700 text-white hover:bg-emerald-800"}`}
+                          >
+                            {generating ? "Generating..." : "Confirm & Generate"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </article>
                 )
               })}
