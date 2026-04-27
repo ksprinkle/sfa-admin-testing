@@ -37,6 +37,82 @@ const DEFAULT_FORM = {
   schedule_week_numbers: "2,3",
 }
 
+const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+const MONTH_SHORT_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"]
+
+function normalizeEventTypeKey(eventType) {
+  return String(eventType || "").trim().toLowerCase().replace(/[_-]/g, " ")
+}
+
+function isTourTemplate(template) {
+  const normalizedEventType = normalizeEventTypeKey(template?.event_type)
+  return normalizedEventType === "tour" || normalizedEventType.includes("tour")
+}
+
+function toOrdinal(value) {
+  const n = Number(value)
+  if (!Number.isInteger(n)) return String(value)
+  const abs = Math.abs(n)
+  const mod100 = abs % 100
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`
+  const mod10 = abs % 10
+  if (mod10 === 1) return `${n}st`
+  if (mod10 === 2) return `${n}nd`
+  if (mod10 === 3) return `${n}rd`
+  return `${n}th`
+}
+
+function formatMonthRange(months) {
+  const normalized = Array.from(
+    new Set(
+      (Array.isArray(months) ? months : [])
+        .map((month) => Number(month))
+        .filter((month) => Number.isInteger(month) && month >= 1 && month <= 12),
+    ),
+  ).sort((left, right) => left - right)
+
+  if (!normalized.length) return "Unknown months"
+
+  if (normalized.length === 1) {
+    return MONTH_SHORT_LABELS[normalized[0] - 1]
+  }
+
+  const startLabel = MONTH_SHORT_LABELS[normalized[0] - 1]
+  const endLabel = MONTH_SHORT_LABELS[normalized[normalized.length - 1] - 1]
+  return `${startLabel}-${endLabel}`
+}
+
+function formatWeekNumbers(weekNumbers) {
+  const normalized = (Array.isArray(weekNumbers) ? weekNumbers : [])
+    .map((week) => Number(week))
+    .filter((week) => Number.isInteger(week) && week >= 1)
+
+  if (!normalized.length) return "Unknown week"
+  if (normalized.length === 1) return toOrdinal(normalized[0])
+  if (normalized.length === 2) return `${toOrdinal(normalized[0])} & ${toOrdinal(normalized[1])}`
+
+  const allButLast = normalized.slice(0, -1).map((week) => toOrdinal(week)).join(", ")
+  return `${allButLast}, & ${toOrdinal(normalized[normalized.length - 1])}`
+}
+
+function formatScheduleRuleLabel(template) {
+  if (isTourTemplate(template)) return "Varies TBD"
+
+  const weekdayNumber = Number(template?.schedule_weekday)
+  const weekdayLabel = Number.isInteger(weekdayNumber) && weekdayNumber >= 0 && weekdayNumber <= 6
+    ? WEEKDAY_LABELS[weekdayNumber]
+    : "Day"
+
+  const weekNumbersText = formatWeekNumbers(template?.schedule_week_numbers)
+  const monthRangeText = formatMonthRange(template?.schedule_months)
+  return `${weekNumbersText} ${weekdayLabel} (${monthRangeText})`
+}
+
+function formatSessionLabel(template) {
+  if (isTourTemplate(template)) return "24 sessions (10 each)"
+  return `${template.session_count} sessions (${template.session_capacity} each)`
+}
+
 
 function parseIntegerCsv(value) {
   return String(value || "")
@@ -143,8 +219,17 @@ function EventTemplates() {
   }
 
   const handleStartEditTemplate = (template) => {
-    setEditingTemplateId(String(template.id))
-    setForm(templateToForm(template))
+    const templateId = String(template.id)
+    const isCurrentlyEditing = editingTemplateId === templateId
+
+    if (isCurrentlyEditing) {
+      setEditingTemplateId("")
+      setForm(DEFAULT_FORM)
+    } else {
+      setEditingTemplateId(templateId)
+      setForm(templateToForm(template))
+    }
+
     setMessage("")
     setError("")
   }
@@ -429,13 +514,17 @@ function EventTemplates() {
                 const previewing = previewingTemplateId === templateId
                 const generating = generatingTemplateId === templateId
                 const deleting = deletingTemplateId === templateId
+                const editing = editingTemplateId === templateId
                 const preview = previewByTemplate[templateId]
                 const previewDates = Array.isArray(preview?.dates) ? preview.dates : []
                 const previewNewCount = previewDates.filter((item) => !item?.exists).length
                 const previewExistingCount = previewDates.filter((item) => item?.exists).length
 
                 return (
-                  <article key={templateId} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <article
+                    key={templateId}
+                    className={`rounded-xl border p-4 transition-colors ${editing ? "border-sky-300 bg-sky-50" : "border-gray-200 bg-gray-50"}`}
+                  >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="space-y-1">
                         <h3 className="text-base font-semibold text-gray-900">{template.name}</h3>
@@ -444,11 +533,8 @@ function EventTemplates() {
                           <span className="rounded-full bg-white px-2 py-1">Type: {template.event_type}</span>
                           <span className="rounded-full bg-white px-2 py-1">Capacity: {template.capacity}</span>
                           <span className="rounded-full bg-white px-2 py-1">Time: {template.default_start_time.slice(0, 5)} - {template.default_end_time.slice(0, 5)}</span>
-                          <span className="rounded-full bg-white px-2 py-1">Sessions: {template.session_count} x {template.session_capacity}</span>
-                          <span className="rounded-full bg-white px-2 py-1">Rule: {template.schedule_rule_type}</span>
-                          <span className="rounded-full bg-white px-2 py-1">Months: {(template.schedule_months || []).join(",")}</span>
-                          <span className="rounded-full bg-white px-2 py-1">Weekday: {template.schedule_weekday}</span>
-                          <span className="rounded-full bg-white px-2 py-1">Weeks: {(template.schedule_week_numbers || []).join(",")}</span>
+                          <span className="rounded-full bg-white px-2 py-1">{formatSessionLabel(template)}</span>
+                          <span className="rounded-full bg-white px-2 py-1">{formatScheduleRuleLabel(template)}</span>
                         </div>
                       </div>
 
@@ -466,9 +552,10 @@ function EventTemplates() {
                       <button
                         type="button"
                         onClick={() => handleStartEditTemplate(template)}
-                        className="rounded border border-sky-300 bg-white px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
+                        aria-pressed={editing}
+                        className={`rounded border px-3 py-2 text-sm ${editing ? "border-sky-700 bg-sky-700 text-white hover:bg-sky-700" : "border-sky-300 bg-white text-sky-700 hover:bg-sky-50"}`}
                       >
-                        Edit
+                        {editing ? "Editing Template" : "Edit"}
                       </button>
                     </div>
 
