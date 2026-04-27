@@ -10,6 +10,7 @@ import EventDetail from "./pages/EventDetail"
 import CreateEvent from "./pages/CreateEvent"
 import EditEvent from "./pages/EditEvent"
 import CheckIn from "./pages/CheckIn"
+import EventTemplates from "./pages/EventTemplates"
 import { clearAuthSession, fetchMyProfile, getAuthChangedEventName, getStoredProfile, getStoredToken } from "./api/auth"
 
 function getBuildFingerprint() {
@@ -104,7 +105,12 @@ function App() {
         return "Events"
       case "/participants":
         return "Participants"
+      case "/event-templates":
+        return "Event Templates"
       default:
+        if (location.pathname.startsWith("/event-templates")) {
+          return "Event Templates"
+        }
         return "Surfers Admin"
     }
   }
@@ -131,6 +137,7 @@ function App() {
           </Route>
 
           <Route path="/participants" element={<Participants />} />
+          <Route path="/event-templates" element={<EventTemplates />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       )}

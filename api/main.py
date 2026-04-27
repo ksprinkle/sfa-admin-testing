@@ -4,7 +4,7 @@ from api.db.session import engine
 from api.db.base import Base
 
 # Import models so SQLAlchemy registers them
-from api.models import events, participants, participant_removal_log
+from api.models import events, event_templates, participants, participant_removal_log
 
 # Import routers
 
@@ -12,6 +12,7 @@ from api.models import events, participants, participant_removal_log
 from api.routers.events import router as events_router
 from api.routers.auth import router as auth_router
 from api.routers.admin_events import router as admin_events_router
+from api.routers.admin_event_templates import router as admin_event_templates_router
 from api.routers.admin_participants import router as admin_participants_router
 from api.ws_manager import router as ws_router
 from api.config import settings
@@ -40,6 +41,7 @@ app.add_middleware(
 app.include_router(events_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(admin_events_router, prefix="/api")
+app.include_router(admin_event_templates_router, prefix="/api")
 app.include_router(admin_participants_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")
 

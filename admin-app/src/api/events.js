@@ -25,6 +25,57 @@ export async function fetchEvents() {
   return res.json()
 }
 
+export async function fetchEventTemplates() {
+  const res = await apiFetch("/api/admin/event-templates")
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch event templates")
+  }
+
+  return res.json()
+}
+
+export async function createEventTemplate(data) {
+  const res = await apiFetch("/api/admin/event-templates", {
+    method: "POST",
+    body: JSON.stringify(data),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to create event template")
+  }
+
+  return res.json()
+}
+
+export async function deleteEventTemplate(templateId) {
+  const res = await apiFetch(`/api/admin/event-templates/${templateId}`, {
+    method: "DELETE",
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to delete event template")
+  }
+
+  return res.json()
+}
+
+export async function createEventFromTemplate(templateId, date) {
+  const res = await apiFetch(`/api/admin/event-templates/${templateId}/create-event`, {
+    method: "POST",
+    body: JSON.stringify({ date }),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to create event from template")
+  }
+
+  return res.json()
+}
+
 export async function archiveEvent(eventId) {
   const res = await apiFetch(`/api/admin/events/${eventId}`, {
     method: "PUT",

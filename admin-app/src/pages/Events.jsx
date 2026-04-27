@@ -55,6 +55,11 @@ function normalizeExternalUrl(rawUrl) {
   return `https://${value}`
 }
 
+function getSessionCapacityLabel(session) {
+  const capacity = Number(session?.capacity)
+  return Number.isFinite(capacity) && capacity > 0 ? capacity : 15
+}
+
 export default function Events() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -200,13 +205,21 @@ export default function Events() {
     </h1>
 
     <div className="bg-white rounded-xl shadow">
-    <div className="flex justify-between items-center mb-6">
+    <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 
-    <h1 className="text-2xl font-semibold">
-      Events
-    </h1>
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
+      <h1 className="text-2xl font-semibold">
+        Events
+      </h1>
+    </div>
+    <div className="flex flex-wrap items-center gap-3 md:justify-end">
       <BackButton fallbackTo="/dashboard" className="px-3 py-2" />
+      <button
+        onClick={() => navigate("/event-templates")}
+        className="rounded border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
+      >
+        Templates
+      </button>
       <button
         onClick={() => navigate("/events/new")}
         className="bg-ocean text-white px-4 py-2 rounded"
@@ -236,12 +249,20 @@ export default function Events() {
           </div>
         </div>
 
-        <div className="mt-4">
-          <p className="text-sm font-medium text-gray-700">Filter by Event Type</p>
-          <p className="text-xs text-gray-500">
-            Showing {filteredEvents.length} of {events.length} events
-            {statusFilter !== "all" ? ` (status: ${statusFilter})` : ""}
-          </p>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Filter by Event Type</p>
+            <p className="text-xs text-gray-500">
+              Showing {filteredEvents.length} of {events.length} events
+              {statusFilter !== "all" ? ` (status: ${statusFilter})` : ""}
+            </p>
+          </div>
+          <img
+            src="/sfa_2026_shirt.jpg"
+            alt="Surfers for Autism 2026 shirt"
+            className="h-24 w-auto rounded-lg border border-slate-200 object-cover shadow-sm"
+            loading="lazy"
+          />
         </div>
 
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -297,6 +318,7 @@ export default function Events() {
   const totalParticipants = count + waitlistCount
   const eventTypeTone = getEventTypeRowTone(event.event_type)
           const featuredImageUrl = normalizeExternalUrl(event.featured_image)
+  const sessions = Array.isArray(event.sessions) ? event.sessions : []
 
   const percent = capacity
     ? Math.min((count / capacity) * 100, 100)
@@ -319,7 +341,21 @@ export default function Events() {
               loading="lazy"
             />
           )}
-          <span>{event.title}</span>
+          <div>
+            <span>{event.title}</span>
+            {sessions.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {sessions.map((session, index) => (
+                  <span
+                    key={String(session.id || index)}
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                  >
+                    {(session.name || `Session ${index + 1}`)} ({Number(session.participant_count || 0)} / {getSessionCapacityLabel(session)})
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </td>
 
