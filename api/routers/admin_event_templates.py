@@ -18,7 +18,7 @@ from api.schemas.event_templates import (
 )
 from api.schemas.events import AdminEventListOut, EventCreate
 from api.utils.event_builder import build_admin_event
-from api.utils.schedule_rules import chapter_season_2nd_3rd_saturdays
+from api.utils.schedule_rules import generate_dates_from_template
 
 
 router = APIRouter(
@@ -105,30 +105,13 @@ def create_event_from_template(
     db: Session = Depends(get_db),
     _current_user=Depends(require_admin),
 ):
-    template = db.query(EventTemplate).filter(EventTemplate.id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Event template not found")
-
-    event_in = EventCreate(
-        title=template.name,
-        event_type=template.event_type,
-        start_date=payload.date,
-        start_time=template.default_start_time,
-        end_time=template.default_end_time,
-        venue=template.location,
-        participant_capacity=template.capacity,
-        status="draft",
-    )
-
-    event = crud_create_event(db, event_in)
-    event.status = "draft"
-    db.commit()
-    db.refresh(event)
+    template = _get_template_or_404(db, template_id)
+    event = _create_event_from_template_date(db, template, payload.date)
     return build_admin_event(event)
 
 
 @router.post(
-    "/{template_id}/generate-annual-events",
+    "/{template_id}/generate-annual",
     response_model=GenerateAnnualEventsFromTemplateOut,
     status_code=status.HTTP_201_CREATED,
 )
@@ -138,56 +121,61 @@ def generate_annual_events_from_template(
     db: Session = Depends(get_db),
     _current_user=Depends(require_admin),
 ):
-    template = db.query(EventTemplate).filter(EventTemplate.id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Event template not found")
+    template = _get_template_or_404(db, template_id)
 
-    rule_dates = chapter_season_2nd_3rd_saturdays(payload.year)
+    try:
+        rule_dates = generate_dates_from_template(template, payload.year)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    created_event_ids: list[UUID] = []
-    created_dates = []
-    skipped_dates = []
+    created = 0
+    skipped = 0
 
     for target_date in rule_dates:
         existing = (
             db.query(Event.id)
             .filter(
-                Event.title == template.name,
-                Event.event_type == template.event_type,
-                Event.venue == template.location,
                 Event.start_date == target_date,
+                ((Event.template_id == template.id) | (Event.title == template.name)),
             )
             .first()
         )
         if existing:
-            skipped_dates.append(target_date)
+            skipped += 1
             continue
 
-        event_in = EventCreate(
-            title=template.name,
-            event_type=template.event_type,
-            start_date=target_date,
-            start_time=template.default_start_time,
-            end_time=template.default_end_time,
-            venue=template.location,
-            participant_capacity=template.capacity,
-            status="draft",
-        )
-
-        event = crud_create_event(db, event_in)
-        event.status = "draft"
-        db.commit()
-        db.refresh(event)
-
-        created_event_ids.append(event.id)
-        created_dates.append(target_date)
+        _create_event_from_template_date(db, template, target_date)
+        created += 1
 
     return GenerateAnnualEventsFromTemplateOut(
-        year=payload.year,
-        total_rule_dates=len(rule_dates),
-        created_count=len(created_dates),
-        skipped_count=len(skipped_dates),
-        created_event_ids=created_event_ids,
-        created_dates=created_dates,
-        skipped_dates=skipped_dates,
+        created=created,
+        skipped=skipped,
+        dates=rule_dates,
     )
+
+
+def _get_template_or_404(db: Session, template_id: UUID) -> EventTemplate:
+    template = db.query(EventTemplate).filter(EventTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Event template not found")
+    return template
+
+
+def _create_event_from_template_date(db: Session, template: EventTemplate, target_date):
+    event_in = EventCreate(
+        title=template.name,
+        event_type=template.event_type,
+        start_date=target_date,
+        start_time=template.default_start_time,
+        end_time=template.default_end_time,
+        venue=template.location,
+        participant_capacity=template.capacity,
+        status="draft",
+    )
+
+    event = crud_create_event(db, event_in)
+    event.status = "draft"
+    event.template_id = template.id
+    db.commit()
+    db.refresh(event)
+    return event

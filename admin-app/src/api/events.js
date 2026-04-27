@@ -77,7 +77,7 @@ export async function createEventFromTemplate(templateId, date) {
 }
 
 export async function generateAnnualEventsFromTemplate(templateId, year) {
-  const res = await apiFetch(`/api/admin/event-templates/${templateId}/generate-annual-events`, {
+  const res = await apiFetch(`/api/admin/event-templates/${templateId}/generate-annual`, {
     method: "POST",
     body: JSON.stringify({ year: Number(year) }),
   })

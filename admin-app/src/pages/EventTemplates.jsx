@@ -30,6 +30,18 @@ const DEFAULT_FORM = {
   default_end_time: "12:00",
   session_count: "1",
   session_capacity: "15",
+  schedule_rule_type: "nth_weekday",
+  schedule_months: "5,6,7,8,9",
+  schedule_weekday: "5",
+  schedule_week_numbers: "2,3",
+}
+
+
+function parseIntegerCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((n) => Number.isInteger(n))
 }
 
 
@@ -79,6 +91,9 @@ function EventTemplates() {
         capacity: Number(form.capacity),
         session_count: Number(form.session_count),
         session_capacity: Number(form.session_capacity),
+        schedule_weekday: Number(form.schedule_weekday),
+        schedule_months: parseIntegerCsv(form.schedule_months),
+        schedule_week_numbers: parseIntegerCsv(form.schedule_week_numbers),
       })
       setTemplates((prev) => [...prev, created].sort((left, right) => String(left.name).localeCompare(String(right.name))))
       setForm(DEFAULT_FORM)
@@ -143,7 +158,7 @@ function EventTemplates() {
     setError("")
     try {
       const result = await generateAnnualEventsFromTemplate(template.id, year)
-      setMessage(`Generated ${result.created_count} event(s), skipped ${result.skipped_count} existing for ${result.year}.`)
+      setMessage(`Created ${result.created} event(s), skipped ${result.skipped} existing.`)
     } catch (err) {
       console.error(err)
       setError(err?.message || "Failed to generate annual events")
@@ -250,6 +265,43 @@ function EventTemplates() {
                 required
               />
             </div>
+            <div className="rounded border border-gray-200 bg-gray-50 p-3">
+              <p className="text-sm font-medium text-gray-800">Schedule Rule</p>
+              <p className="mt-1 text-xs text-gray-600">Use comma-separated values for months and week numbers.</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input
+                  value={form.schedule_rule_type}
+                  onChange={(e) => handleFieldChange("schedule_rule_type", e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  placeholder="Rule type (nth_weekday)"
+                  required
+                />
+                <input
+                  value={form.schedule_weekday}
+                  onChange={(e) => handleFieldChange("schedule_weekday", e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  type="number"
+                  min="0"
+                  max="6"
+                  placeholder="Weekday (0-6)"
+                  required
+                />
+                <input
+                  value={form.schedule_months}
+                  onChange={(e) => handleFieldChange("schedule_months", e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  placeholder="Months (e.g. 5,6,7,8,9)"
+                  required
+                />
+                <input
+                  value={form.schedule_week_numbers}
+                  onChange={(e) => handleFieldChange("schedule_week_numbers", e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2"
+                  placeholder="Week numbers (e.g. 2,3)"
+                  required
+                />
+              </div>
+            </div>
             <button
               type="submit"
               disabled={saving}
@@ -293,6 +345,10 @@ function EventTemplates() {
                           <span className="rounded-full bg-white px-2 py-1">Capacity: {template.capacity}</span>
                           <span className="rounded-full bg-white px-2 py-1">Time: {template.default_start_time.slice(0, 5)} - {template.default_end_time.slice(0, 5)}</span>
                           <span className="rounded-full bg-white px-2 py-1">Sessions: {template.session_count} x {template.session_capacity}</span>
+                          <span className="rounded-full bg-white px-2 py-1">Rule: {template.schedule_rule_type}</span>
+                          <span className="rounded-full bg-white px-2 py-1">Months: {(template.schedule_months || []).join(",")}</span>
+                          <span className="rounded-full bg-white px-2 py-1">Weekday: {template.schedule_weekday}</span>
+                          <span className="rounded-full bg-white px-2 py-1">Weeks: {(template.schedule_week_numbers || []).join(",")}</span>
                         </div>
                       </div>
 

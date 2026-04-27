@@ -11,6 +11,7 @@ class Event(Base):
     __tablename__ = "events"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    template_id = Column(UUID(as_uuid=True), nullable=True, index=True)
 
     title = Column(String, nullable=False)
     slug = Column(String, unique=True, nullable=False)

@@ -2,7 +2,7 @@ from datetime import date, datetime, time
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EventTemplateBase(BaseModel):
@@ -14,6 +14,38 @@ class EventTemplateBase(BaseModel):
     default_end_time: time
     session_count: int = Field(ge=1)
     session_capacity: int = Field(ge=1)
+    schedule_rule_type: str = Field(default="nth_weekday", min_length=1)
+    schedule_months: list[int] = Field(default_factory=lambda: [5, 6, 7, 8, 9])
+    schedule_weekday: int = Field(default=5, ge=0, le=6)
+    schedule_week_numbers: list[int] = Field(default_factory=lambda: [2, 3])
+
+    @field_validator("schedule_rule_type")
+    @classmethod
+    def validate_rule_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized != "nth_weekday":
+            raise ValueError("Only 'nth_weekday' schedule_rule_type is supported")
+        return normalized
+
+    @field_validator("schedule_months")
+    @classmethod
+    def validate_months(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("schedule_months cannot be empty")
+        for month in value:
+            if month < 1 or month > 12:
+                raise ValueError("schedule_months values must be between 1 and 12")
+        return value
+
+    @field_validator("schedule_week_numbers")
+    @classmethod
+    def validate_week_numbers(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("schedule_week_numbers cannot be empty")
+        for week_number in value:
+            if week_number < 1 or week_number > 5:
+                raise ValueError("schedule_week_numbers values must be between 1 and 5")
+        return value
 
 
 class EventTemplateCreate(EventTemplateBase):
@@ -29,6 +61,44 @@ class EventTemplateUpdate(BaseModel):
     default_end_time: Optional[time] = None
     session_count: Optional[int] = Field(default=None, ge=1)
     session_capacity: Optional[int] = Field(default=None, ge=1)
+    schedule_rule_type: Optional[str] = Field(default=None, min_length=1)
+    schedule_months: Optional[list[int]] = None
+    schedule_weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    schedule_week_numbers: Optional[list[int]] = None
+
+    @field_validator("schedule_rule_type")
+    @classmethod
+    def validate_optional_rule_type(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip().lower()
+        if normalized != "nth_weekday":
+            raise ValueError("Only 'nth_weekday' schedule_rule_type is supported")
+        return normalized
+
+    @field_validator("schedule_months")
+    @classmethod
+    def validate_optional_months(cls, value: Optional[list[int]]) -> Optional[list[int]]:
+        if value is None:
+            return value
+        if not value:
+            raise ValueError("schedule_months cannot be empty")
+        for month in value:
+            if month < 1 or month > 12:
+                raise ValueError("schedule_months values must be between 1 and 12")
+        return value
+
+    @field_validator("schedule_week_numbers")
+    @classmethod
+    def validate_optional_week_numbers(cls, value: Optional[list[int]]) -> Optional[list[int]]:
+        if value is None:
+            return value
+        if not value:
+            raise ValueError("schedule_week_numbers cannot be empty")
+        for week_number in value:
+            if week_number < 1 or week_number > 5:
+                raise ValueError("schedule_week_numbers values must be between 1 and 5")
+        return value
 
 
 class EventTemplateOut(EventTemplateBase):
@@ -48,10 +118,6 @@ class GenerateAnnualEventsFromTemplateIn(BaseModel):
 
 
 class GenerateAnnualEventsFromTemplateOut(BaseModel):
-    year: int
-    total_rule_dates: int
-    created_count: int
-    skipped_count: int
-    created_event_ids: list[UUID]
-    created_dates: list[date]
-    skipped_dates: list[date]
+    created: int
+    skipped: int
+    dates: list[date]
