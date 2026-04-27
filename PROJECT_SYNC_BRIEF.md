@@ -22,7 +22,7 @@ Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with 
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: a56fc88
+Latest implementation commit: 2f9f45e
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -190,6 +190,36 @@ Behavior summary:
   - no match -> event is created
 - Added Event Templates UI controls to generate a season by year and surface `created_count`/`skipped_count` result.
 
+### TASK-010: Schedule rule support + annual event generation (template-driven)
+Status: Done
+Commit hash: 2f9f45e
+Files changed:
+- api/models/event_templates.py
+- api/models/events.py
+- api/schemas/event_templates.py
+- api/utils/schedule_rules.py
+- api/routers/admin_event_templates.py
+- alembic/versions/c4d21f09a6be_add_template_schedule_rule_fields.py
+- admin-app/src/api/events.js
+- admin-app/src/pages/EventTemplates.jsx
+Behavior summary:
+- Extended `EventTemplate` with reusable schedule rule fields:
+  - `schedule_rule_type` (initial supported value: `nth_weekday`)
+  - `schedule_months` (e.g., `[5,6,7,8,9]`)
+  - `schedule_weekday` (`0=Mon ... 5=Sat`)
+  - `schedule_week_numbers` (e.g., `[2,3]`)
+- Added deterministic date utility functions using standard `calendar`/`datetime` only:
+  - `get_nth_weekday(year, month, weekday, n)`
+  - `generate_dates_from_template(template, year)`
+- Added endpoint `POST /api/admin/event-templates/{template_id}/generate-annual` with request body `{ "year": 2027 }` and response:
+  - `{ "created": X, "skipped": Y, "dates": [...] }`
+- Annual generation reuses existing template-to-event creation path (`create-event-from-template` mapping logic), preserves draft status, and relies on existing event/session creation behavior.
+- Duplicate protection on annual generation uses deterministic match:
+  - same `start_date`
+  - and (`template_id` match when present OR `title` match fallback)
+- Added optional `template_id` on `Event` for cleaner duplicate detection/reference without changing public event contracts.
+- Frontend `EventTemplates` now supports defining schedule rule fields on template creation and triggering annual generation by year with result summary.
+
 ## 4) In Progress
 
 - None currently marked in-progress.
@@ -222,6 +252,10 @@ Behavior summary:
   - first run for 2026 created 10 events (2nd/3rd Saturdays across May-September)
   - second run for 2026 created 0 and skipped 10 (idempotent duplicate handling)
 - Admin app build passed after UI generation controls were added.
+- Added schedule-rule contract validation:
+  - OpenAPI contains `/api/admin/event-templates/{template_id}/generate-annual`.
+  - Annual generation run for 2027 returned deterministic date set and idempotent duplicate skipping on repeat.
+  - Generated events verified as `draft` with sessions created via existing event creation logic.
 
 ## 9) Known Constraints / Gaps
 
