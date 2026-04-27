@@ -22,7 +22,7 @@ Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with 
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 2f9f45e
+Latest implementation commit: 86f9918
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -220,6 +220,28 @@ Behavior summary:
 - Added optional `template_id` on `Event` for cleaner duplicate detection/reference without changing public event contracts.
 - Frontend `EventTemplates` now supports defining schedule rule fields on template creation and triggering annual generation by year with result summary.
 
+### TASK-011: Preview-before-generate for annual events
+Status: Done
+Commit hash: 86f9918
+Files changed:
+- api/schemas/event_templates.py
+- api/routers/admin_event_templates.py
+- admin-app/src/api/events.js
+- admin-app/src/pages/EventTemplates.jsx
+Behavior summary:
+- Enhanced existing `POST /api/admin/event-templates/{template_id}/generate-annual` endpoint with request field `preview`.
+- `preview=true` now returns a preview payload without creating events:
+  - `preview`
+  - `year`
+  - `dates[]` where each row includes `date` and `exists`.
+- Preview and actual generation both reuse the same schedule-rule date generation and duplicate-detection helper logic.
+- Non-preview generation flow remains unchanged in behavior (`created`/`skipped`/`dates` response), with no modifications to core event creation flow.
+- Admin UI now supports flow:
+  - Generate Annual Events -> preview by year
+  - review list of New vs Already exists dates
+  - Confirm & Generate to execute real generation
+- UI includes mobile-friendly preview panel, clear status styling, and disabled confirm while processing.
+
 ## 4) In Progress
 
 - None currently marked in-progress.
@@ -256,6 +278,10 @@ Behavior summary:
   - OpenAPI contains `/api/admin/event-templates/{template_id}/generate-annual`.
   - Annual generation run for 2027 returned deterministic date set and idempotent duplicate skipping on repeat.
   - Generated events verified as `draft` with sessions created via existing event creation logic.
+- Preview-before-generate validation passed:
+  - preview response returned full date list with `exists` flags
+  - preview mode produced no event writes
+  - confirm generate created expected events and repeat run skipped duplicates.
 
 ## 9) Known Constraints / Gaps
 
