@@ -22,7 +22,7 @@ Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with 
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 86f9918
+Latest implementation commit: 429734e
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -242,6 +242,31 @@ Behavior summary:
   - Confirm & Generate to execute real generation
 - UI includes mobile-friendly preview panel, clear status styling, and disabled confirm while processing.
 
+### TASK-012: Save Event as Template
+Status: Done
+Commit hash: 429734e
+Files changed:
+- api/routers/admin_events.py
+- admin-app/src/api/events.js
+- admin-app/src/pages/EventDetail.jsx
+Behavior summary:
+- Added admin endpoint `POST /api/admin/events/{event_id}/save-as-template`.
+- Endpoint fetches event + sessions and creates a new `EventTemplate` with mapped values:
+  - `name <- event.title` (or optional `template_name` from request)
+  - `location <- event.venue`
+  - `capacity <- event.participant_capacity` (fallback to first session capacity, then 15)
+  - `event_type <- event.event_type`
+  - `default_start_time <- event.start_time` (fallback to first session start time, then 09:00)
+  - `default_end_time <- event.end_time` (fallback to first session end time, then 12:00)
+  - `session_count <- number of event sessions` (minimum 1)
+  - `session_capacity <- first session capacity` (fallback 15)
+- No participants, session assignments, waitlist, check-in, event dates, or event records are copied.
+- Added Event Detail button `Save as Template` with:
+  - confirmation prompt
+  - optional template name prompt (prefilled from event title)
+  - disabled state while saving
+  - success and error messages.
+
 ## 4) In Progress
 
 - None currently marked in-progress.
@@ -282,6 +307,11 @@ Behavior summary:
   - preview response returned full date list with `exists` flags
   - preview mode produced no event writes
   - confirm generate created expected events and repeat run skipped duplicates.
+- Save-as-template validation passed:
+  - template created from existing event with mapped fields
+  - created template successfully used for create-event flow
+  - resulting event was draft with sessions
+  - temporary smoke data cleaned up.
 
 ## 9) Known Constraints / Gaps
 
