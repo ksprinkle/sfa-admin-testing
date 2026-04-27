@@ -22,7 +22,7 @@ Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with 
 Date: 2026-04-26
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: a14746a
+Latest implementation commit: a56fc88
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -170,6 +170,26 @@ Behavior summary:
 - Added new admin UI page `EventTemplates` for listing, creating, deleting templates, and creating draft events from templates by date.
 - Added route `/event-templates` and a `Templates` action button on Events page for quick access.
 
+### TASK-009: Deterministic schedule rule engine + annual generation
+Status: Done
+Commit hash: a56fc88
+Files changed:
+- api/utils/schedule_rules.py
+- api/schemas/event_templates.py
+- api/routers/admin_event_templates.py
+- admin-app/src/api/events.js
+- admin-app/src/pages/EventTemplates.jsx
+Behavior summary:
+- Added reusable schedule-rule utility for deterministic date generation:
+  - rule fixed to 2nd and 3rd Saturday
+  - month window fixed to May through September
+- Added admin endpoint `POST /api/admin/event-templates/{template_id}/generate-annual-events` with body `{ "year": <int> }`.
+- Endpoint maps rule dates into existing event creation flow (`crud.create_event`) and forces generated events to draft.
+- Duplicate prevention is deterministic per template signature (title + event_type + venue + start_date):
+  - matching event already exists -> date is skipped
+  - no match -> event is created
+- Added Event Templates UI controls to generate a season by year and surface `created_count`/`skipped_count` result.
+
 ## 4) In Progress
 
 - None currently marked in-progress.
@@ -198,6 +218,10 @@ Behavior summary:
 - Frontend production build succeeded after latest changes.
 - Backend health endpoints previously validated (`/`, `/openapi.json`).
 - Manual phone validation confirmed offline-first behavior now works for tested flows.
+- Schedule generation smoke test passed:
+  - first run for 2026 created 10 events (2nd/3rd Saturdays across May-September)
+  - second run for 2026 created 0 and skipped 10 (idempotent duplicate handling)
+- Admin app build passed after UI generation controls were added.
 
 ## 9) Known Constraints / Gaps
 
