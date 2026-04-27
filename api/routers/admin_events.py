@@ -1,12 +1,16 @@
 
+from datetime import time
 from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel
 from api.crud.participants import promote_from_waitlist
 from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
+from api.models.event_templates import EventTemplate
+from api.schemas.event_templates import EventTemplateOut
 from api.schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
 from api.crud.events import (
     create_event as crud_create_event,
@@ -26,6 +30,10 @@ router = APIRouter(
     prefix="/admin/events",
     tags=["Admin Events"],
 )
+
+
+class SaveEventAsTemplateIn(BaseModel):
+    template_name: str | None = None
 
 
 # --- No-show endpoints must be after router is defined ---
@@ -129,6 +137,51 @@ def duplicate_event(
     db.refresh(duplicated_event)
 
     return build_admin_event(duplicated_event)
+
+
+@router.post("/{event_id}/save-as-template", response_model=EventTemplateOut, status_code=201)
+def save_event_as_template(
+    event_id: UUID,
+    payload: SaveEventAsTemplateIn | None = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    event = (
+        db.query(Event)
+        .options(joinedload(Event.sessions))
+        .filter(Event.id == event_id)
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    ordered_sessions = sorted(
+        list(event.sessions or []),
+        key=lambda session: (
+            session.start_time.isoformat() if session.start_time else "",
+            str(session.id),
+        ),
+    )
+
+    session_count = max(len(ordered_sessions), 1)
+    first_session = ordered_sessions[0] if ordered_sessions else None
+    first_session_capacity = int(first_session.capacity) if first_session and first_session.capacity else None
+
+    template = EventTemplate(
+        name=(payload.template_name.strip() if payload and payload.template_name else event.title),
+        location=event.venue or "TBD",
+        capacity=event.participant_capacity or first_session_capacity or 15,
+        event_type=event.event_type,
+        default_start_time=event.start_time or (first_session.start_time.time() if first_session and first_session.start_time else time(9, 0)),
+        default_end_time=event.end_time or (first_session.end_time.time() if first_session and first_session.end_time else time(12, 0)),
+        session_count=session_count,
+        session_capacity=first_session_capacity or 15,
+    )
+
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    return template
 
 #🔹 Get event details (admin view)
 @router.get("/{event_id}", response_model=AdminEventListOut)
@@ -388,6 +441,7 @@ def list_all_participants(
     return [
         {
             "id": p.id,
+            "event_id": p.event_id,
             "first_name": p.first_name,
             "last_name": p.last_name,
             "email": p.email,
@@ -399,6 +453,7 @@ def list_all_participants(
             "waiver_signed": p.waiver_signed,
             "waiver_verified": p.waiver_verified,
             "event_title": p.event.title if p.event else None,
+            "event_type": p.event.event_type if p.event else None,
             "volunteer_type": p.volunteer_type,
             "volunteer_additional_types": p.volunteer_additional_types or [],
             "volunteer_is_versatile": p.volunteer_is_versatile,

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, duplicateEvent } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, duplicateEvent, saveEventAsTemplate } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
@@ -420,6 +420,9 @@ function EventDetail() {
   const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
   const [duplicateLoading, setDuplicateLoading] = useState(false)
   const [duplicateError, setDuplicateError] = useState("")
+  const [saveTemplateLoading, setSaveTemplateLoading] = useState(false)
+  const [saveTemplateError, setSaveTemplateError] = useState("")
+  const [saveTemplateMessage, setSaveTemplateMessage] = useState("")
   const queueSyncRef = useRef(false)
 
   const pendingQueueCount = queuedEventActions.filter((item) => item.syncStatus !== "failed").length
@@ -509,8 +512,19 @@ function EventDetail() {
 
   const openParticipantDetails = (participantId) => {
     if (!participantId) return
-    const encodedId = encodeURIComponent(String(participantId))
-    navigate(`/participants?participant_id=${encodedId}`)
+    const participant = participants.find((item) => String(item.id) === String(participantId))
+    const nextParams = new URLSearchParams()
+    nextParams.set("participant_id", String(participantId))
+    if (eventInfo?.id) {
+      nextParams.set("event_id", String(eventInfo.id))
+    }
+    if (eventInfo?.event_type) {
+      nextParams.set("event_type", String(eventInfo.event_type).trim().toLowerCase())
+    }
+    if (participant?.session_id) {
+      nextParams.set("session_id", String(participant.session_id))
+    }
+    navigate(`/participants?${nextParams.toString()}`)
   }
 
   const handleDuplicateEvent = async () => {
@@ -532,6 +546,32 @@ function EventDetail() {
       setDuplicateError(String(err?.message || "Failed to duplicate event"))
     } finally {
       setDuplicateLoading(false)
+    }
+  }
+
+  const handleSaveAsTemplate = async () => {
+    if (saveTemplateLoading) return
+
+    const confirmed = window.confirm("Create template from this event?")
+    if (!confirmed) return
+
+    const defaultName = String(eventInfo?.title || "")
+    const nameInput = window.prompt("Template name", defaultName)
+    if (nameInput == null) return
+
+    const templateName = String(nameInput).trim() || defaultName || "Event Template"
+
+    setSaveTemplateError("")
+    setSaveTemplateMessage("")
+    setSaveTemplateLoading(true)
+
+    try {
+      const created = await saveEventAsTemplate(eventId, templateName)
+      setSaveTemplateMessage(`Template created successfully: ${created?.name || templateName}`)
+    } catch (err) {
+      setSaveTemplateError(String(err?.message || "Failed to create template from event"))
+    } finally {
+      setSaveTemplateLoading(false)
     }
   }
 
@@ -766,25 +806,27 @@ function EventDetail() {
   const sessionOrder = (eventInfo?.sessions || []).map(s => s.id)
   const sessionNameMap = Object.fromEntries((eventInfo?.sessions || []).map(s => [s.id, s.name]))
 
-  // Count participants per session
-  const sessionIdCounts = sortedParticipants.reduce((acc, p) => {
-    const key = p.session_id || "UNASSIGNED";
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
+  const unknownSessionIds = Array.from(
+    new Set(
+      sortedParticipants
+        .map((p) => p.session_id)
+        .filter((sessionId) => Boolean(sessionId) && !sessionOrder.includes(sessionId))
+    )
+  ).sort((left, right) => String(left).localeCompare(String(right)))
 
-  // Sort: API-defined session order first, unknown sessions next, UNASSIGNED (waitlist) last
-  const sortedSessionIds = Object.keys(sessionIdCounts).sort((a, b) => {
-    if (a === "UNASSIGNED") return 1
-    if (b === "UNASSIGNED") return -1
-    const idxA = sessionOrder.indexOf(a)
-    const idxB = sessionOrder.indexOf(b)
-    return (idxA === -1 ? 9999 : idxA) - (idxB === -1 ? 9999 : idxB)
-  })
+  const hasUnassignedParticipants = sortedParticipants.some((p) => !p.session_id)
 
-  const groupedParticipants = sortedSessionIds.map(sessionId =>
-    sortedParticipants.filter(p => (p.session_id || "UNASSIGNED") === sessionId)
-  );
+  // Always show configured sessions, then unknown session ids, then waitlist/unassigned when present.
+  const sortedSessionIds = [
+    ...sessionOrder,
+    ...unknownSessionIds,
+    ...(hasUnassignedParticipants ? ["UNASSIGNED"] : []),
+  ]
+
+  const groupedParticipants = sortedSessionIds.map((sessionId) => ({
+    sessionId,
+    participants: sortedParticipants.filter((p) => (p.session_id || "UNASSIGNED") === sessionId),
+  }))
 
   const isVolunteer = (participant) => (participant?.role || "").toLowerCase().trim() === "volunteer"
 
@@ -1293,9 +1335,24 @@ function EventDetail() {
           >
             {duplicateLoading ? "Duplicating..." : "Duplicate Event"}
           </button>
+          <button
+            type="button"
+            onClick={handleSaveAsTemplate}
+            disabled={saveTemplateLoading}
+            className={`px-3 py-1 rounded text-sm font-semibold ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+            title="Create an event template from this event"
+          >
+            {saveTemplateLoading ? "Saving Template..." : "Save as Template"}
+          </button>
           </div>
           {duplicateError && (
             <p className="text-xs text-red-600">{duplicateError}</p>
+          )}
+          {saveTemplateError && (
+            <p className="text-xs text-red-600">{saveTemplateError}</p>
+          )}
+          {saveTemplateMessage && (
+            <p className="text-xs text-emerald-700">{saveTemplateMessage}</p>
           )}
         </div>
       </div>
@@ -1447,15 +1504,16 @@ function EventDetail() {
         {/* Debug: log groupedParticipants structure */}
 
 
-        {groupedParticipants.length === 0 && (
+        {sortedParticipants.length === 0 && (
           <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
             No participants match the selected filter.
           </div>
         )}
 
         <div className="grid md:grid-cols-2 gap-6">
-          {groupedParticipants.map((group, idx) => {
-            const sessionId = group[0]?.session_id || "UNASSIGNED";
+          {groupedParticipants.map((groupData, idx) => {
+            const sessionId = groupData.sessionId
+            const group = groupData.participants
             const softStatus = getSessionSoftStatus(idx, group)
             const sessionLabel = sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : (sessionNameMap[sessionId] || `Session ${idx + 1}`)
             const sessionStatus = getSessionStatus(sessionId)
