@@ -1,5 +1,0 @@
-1. tune polling so it only runs when websocket is disconnected, which keeps logs quieter without losing reliability.
-
-2. Freeze header rows for Participants, Events, and Event Check-in pages when scrolling.
-
-3. Stop Event Check-in page from going back to the top after each check-in of participants or volunteers that are way down the list.

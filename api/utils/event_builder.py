@@ -62,6 +62,7 @@ def build_admin_event(event):
         directions=event.directions,
         parking_info=event.parking_info,
         lodging_info=event.lodging_info,
+        map_url=event.map_url,
         weather_report_url=event.weather_report_url,
         surf_report_url=event.surf_report_url,
         internal_notes=event.internal_notes,
@@ -69,8 +70,22 @@ def build_admin_event(event):
         featured_image=event.featured_image,
 
         sessions=sorted(
-            [{"id": str(s.id), "name": s.name, "start_time": s.start_time.isoformat() if s.start_time else None}
-             for s in event.sessions],
+            [
+                {
+                    "id": str(s.id),
+                    "name": s.name,
+                    "start_time": s.start_time.isoformat() if s.start_time else None,
+                    "capacity": s.capacity,
+                    "participant_count": len([
+                        p for p in event.participants
+                        if p.removed_at is None
+                        and p.session_id == s.id
+                        and (p.role or "").strip().lower() != "volunteer"
+                        and not p.is_waitlisted
+                    ]),
+                }
+                for s in event.sessions
+            ],
             key=lambda s: (s["start_time"] or "", s["name"]),
         ),
 

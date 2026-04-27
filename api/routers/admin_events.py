@@ -23,6 +23,7 @@ from api.utils.event_builder import build_admin_event
 from api.models.participants import Participant
 from api.schemas.events import AdminEventSummary
 from datetime import datetime
+import logging
 from api.services.no_show_service import get_no_show_candidates, promote_no_show_slots
 from api.models.participant_removal_log import ParticipantRemovalLog
 
@@ -30,6 +31,9 @@ router = APIRouter(
     prefix="/admin/events",
     tags=["Admin Events"],
 )
+
+STRICT_TEMPLATE_ENFORCEMENT = False
+logger = logging.getLogger(__name__)
 
 
 class SaveEventAsTemplateIn(BaseModel):
@@ -86,6 +90,27 @@ def create_event(
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
+    template = None
+
+    if STRICT_TEMPLATE_ENFORCEMENT and not event_in.template_id:
+        logger.warning("Invalid event creation attempt: missing template_id in strict mode payload=%s", event_in.model_dump())
+        raise HTTPException(
+            status_code=400,
+            detail="template_id is required when creating an event",
+        )
+
+    if event_in.template_id:
+        template = db.query(EventTemplate).filter(EventTemplate.id == event_in.template_id).first()
+        if not template:
+            logger.warning("Invalid event creation attempt: unknown template_id payload=%s", event_in.model_dump())
+            raise HTTPException(status_code=404, detail="Invalid template_id")
+
+        if event_in.event_type != template.event_type:
+            logger.warning("Invalid event creation attempt: event_type mismatch payload=%s", event_in.model_dump())
+            raise HTTPException(status_code=400, detail="Event type must match template event type")
+
+        event_in.template_id = template.id
+
     event = crud_create_event(db, event_in)
 
     return build_admin_event(event)
@@ -119,6 +144,7 @@ def duplicate_event(
         directions=source_event.directions,
         parking_info=source_event.parking_info,
         lodging_info=source_event.lodging_info,
+        map_url=source_event.map_url,
         weather_report_url=source_event.weather_report_url,
         surf_report_url=source_event.surf_report_url,
         internal_notes=source_event.internal_notes,
@@ -175,6 +201,9 @@ def save_event_as_template(
     schedule_months = payload.schedule_months if payload and payload.schedule_months is not None else [5, 6, 7, 8, 9]
     schedule_weekday = payload.schedule_weekday if payload and payload.schedule_weekday is not None else 5
     schedule_week_numbers = payload.schedule_week_numbers if payload and payload.schedule_week_numbers is not None else [2, 3]
+    weather_report_url = event.weather_report_url
+    if not weather_report_url and event.latitude is not None and event.longitude is not None:
+        weather_report_url = f"https://forecast.weather.gov/MapClick.php?lat={event.latitude}&lon={event.longitude}"
 
     template_in = EventTemplateCreate(
         name=(payload.template_name.strip() if payload and payload.template_name else event.title),
@@ -189,6 +218,21 @@ def save_event_as_template(
         schedule_months=schedule_months,
         schedule_weekday=schedule_weekday,
         schedule_week_numbers=schedule_week_numbers,
+        volunteer_capacity=event.volunteer_capacity,
+        featured_image=event.featured_image,
+        city=event.city,
+        state=event.state,
+        latitude=event.latitude,
+        longitude=event.longitude,
+        beach_accessibility=event.beach_accessibility if event.beach_accessibility is not None else True,
+        beach_access_notes=event.beach_access_notes,
+        directions=event.directions,
+        parking_info=event.parking_info,
+        lodging_info=event.lodging_info,
+        map_url=event.map_url,
+        weather_report_url=weather_report_url,
+        surf_report_url=event.surf_report_url,
+        internal_notes=event.internal_notes,
     )
 
     template = EventTemplate(**template_in.model_dump())

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { fetchAllParticipants, checkInParticipant, promoteParticipant, 
   removeParticipant, verifyWaiver, updateParticipantPriority, updateParticipantType,
-  fetchParticipantRemovalLog, exportParticipantRemovalLogCsv } from "../api/events"
+  fetchParticipantRemovalLog, exportParticipantRemovalLogCsv, fetchEvents } from "../api/events"
 import { useSearchParams } from "react-router-dom"
 import BackButton from "../components/BackButton"
+import SyncStateIndicator from "../components/SyncStateIndicator"
 
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
@@ -341,6 +342,8 @@ const REMOVAL_REASON_CODE_LABELS = {
 
 const PARTICIPANTS_CACHE_KEY = "sfa.offline.participants.cache"
 const PARTICIPANT_ACTION_QUEUE_KEY = "sfa.offline.participants.queue"
+const NON_RETRYABLE_STATUS_CODES = new Set([400, 404])
+const RECOVERABLE_STATUS_CODES = new Set([409, 429, 500, 502, 503, 504])
 
 function getCachedParticipants() {
   try {
@@ -361,12 +364,41 @@ function saveCachedParticipants(participants) {
   }
 }
 
+function normalizeQueuedParticipantAction(action) {
+  if (!action || typeof action !== "object") return null
+  if (!action.type || action.participantId == null) return null
+
+  return {
+    ...action,
+    participantId: String(action.participantId),
+    syncStatus: action.syncStatus === "failed" ? "failed" : "pending",
+    retryable: action.retryable !== false,
+    lastStatus: Number.isFinite(Number(action.lastStatus)) ? Number(action.lastStatus) : null,
+    lastError: String(action.lastError || ""),
+    updatedAt: Number.isFinite(Number(action.updatedAt)) ? Number(action.updatedAt) : Date.now(),
+  }
+}
+
+function dedupeParticipantQueue(actions) {
+  const byKey = new Map()
+  for (const entry of actions || []) {
+    const normalized = normalizeQueuedParticipantAction(entry)
+    if (!normalized) continue
+    const actionKey =
+      normalized.type === "update_priority" || normalized.type === "update_type"
+        ? `${normalized.type}:${normalized.participantId}`
+        : `${normalized.type}:${normalized.participantId}:${normalized.id || normalized.updatedAt}`
+    byKey.set(actionKey, normalized)
+  }
+  return [...byKey.values()]
+}
+
 function getQueuedParticipantActions() {
   try {
     const raw = localStorage.getItem(PARTICIPANT_ACTION_QUEUE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    return Array.isArray(parsed) ? dedupeParticipantQueue(parsed) : []
   } catch {
     return []
   }
@@ -374,7 +406,7 @@ function getQueuedParticipantActions() {
 
 function saveQueuedParticipantActions(actions) {
   try {
-    localStorage.setItem(PARTICIPANT_ACTION_QUEUE_KEY, JSON.stringify(Array.isArray(actions) ? actions : []))
+    localStorage.setItem(PARTICIPANT_ACTION_QUEUE_KEY, JSON.stringify(dedupeParticipantQueue(actions)))
   } catch {
     // Ignore storage failures.
   }
@@ -385,17 +417,50 @@ function isOfflineError(err) {
   return !navigator.onLine || msg.includes("failed to fetch") || msg.includes("load failed") || msg.includes("network")
 }
 
+function getQueueErrorMeta(err) {
+  const status = Number(err?.status)
+  const safeStatus = Number.isFinite(status) ? status : null
+  const detail = String(err?.message || "Unknown error")
+
+  if (safeStatus === 404) {
+    return { retryable: false, status: safeStatus, detail, summary: "participant no longer exists" }
+  }
+  if (safeStatus === 400) {
+    return { retryable: false, status: safeStatus, detail, summary: "invalid participant state" }
+  }
+  if (safeStatus === 409) {
+    return { retryable: true, status: safeStatus, detail, summary: "capacity or state conflict" }
+  }
+
+  return {
+    retryable: RECOVERABLE_STATUS_CODES.has(safeStatus) || safeStatus == null || !NON_RETRYABLE_STATUS_CODES.has(safeStatus),
+    status: safeStatus,
+    detail,
+    summary: "server rejected the update",
+  }
+}
+
 function enqueueParticipantAction(action) {
+  const normalized = normalizeQueuedParticipantAction({
+    ...action,
+    syncStatus: "pending",
+    retryable: true,
+    lastStatus: null,
+    lastError: "",
+    updatedAt: Date.now(),
+  })
+  if (!normalized) return getQueuedParticipantActions()
+
   const queue = getQueuedParticipantActions()
 
-  if (action.type === "update_priority" || action.type === "update_type") {
-    const filtered = queue.filter((item) => !(item.type === action.type && String(item.participantId) === String(action.participantId)))
-    const next = [...filtered, action]
+  if (normalized.type === "update_priority" || normalized.type === "update_type") {
+    const filtered = queue.filter((item) => !(item.type === normalized.type && String(item.participantId) === String(normalized.participantId)))
+    const next = [...filtered, normalized]
     saveQueuedParticipantActions(next)
     return next
   }
 
-  const next = [...queue, action]
+  const next = [...queue, normalized]
   saveQueuedParticipantActions(next)
   return next
 }
@@ -463,6 +528,9 @@ import ParticipantActionsDropdown from "../components/ParticipantActionsDropdown
 export default function Participants() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedParticipantId = (searchParams.get("participant_id") || "").trim()
+  const requestedEventId = (searchParams.get("event_id") || "").trim()
+  const requestedEventType = (searchParams.get("event_type") || "").trim().toLowerCase()
+  const requestedSessionId = (searchParams.get("session_id") || "").trim()
 
   const [priorityError, setPriorityError] = useState("")
   const [actionError, setActionError] = useState("")
@@ -480,11 +548,58 @@ export default function Participants() {
     date_to: "",
   })
   const [focusedParticipantId, setFocusedParticipantId] = useState("")
-  const [offlineQueueCount, setOfflineQueueCount] = useState(() => getQueuedParticipantActions().length)
+  const [queuedParticipantActions, setQueuedParticipantActions] = useState(() => getQueuedParticipantActions())
+  const [queueNotice, setQueueNotice] = useState("")
   const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
   const participantRowRefs = useRef({})
   const focusAppliedRef = useRef(false)
   const actionSyncRef = useRef(false)
+
+  const pendingQueueCount = queuedParticipantActions.filter((item) => item.syncStatus !== "failed").length
+  const failedQueueCount = queuedParticipantActions.filter((item) => item.syncStatus === "failed").length
+  const queueStateByParticipant = queuedParticipantActions.reduce((acc, item) => {
+    const participantId = String(item.participantId)
+    const current = acc[participantId]
+    if (item.syncStatus === "failed") {
+      acc[participantId] = "failed"
+      return acc
+    }
+    if (!current) {
+      acc[participantId] = "pending"
+    }
+    return acc
+  }, {})
+
+  const persistQueuedParticipantActions = (nextQueue) => {
+    const normalized = dedupeParticipantQueue(nextQueue)
+    saveQueuedParticipantActions(normalized)
+    setQueuedParticipantActions(normalized)
+    return normalized
+  }
+
+  const retryRecoverableQueueActions = () => {
+    const next = queuedParticipantActions.map((item) => {
+      if (item.syncStatus === "failed" && item.retryable) {
+        return {
+          ...item,
+          syncStatus: "pending",
+          lastStatus: null,
+          lastError: "",
+          updatedAt: Date.now(),
+        }
+      }
+      return item
+    })
+    persistQueuedParticipantActions(next)
+    setQueueNotice("")
+    processQueuedParticipantActions()
+  }
+
+  const dismissFailedQueueActions = () => {
+    const next = queuedParticipantActions.filter((item) => item.syncStatus !== "failed")
+    persistQueuedParticipantActions(next)
+    setQueueNotice("")
+  }
 
   async function handlePriorityChange(participantId, newPriority) {
     // Optimistic update
@@ -497,7 +612,7 @@ export default function Participants() {
       const msg = err?.message || "Unknown error"
       if (isOfflineError(err)) {
         const nextQueue = enqueueParticipantAction({ type: "update_priority", participantId, priority: newPriority })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setPriorityError("Priority saved locally and queued for sync while offline.")
         return
       }
@@ -578,7 +693,8 @@ export default function Participants() {
 
     const queued = getQueuedParticipantActions()
     if (!queued.length) {
-      setOfflineQueueCount(0)
+      setQueuedParticipantActions([])
+      setQueueNotice("")
       return
     }
 
@@ -590,6 +706,12 @@ export default function Participants() {
     try {
       for (let i = 0; i < queued.length; i += 1) {
         const action = queued[i]
+
+        if (action.syncStatus === "failed") {
+          remaining.push(action)
+          continue
+        }
+
         try {
           if (action.type === "checkin") {
             await checkInParticipant(action.participantId)
@@ -624,15 +746,31 @@ export default function Participants() {
           }
         } catch (err) {
           if (isOfflineError(err)) {
-            remaining.push(...queued.slice(i))
+            remaining.push(
+              ...queued.slice(i).map((entry) => ({
+                ...entry,
+                syncStatus: entry.syncStatus === "failed" ? "failed" : "pending",
+                updatedAt: Date.now(),
+              }))
+            )
             break
           }
+
+          const meta = getQueueErrorMeta(err)
+          remaining.push({
+            ...action,
+            syncStatus: "failed",
+            retryable: meta.retryable,
+            lastStatus: meta.status,
+            lastError: meta.detail,
+            updatedAt: Date.now(),
+          })
+          setQueueNotice(`1 queued change failed to sync: ${meta.summary}.`)
           console.error("Queued participant action failed", action, err)
         }
       }
     } finally {
-      saveQueuedParticipantActions(remaining)
-      setOfflineQueueCount(remaining.length)
+      persistQueuedParticipantActions(remaining)
       actionSyncRef.current = false
     }
 
@@ -710,24 +848,85 @@ export default function Participants() {
 
   const [participants, setParticipants] = useState([])
   const [search, setSearch] = useState("");
-  const [showParticipantFilters, setShowParticipantFilters] = useState(false)
+  const [showParticipantFilters, setShowParticipantFilters] = useState(() => Boolean(requestedEventId || requestedEventType || requestedSessionId))
   const [participantFilters, setParticipantFilters] = useState({
-    event_id: "",
-    event_type: "",
+    event_id: requestedEventId,
+    event_type: requestedEventType,
+    session_id: requestedSessionId,
   })
+  const [allEventsForFilters, setAllEventsForFilters] = useState([])
+
+  const refreshFilterEvents = useCallback(async () => {
+    try {
+      const data = await fetchEvents()
+      setAllEventsForFilters(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error("Failed to load events for filters", err)
+      setAllEventsForFilters([])
+    }
+  }, [])
 
   const participantEventOptions = Array.from(
-    new Map(
-      participants
-        .map((participant) => [String(participant.event_id || ""), participant.event_title || String(participant.event_id || "")])
-        .filter(([eventId]) => Boolean(eventId))
-    ).entries()
-  ).sort((left, right) => String(left[1]).localeCompare(String(right[1])))
+    new Map([
+      ...allEventsForFilters
+        .map((event) => [
+          String(event.id || ""),
+          {
+            id: String(event.id || ""),
+            title: event.title || String(event.id || ""),
+            event_type: String(event.event_type || "").trim().toLowerCase(),
+          },
+        ])
+        .filter(([eventId]) => Boolean(eventId)),
+      ...participants
+        .map((participant) => [
+          String(participant.event_id || ""),
+          {
+            id: String(participant.event_id || ""),
+            title: participant.event_title || String(participant.event_id || ""),
+            event_type: String(participant.event_type || "").trim().toLowerCase(),
+          },
+        ])
+        .filter(([eventId]) => Boolean(eventId)),
+    ]).values()
+  ).sort((left, right) => String(left.title).localeCompare(String(right.title)))
+
+  const filteredParticipantEventOptions = participantEventOptions.filter((event) => {
+    if (!participantFilters.event_type) return true
+    return String(event.event_type || "").trim().toLowerCase() === participantFilters.event_type
+  })
+
+  const participantSessionOptions = Array.from(
+    new Map([
+      ...allEventsForFilters.flatMap((event) =>
+        (Array.isArray(event.sessions) ? event.sessions : []).map((session, index) => [
+          String(session.id || ""),
+          {
+            id: String(session.id || ""),
+            event_id: String(event.id || ""),
+            name: session.name || `Session ${index + 1}`,
+          },
+        ])
+      ),
+      ...participants
+        .map((participant) => [
+          String(participant.session_id || ""),
+          {
+            id: String(participant.session_id || ""),
+            event_id: String(participant.event_id || ""),
+            name: participant.session_name || "Unassigned",
+          },
+        ])
+        .filter(([sessionId]) => Boolean(sessionId)),
+    ]).values()
+  )
+    .filter((session) => !participantFilters.event_id || session.event_id === participantFilters.event_id)
+    .sort((left, right) => String(left.name).localeCompare(String(right.name)))
 
   const participantEventTypeOptions = Array.from(
     new Set(
-      participants
-        .map((participant) => String(participant.event_type || "").trim().toLowerCase())
+      [...participants, ...allEventsForFilters]
+        .map((item) => String(item.event_type || "").trim().toLowerCase())
         .filter(Boolean)
     )
   ).sort((left, right) => left.localeCompare(right))
@@ -746,6 +945,10 @@ export default function Participants() {
       if (!participantFilters.event_type) return true
       return String(p.event_type || "").trim().toLowerCase() === participantFilters.event_type
     })
+    .filter((p) => {
+      if (!participantFilters.session_id) return true
+      return String(p.session_id || "") === participantFilters.session_id
+    })
     .sort((a, b) => {
       if (a.checked_in !== b.checked_in) {
         return a.checked_in ? -1 : 1
@@ -759,12 +962,46 @@ export default function Participants() {
       return a.first_name.localeCompare(b.first_name)
     });
 
+  // Keep removal history aligned with currently selected participant event filters.
+  useEffect(() => {
+    setRemovalLogFilters((prev) => ({
+      ...prev,
+      event_type: participantFilters.event_type || "",
+      event_id: participantFilters.event_id || "",
+    }))
+  }, [participantFilters.event_type, participantFilters.event_id])
+
+  useEffect(() => {
+    setParticipantFilters((prev) => {
+      const nextEventType = requestedEventType || prev.event_type
+      const nextEventId = requestedEventId || prev.event_id
+      const nextSessionId = requestedSessionId || prev.session_id
+      if (
+        prev.event_type === nextEventType &&
+        prev.event_id === nextEventId &&
+        prev.session_id === nextSessionId
+      ) {
+        return prev
+      }
+      return {
+        ...prev,
+        event_type: nextEventType,
+        event_id: nextEventId,
+        session_id: nextSessionId,
+      }
+    })
+    if (requestedEventId || requestedEventType || requestedSessionId) {
+      setShowParticipantFilters(true)
+    }
+  }, [requestedEventId, requestedEventType, requestedSessionId])
+
   // Initial load
   useEffect(() => {
     refreshParticipants();
     refreshRemovalLog();
+    refreshFilterEvents();
     processQueuedParticipantActions()
-  }, [refreshParticipants, refreshRemovalLog, processQueuedParticipantActions]);
+  }, [refreshParticipants, refreshRemovalLog, refreshFilterEvents, processQueuedParticipantActions]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -848,7 +1085,7 @@ export default function Participants() {
       const offline = isOfflineError(err)
       if (offline) {
         const nextQueue = enqueueParticipantAction({ type: "checkin", participantId })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: check-in saved locally and queued for sync.")
       } else if (msg.includes("Waiver not verified")) {
         updateParticipantsLocal((prev) => prev.map((p) =>
@@ -908,7 +1145,7 @@ export default function Participants() {
           reasonCode: selectedReason.code,
           reasonNote: (reasonNote || "").trim(),
         })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: removal saved locally and queued for sync.")
         return
       }
@@ -929,7 +1166,7 @@ export default function Participants() {
       console.error(err)
       if (isOfflineError(err)) {
         const nextQueue = enqueueParticipantAction({ type: "promote", participantId })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: promotion saved locally and queued for sync.")
         return
       }
@@ -950,7 +1187,7 @@ export default function Participants() {
       console.error(err)
       if (isOfflineError(err)) {
         const nextQueue = enqueueParticipantAction({ type: "verify_waiver", participantId })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: waiver verification saved locally and queued for sync.")
         return
       }
@@ -1006,7 +1243,7 @@ export default function Participants() {
             volunteer_additional_types: nextAdditional,
           },
         })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: participant type change saved locally and queued for sync.")
         return
       }
@@ -1066,7 +1303,7 @@ export default function Participants() {
             volunteer_additional_types: nextAdditional,
           },
         })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: volunteer group change saved locally and queued for sync.")
         return
       }
@@ -1097,7 +1334,7 @@ export default function Participants() {
           participantId,
           payload: { volunteer_additional_types: normalized },
         })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: additional volunteer roles saved locally and queued for sync.")
         return
       }
@@ -1133,7 +1370,7 @@ export default function Participants() {
             volunteer_additional_types: normalizedAdditional,
           },
         })
-        setOfflineQueueCount(nextQueue.length)
+        persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: flexible volunteer setting saved locally and queued for sync.")
         return
       }
@@ -1248,12 +1485,34 @@ export default function Participants() {
   }
 
   const removalEventOptions = Array.from(
-    new Map(
-      removalLogs
-        .map((row) => [String(row.event_id || ""), row.event_title || String(row.event_id || "")])
-        .filter(([eventId]) => Boolean(eventId))
-    ).entries()
-  )
+    new Map([
+      ...allEventsForFilters
+        .map((event) => [
+          String(event.id || ""),
+          {
+            id: String(event.id || ""),
+            title: event.title || String(event.id || ""),
+            event_type: String(event.event_type || "").trim().toLowerCase(),
+          },
+        ])
+        .filter(([eventId]) => Boolean(eventId)),
+      ...removalLogs
+        .map((row) => [
+          String(row.event_id || ""),
+          {
+            id: String(row.event_id || ""),
+            title: row.event_title || String(row.event_id || ""),
+            event_type: String(row.event_type || "").trim().toLowerCase(),
+          },
+        ])
+        .filter(([eventId]) => Boolean(eventId)),
+    ]).values()
+  ).sort((left, right) => String(left.title).localeCompare(String(right.title)))
+
+  const filteredRemovalEventOptions = removalEventOptions.filter((event) => {
+    if (!removalLogFilters.event_type) return true
+    return String(event.event_type || "").trim().toLowerCase() === removalLogFilters.event_type
+  })
 
   const removalEventTypeOptions = Array.from(
     new Set(
@@ -1273,6 +1532,7 @@ export default function Participants() {
           onClick={async () => {
             await refreshParticipants()
             await refreshRemovalLog()
+            await refreshFilterEvents()
           }}
           className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
           title="Refresh participants"
@@ -1288,10 +1548,31 @@ export default function Participants() {
         </div>
       )}
 
-      {offlineQueueCount > 0 && (
-        <div className="mb-3 bg-amber-100 border border-amber-400 text-amber-800 px-4 py-2 rounded text-sm">
-          Offline queue active: {offlineQueueCount} pending change{offlineQueueCount === 1 ? "" : "s"}.
-          {!browserOnline ? " Device is offline." : " Syncing will continue while online."}
+      {(pendingQueueCount > 0 || failedQueueCount > 0) && (
+        <div className="mb-3 space-y-2 rounded border border-amber-400 bg-amber-100 px-4 py-2 text-sm text-amber-900">
+          <div>
+            Offline queue active: {pendingQueueCount} pending, {failedQueueCount} failed.
+            {!browserOnline ? " Device is offline." : " Syncing will continue while online."}
+          </div>
+          {queueNotice && <div>{queueNotice}</div>}
+          {failedQueueCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={retryRecoverableQueueActions}
+                className="rounded border border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+              >
+                Retry recoverable
+              </button>
+              <button
+                type="button"
+                onClick={dismissFailedQueueActions}
+                className="rounded border border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+              >
+                Dismiss failed
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1324,7 +1605,7 @@ export default function Participants() {
           {(participantFilters.event_id || participantFilters.event_type) && (
             <button
               type="button"
-              onClick={() => setParticipantFilters({ event_id: "", event_type: "" })}
+              onClick={() => setParticipantFilters({ event_id: "", event_type: "", session_id: "" })}
               className="inline-flex items-center rounded border border-gray-300 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100"
             >
               Clear participant filters
@@ -1333,26 +1614,45 @@ export default function Participants() {
         </div>
 
         {showParticipantFilters && (
-          <div className="mb-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-            <select
-              value={participantFilters.event_id}
-              onChange={(e) => setParticipantFilters((prev) => ({ ...prev, event_id: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm"
-            >
-              <option value="">All events</option>
-              {participantEventOptions.map(([eventId, title]) => (
-                <option key={eventId} value={eventId}>{title}</option>
-              ))}
-            </select>
-
+          <div className="mb-2 grid grid-cols-1 gap-2 md:grid-cols-3">
             <select
               value={participantFilters.event_type}
-              onChange={(e) => setParticipantFilters((prev) => ({ ...prev, event_type: e.target.value }))}
+              onChange={(e) =>
+                setParticipantFilters((prev) => ({
+                  ...prev,
+                  event_type: e.target.value,
+                  event_id: "",
+                  session_id: "",
+                }))
+              }
               className="rounded border border-gray-300 px-2 py-1.5 text-sm"
             >
               <option value="">All event types</option>
               {participantEventTypeOptions.map((eventType) => (
                 <option key={eventType} value={eventType}>{formatEventType(eventType)}</option>
+              ))}
+            </select>
+
+            <select
+              value={participantFilters.event_id}
+              onChange={(e) => setParticipantFilters((prev) => ({ ...prev, event_id: e.target.value, session_id: "" }))}
+              className="rounded border border-gray-300 px-2 py-1.5 text-sm"
+            >
+              <option value="">All events</option>
+              {filteredParticipantEventOptions.map((event) => (
+                <option key={event.id} value={event.id}>{event.title}</option>
+              ))}
+            </select>
+
+            <select
+              value={participantFilters.session_id}
+              onChange={(e) => setParticipantFilters((prev) => ({ ...prev, session_id: e.target.value }))}
+              className="rounded border border-gray-300 px-2 py-1.5 text-sm"
+              disabled={!participantFilters.event_id}
+            >
+              <option value="">{participantFilters.event_id ? "All sessions" : "Select an event first"}</option>
+              {participantSessionOptions.map((session) => (
+                <option key={session.id} value={session.id}>{session.name}</option>
               ))}
             </select>
           </div>
@@ -1457,7 +1757,10 @@ export default function Participants() {
                   }`}
                 >
                   <td className="w-36 px-2 py-2 font-medium text-gray-900" title={`${p.first_name} ${p.last_name}`}>
-                    <span className="block truncate whitespace-nowrap">{p.first_name} {p.last_name}</span>
+                    <span className="mb-1 inline-flex items-center gap-1.5">
+                      <SyncStateIndicator state={queueStateByParticipant[String(p.id)] || "synced"} />
+                      <span className="block truncate whitespace-nowrap">{p.first_name} {p.last_name}</span>
+                    </span>
                     {Number(p.no_show_count || 0) > 0 && (
                       <span className="mt-1 inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
                         {p.no_show_count} prior no-show{p.no_show_count === 1 ? "" : "s"}
@@ -1562,16 +1865,6 @@ export default function Participants() {
             ))}
           </select>
           <select
-            value={removalLogFilters.event_id}
-            onChange={(e) => setRemovalLogFilters((prev) => ({ ...prev, event_id: e.target.value }))}
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
-          >
-            <option value="">All events</option>
-            {removalEventOptions.map(([eventId, title]) => (
-              <option key={eventId} value={eventId}>{title}</option>
-            ))}
-          </select>
-          <select
             value={removalLogFilters.event_type}
             onChange={(e) => setRemovalLogFilters((prev) => ({ ...prev, event_type: e.target.value }))}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
@@ -1579,6 +1872,16 @@ export default function Participants() {
             <option value="">All event types</option>
             {removalEventTypeOptions.map((eventType) => (
               <option key={eventType} value={eventType}>{formatEventType(eventType)}</option>
+            ))}
+          </select>
+          <select
+            value={removalLogFilters.event_id}
+            onChange={(e) => setRemovalLogFilters((prev) => ({ ...prev, event_id: e.target.value }))}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+          >
+            <option value="">All events</option>
+            {filteredRemovalEventOptions.map((event) => (
+              <option key={event.id} value={event.id}>{event.title}</option>
             ))}
           </select>
           <input

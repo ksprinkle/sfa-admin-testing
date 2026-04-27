@@ -38,6 +38,7 @@ class Event(Base):
     directions = Column(Text)
     parking_info = Column(Text)
     lodging_info = Column(Text)
+    map_url = Column(String)
     weather_report_url = Column(String)
     surf_report_url = Column(String)
 

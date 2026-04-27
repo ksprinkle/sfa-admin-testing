@@ -570,7 +570,7 @@ def list_all_participants(
     _current_user = Depends(require_admin),
 ):
 
-    query = db.query(Participant).options(joinedload(Participant.event)).filter(Participant.removed_at.is_(None))
+    query = db.query(Participant).options(joinedload(Participant.event), joinedload(Participant.session)).filter(Participant.removed_at.is_(None))
 
     if search:
         search = f"%{search.lower()}%"
@@ -609,6 +609,8 @@ def list_all_participants(
     return [
         {
             "id": p.id,
+            "event_id": p.event_id,
+            "session_id": p.session_id,
             "first_name": p.first_name,
             "last_name": p.last_name,
             "email": p.email,
@@ -620,6 +622,7 @@ def list_all_participants(
             "waiver_verified": p.waiver_verified,
             "event_title": p.event.title if p.event else None,
             "event_type": p.event.event_type if p.event else None,
+            "session_name": p.session.name if p.session else None,
             "no_show_count": no_show_counts.get((p.email or "").strip().lower(), 0),
             "priority": p.priority,
             "removed_at": p.removed_at,

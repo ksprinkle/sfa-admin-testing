@@ -157,6 +157,7 @@ def get_upcoming_events(
     limit: int | None = None,
     offset: int | None = None,
     sort: str | None = "start_date",
+    include_all: bool = False,
 ):
     auto_publish_and_open_participant_registration(db)
 
@@ -168,7 +169,7 @@ def get_upcoming_events(
     if event_type:
         event_type = event_type.strip().lower()
 
-    if not is_admin:
+    if not is_admin and not include_all:
         query = query.filter(Event.status == "published")
 
     if state:

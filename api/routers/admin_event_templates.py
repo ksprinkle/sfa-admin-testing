@@ -126,6 +126,49 @@ def generate_annual_events_from_template(
 ):
     template = _get_template_or_404(db, template_id)
 
+    normalized_event_type = str(template.event_type or "").strip().lower()
+    if normalized_event_type == "tour":
+        if getattr(template, "schedule_rule_type", None):
+            print(f"Warning: Tour template {template.id} has schedule rules but will be ignored")
+
+        template_date = getattr(template, "date", None)
+
+        if payload.preview:
+            preview_dates = []
+            if template_date:
+                preview_dates = [
+                    GenerateAnnualPreviewDateOut(
+                        date=template_date,
+                        exists=_event_exists_for_template_date(db, template, template_date),
+                    )
+                ]
+            return GenerateAnnualPreviewOut(
+                preview=True,
+                year=payload.year,
+                dates=preview_dates,
+            )
+
+        if not template_date:
+            return GenerateAnnualEventsFromTemplateOut(
+                created=0,
+                skipped=0,
+                dates=[],
+            )
+
+        if _event_exists_for_template_date(db, template, template_date):
+            return GenerateAnnualEventsFromTemplateOut(
+                created=0,
+                skipped=1,
+                dates=[template_date],
+            )
+
+        _create_event_from_template_date(db, template, template_date)
+        return GenerateAnnualEventsFromTemplateOut(
+            created=1,
+            skipped=0,
+            dates=[template_date],
+        )
+
     try:
         rule_dates = generate_dates_from_template(template, payload.year)
     except ValueError as exc:
@@ -172,13 +215,29 @@ def _get_template_or_404(db: Session, template_id: UUID) -> EventTemplate:
 
 def _create_event_from_template_date(db: Session, template: EventTemplate, target_date):
     event_in = EventCreate(
+        template_id=template.id,
         title=template.name,
         event_type=template.event_type,
         start_date=target_date,
         start_time=template.default_start_time,
         end_time=template.default_end_time,
         venue=template.location,
+        city=template.city,
+        state=template.state,
+        latitude=template.latitude,
+        longitude=template.longitude,
+        beach_accessibility=template.beach_accessibility,
+        beach_access_notes=template.beach_access_notes,
+        directions=template.directions,
+        parking_info=template.parking_info,
+        lodging_info=template.lodging_info,
+        map_url=template.map_url,
+        weather_report_url=template.weather_report_url,
+        surf_report_url=template.surf_report_url,
+        featured_image=template.featured_image,
+        internal_notes=template.internal_notes,
         participant_capacity=template.capacity,
+        volunteer_capacity=template.volunteer_capacity,
         status="draft",
     )
 

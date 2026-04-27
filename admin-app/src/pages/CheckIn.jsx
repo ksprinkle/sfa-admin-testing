@@ -2,16 +2,20 @@ import { useEffect, useState, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
   fetchEventParticipants,
+  fetchAdminEvent,
   checkInParticipant,
   moveParticipantToWaitlist,
   promoteParticipant,
   verifyWaiver,
 } from "../api/events"
 import BackButton from "../components/BackButton"
+import SyncStateIndicator from "../components/SyncStateIndicator"
 
 const CHECKIN_QUEUE_KEY = "sfa.offline.checkin.queue"
 const EVENT_MODE_KEY = "sfa.event.mode"
 const CHECKIN_PARTICIPANTS_CACHE_PREFIX = "sfa.offline.checkin.participants."
+const NON_RETRYABLE_STATUS_CODES = new Set([400, 404])
+const RECOVERABLE_STATUS_CODES = new Set([409, 429, 500, 502, 503, 504])
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
   { value: 2, label: "Medium", dotClass: "bg-amber-400" },
@@ -40,6 +44,49 @@ function PriorityLegend() {
   )
 }
 
+function normalizeCheckInQueueEntry(entry) {
+  if (entry == null) return null
+
+  if (typeof entry === "string" || typeof entry === "number") {
+    const participantId = String(entry)
+    return {
+      id: `checkin:${participantId}`,
+      type: "checkin",
+      participantId,
+      syncStatus: "pending",
+      retryable: true,
+      lastStatus: null,
+      lastError: "",
+      updatedAt: Date.now(),
+    }
+  }
+
+  const participantId = entry.participantId != null ? String(entry.participantId) : null
+  if (!participantId) return null
+
+  const syncStatus = entry.syncStatus === "failed" ? "failed" : "pending"
+  return {
+    id: entry.id || `checkin:${participantId}`,
+    type: "checkin",
+    participantId,
+    syncStatus,
+    retryable: entry.retryable !== false,
+    lastStatus: Number.isFinite(Number(entry.lastStatus)) ? Number(entry.lastStatus) : null,
+    lastError: String(entry.lastError || ""),
+    updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now(),
+  }
+}
+
+function dedupeCheckInQueue(entries) {
+  const byParticipant = new Map()
+  for (const item of entries) {
+    const normalized = normalizeCheckInQueueEntry(item)
+    if (!normalized) continue
+    byParticipant.set(normalized.participantId, normalized)
+  }
+  return [...byParticipant.values()]
+}
+
 function getQueuedCheckIns() {
   try {
     const raw = localStorage.getItem(CHECKIN_QUEUE_KEY)
@@ -48,14 +95,54 @@ function getQueuedCheckIns() {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
 
-    return [...new Set(parsed.map((id) => String(id)))]
+    return dedupeCheckInQueue(parsed)
   } catch {
     return []
   }
 }
 
-function saveQueuedCheckIns(ids) {
-  localStorage.setItem(CHECKIN_QUEUE_KEY, JSON.stringify([...new Set(ids.map((id) => String(id)))]))
+function saveQueuedCheckIns(entries) {
+  localStorage.setItem(CHECKIN_QUEUE_KEY, JSON.stringify(dedupeCheckInQueue(entries)))
+}
+
+function getQueueErrorMeta(err) {
+  const status = Number(err?.status)
+  const safeStatus = Number.isFinite(status) ? status : null
+  const detail = String(err?.message || "Unknown error")
+
+  if (safeStatus === 404) {
+    return {
+      retryable: false,
+      status: safeStatus,
+      detail,
+      summary: "participant no longer exists",
+    }
+  }
+
+  if (safeStatus === 400) {
+    return {
+      retryable: false,
+      status: safeStatus,
+      detail,
+      summary: "invalid participant state",
+    }
+  }
+
+  if (safeStatus === 409) {
+    return {
+      retryable: true,
+      status: safeStatus,
+      detail,
+      summary: "capacity or state conflict",
+    }
+  }
+
+  return {
+    retryable: RECOVERABLE_STATUS_CODES.has(safeStatus) || safeStatus == null || !NON_RETRYABLE_STATUS_CODES.has(safeStatus),
+    status: safeStatus,
+    detail,
+    summary: "server rejected the update",
+  }
 }
 
 function getParticipantsCacheKey(eventId) {
@@ -107,11 +194,13 @@ export default function CheckIn() {
   const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates"
 
   const [participants, setParticipants] = useState([])
+  const [eventInfo, setEventInfo] = useState(null)
   const [selectedParticipants, setSelectedParticipants] = useState([])
   const [activeResultId, setActiveResultId] = useState(null)
   const [search, setSearch] = useState("")
   const [error, setError] = useState("")
-  const [queueCount, setQueueCount] = useState(getQueuedCheckIns().length)
+  const [queueNotice, setQueueNotice] = useState("")
+  const [queuedCheckIns, setQueuedCheckIns] = useState(() => getQueuedCheckIns())
   const [eventMode, setEventMode] = useState(localStorage.getItem(EVENT_MODE_KEY) === "on")
   const [isCheckingIn, setIsCheckingIn] = useState(false)
   const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
@@ -124,6 +213,47 @@ export default function CheckIn() {
 
   const isOnline = browserOnline
 
+  const pendingQueueCount = queuedCheckIns.filter((item) => item.syncStatus !== "failed").length
+  const failedQueueCount = queuedCheckIns.filter((item) => item.syncStatus === "failed").length
+  const queueByParticipant = queuedCheckIns.reduce((acc, item) => {
+    const participantId = String(item.participantId)
+    const existing = acc[participantId]
+    if (item.syncStatus === "failed") {
+      acc[participantId] = "failed"
+      return acc
+    }
+    if (!existing) {
+      acc[participantId] = "pending"
+    }
+    return acc
+  }, {})
+
+  const persistQueuedCheckIns = (entries) => {
+    const next = dedupeCheckInQueue(entries)
+    saveQueuedCheckIns(next)
+    setQueuedCheckIns(next)
+    return next
+  }
+
+  const enqueueCheckIn = (participantId) => {
+    const id = String(participantId)
+    const existing = getQueuedCheckIns().filter((entry) => String(entry.participantId) !== id)
+    const next = [
+      ...existing,
+      {
+        id: `checkin:${id}`,
+        type: "checkin",
+        participantId: id,
+        syncStatus: "pending",
+        retryable: true,
+        lastStatus: null,
+        lastError: "",
+        updatedAt: Date.now(),
+      },
+    ]
+    return persistQueuedCheckIns(next)
+  }
+
   const updateParticipantsLocal = (updater) => {
     setParticipants((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater
@@ -134,6 +264,28 @@ export default function CheckIn() {
 
   useEffect(() => {
     refreshParticipants({ source: "initial-load" })
+  }, [eventId])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadEventInfo() {
+      try {
+        const data = await fetchAdminEvent(eventId)
+        if (!isCancelled) {
+          setEventInfo(data || null)
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setEventInfo(null)
+        }
+      }
+    }
+
+    loadEventInfo()
+    return () => {
+      isCancelled = true
+    }
   }, [eventId])
 
   const focusSearch = () => {
@@ -200,6 +352,29 @@ export default function CheckIn() {
     })
   }
 
+  const retryRecoverableQueueItems = () => {
+    const next = queuedCheckIns.map((entry) => {
+      if (entry.syncStatus === "failed" && entry.retryable) {
+        return {
+          ...entry,
+          syncStatus: "pending",
+          lastError: "",
+          updatedAt: Date.now(),
+        }
+      }
+      return entry
+    })
+    persistQueuedCheckIns(next)
+    setQueueNotice("")
+    flushQueuedCheckIns()
+  }
+
+  const dismissFailedQueueItems = () => {
+    const next = queuedCheckIns.filter((entry) => entry.syncStatus !== "failed")
+    persistQueuedCheckIns(next)
+    setQueueNotice("")
+  }
+
   async function flushQueuedCheckIns() {
     if (isFlushingRef.current) {
       return
@@ -207,33 +382,59 @@ export default function CheckIn() {
 
     const queued = getQueuedCheckIns()
     if (!queued.length) {
-      setQueueCount(0)
+      setQueuedCheckIns([])
+      setQueueNotice("")
       return
     }
 
     if (!isOnline) {
-      setQueueCount(queued.length)
+      setQueuedCheckIns(queued)
       return
     }
 
     isFlushingRef.current = true
-    const stillQueued = []
+    const remaining = []
     let syncedCount = 0
 
     try {
-      for (const participantId of queued) {
+      for (let i = 0; i < queued.length; i += 1) {
+        const queuedItem = queued[i]
+
+        if (queuedItem.syncStatus === "failed") {
+          remaining.push(queuedItem)
+          continue
+        }
+
         try {
-          await checkInParticipant(participantId)
+          await checkInParticipant(queuedItem.participantId)
           syncedCount += 1
         } catch (err) {
           if (isConnectivityError(err)) {
-            stillQueued.push(participantId)
+            remaining.push(
+              ...queued.slice(i).map((entry) => ({
+                ...entry,
+                syncStatus: entry.syncStatus === "failed" ? "failed" : "pending",
+                updatedAt: Date.now(),
+              }))
+            )
+            break
           }
+
+          const meta = getQueueErrorMeta(err)
+          const failedAction = {
+            ...queuedItem,
+            syncStatus: "failed",
+            retryable: meta.retryable,
+            lastStatus: meta.status,
+            lastError: meta.detail,
+            updatedAt: Date.now(),
+          }
+          remaining.push(failedAction)
+          setQueueNotice(`1 check-in failed to sync: ${meta.summary}.`)
         }
       }
 
-      saveQueuedCheckIns(stillQueued)
-      setQueueCount(stillQueued.length)
+      persistQueuedCheckIns(remaining)
 
       if (syncedCount > 0) {
         await refreshParticipants({ source: "queue-sync" })
@@ -307,9 +508,7 @@ export default function CheckIn() {
         if (errorMessage.includes("Waiver not verified")) {
           waiverErrors.push(id)
         } else if (isOffline) {
-          const updatedQueue = [...getQueuedCheckIns(), String(id)]
-          saveQueuedCheckIns(updatedQueue)
-          setQueueCount(updatedQueue.length)
+          enqueueCheckIn(id)
           queuedOffline.push(id)
         }
       }
@@ -581,6 +780,37 @@ export default function CheckIn() {
   })
   const checkableSelected = selectedCheckableIds.length
 
+  const isVolunteer = (participant) => (participant?.role || "").toLowerCase().trim() === "volunteer"
+  const sessionConfigs = Array.isArray(eventInfo?.sessions) ? eventInfo.sessions : []
+  const sessionMetaById = Object.fromEntries(sessionConfigs.map((session) => [session.id, session]))
+  const configuredSessionIds = sessionConfigs.map((session) => session.id)
+  const unknownSessionIds = Array.from(
+    new Set(
+      participants
+        .map((participant) => participant.session_id)
+        .filter((sessionId) => Boolean(sessionId) && !configuredSessionIds.includes(sessionId))
+    )
+  ).sort((left, right) => String(left).localeCompare(String(right)))
+  const hasUnassignedParticipants = participants.some((participant) => !participant.session_id)
+  const orderedSessionIds = [
+    ...configuredSessionIds,
+    ...unknownSessionIds,
+    ...(hasUnassignedParticipants ? ["UNASSIGNED"] : []),
+  ]
+  const sessionOverview = orderedSessionIds.map((sessionId, index) => {
+    const meta = sessionMetaById[sessionId]
+    const participantCount = participants.filter(
+      (participant) => (participant.session_id || "UNASSIGNED") === sessionId && !isVolunteer(participant)
+    ).length
+
+    return {
+      sessionId,
+      label: sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : (meta?.name || `Session ${index + 1}`),
+      participantCount,
+      capacity: Number(meta?.capacity || 15),
+    }
+  })
+
   return (
 
     <div className="p-6 space-y-4">
@@ -615,15 +845,51 @@ export default function CheckIn() {
 
       <PriorityLegend />
 
+      {sessionOverview.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Session overview</h2>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {sessionOverview.map((session) => (
+              <div key={String(session.sessionId)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <div className="text-sm font-semibold text-gray-800">{session.label}</div>
+                <div className="text-xs text-gray-600">{session.participantCount} / {session.capacity}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {error}
         </div>
       )}
 
-      {queueCount > 0 && (
-        <div className="bg-amber-100 border border-amber-400 text-amber-800 px-4 py-3 rounded">
-          Offline queue active: {queueCount} check-in{queueCount === 1 ? "" : "s"} pending sync.
+      {(pendingQueueCount > 0 || failedQueueCount > 0) && (
+        <div className="space-y-2 rounded border border-amber-400 bg-amber-100 px-4 py-3 text-amber-900">
+          <div className="text-sm font-medium">
+            Offline queue active: {pendingQueueCount} pending, {failedQueueCount} failed.
+            {!browserOnline ? " Device is offline." : " Sync resumes while online."}
+          </div>
+          {queueNotice && <div className="text-sm">{queueNotice}</div>}
+          {failedQueueCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={retryRecoverableQueueItems}
+                className="rounded border border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+              >
+                Retry recoverable
+              </button>
+              <button
+                type="button"
+                onClick={dismissFailedQueueItems}
+                className="rounded border border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+              >
+                Dismiss failed
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -718,18 +984,31 @@ export default function CheckIn() {
               />
 
               <div className="flex-1">
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigate(`/participants?participant_id=${encodeURIComponent(String(p.id))}`)
-                  }}
-                  className="font-medium text-sky-800 hover:underline cursor-pointer text-left"
-                  title="Open participant details"
-                >
-                  {p.first_name} {p.last_name}
-                </button>
+                <div className="flex items-center gap-2">
+                  <SyncStateIndicator state={queueByParticipant[String(p.id)] || "synced"} />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const nextParams = new URLSearchParams()
+                      nextParams.set("participant_id", String(p.id))
+                      if (eventId) {
+                        nextParams.set("event_id", String(eventId))
+                      }
+                      if (eventInfo?.event_type) {
+                        nextParams.set("event_type", String(eventInfo.event_type).trim().toLowerCase())
+                      }
+                      if (p.session_id) {
+                        nextParams.set("session_id", String(p.session_id))
+                      }
+                      navigate(`/participants?${nextParams.toString()}`)
+                    }}
+                    className="font-medium text-sky-800 hover:underline cursor-pointer text-left"
+                    title="Open participant details"
+                  >
+                    {p.first_name} {p.last_name}
+                  </button>
+                </div>
 
                 <p className="text-sm text-gray-500">
                   {p.email}

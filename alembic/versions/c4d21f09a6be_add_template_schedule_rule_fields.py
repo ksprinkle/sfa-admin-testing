@@ -7,6 +7,7 @@ Create Date: 2026-04-26 00:00:00.000000
 """
 
 from typing import Sequence, Union
+import re
 
 from alembic import op
 import sqlalchemy as sa
@@ -52,6 +53,111 @@ def upgrade() -> None:
     index_names = {idx["name"] for idx in inspector.get_indexes("events")}
     if "ix_events_template_id" not in index_names:
         op.create_index(op.f("ix_events_template_id"), "events", ["template_id"], unique=False)
+
+    # Backfill template_id for existing events without overwriting existing assignments.
+    def _normalize(value):
+        text = str(value or "").strip().lower()
+        return re.sub(r"\s+", " ", text)
+
+    def _slugify(value):
+        text = _normalize(value)
+        text = re.sub(r"[^a-z0-9\s-]", "", text)
+        text = re.sub(r"[-\s]+", "-", text).strip("-")
+        return text
+
+    event_templates = sa.table(
+        "event_templates",
+        sa.column("id", sa.Uuid()),
+        sa.column("name", sa.String()),
+        sa.column("location", sa.String()),
+    )
+    events = sa.table(
+        "events",
+        sa.column("id", sa.Uuid()),
+        sa.column("template_id", sa.Uuid()),
+        sa.column("title", sa.String()),
+        sa.column("city", sa.String()),
+    )
+
+    template_rows = bind.execute(
+        sa.select(
+            event_templates.c.id,
+            event_templates.c.name,
+            event_templates.c.location,
+        )
+    ).all()
+
+    templates = [
+        {
+            "id": row.id,
+            "name": row.name,
+            "name_norm": _normalize(row.name),
+            "name_slug": _slugify(row.name),
+            "city_norm": _normalize(row.location),
+        }
+        for row in template_rows
+    ]
+
+    event_rows = bind.execute(
+        sa.select(
+            events.c.id,
+            events.c.title,
+            events.c.city,
+        ).where(events.c.template_id.is_(None))
+    ).all()
+
+    for event in event_rows:
+        event_title_norm = _normalize(event.title)
+        event_city_norm = _normalize(event.city)
+        event_slug = _slugify(event.title)
+
+        # 1) STRICT MATCH: normalized title contains template name + exact city match
+        strict_matches = [
+            t
+            for t in templates
+            if t["city_norm"] == event_city_norm
+            and t["name_norm"]
+            and t["name_norm"] in event_title_norm
+        ]
+        if len(strict_matches) == 1:
+            bind.execute(
+                sa.update(events)
+                .where(events.c.id == event.id, events.c.template_id.is_(None))
+                .values(template_id=strict_matches[0]["id"])
+            )
+            print(f"Assigned via strict match: event={event.id} template={strict_matches[0]['id']}")
+            continue
+
+        # 2) SEMI-STRICT MATCH: slug similarity or partial title match + exact city match
+        semi_matches = []
+        for t in templates:
+            if t["city_norm"] != event_city_norm:
+                continue
+            slug_similar = bool(t["name_slug"] and event_slug and (t["name_slug"] in event_slug or event_slug in t["name_slug"]))
+            partial_title = bool(t["name_norm"] and event_title_norm and (t["name_norm"] in event_title_norm or event_title_norm in t["name_norm"]))
+            if slug_similar or partial_title:
+                semi_matches.append(t)
+
+        if len(semi_matches) == 1:
+            bind.execute(
+                sa.update(events)
+                .where(events.c.id == event.id, events.c.template_id.is_(None))
+                .values(template_id=semi_matches[0]["id"])
+            )
+            print(f"Assigned via semi-strict match: event={event.id} template={semi_matches[0]['id']}")
+            continue
+
+        # 3) LOCATION-ONLY MATCH: only if exactly one template exists for the city
+        city_matches = [t for t in templates if t["city_norm"] == event_city_norm]
+        if len(city_matches) == 1:
+            bind.execute(
+                sa.update(events)
+                .where(events.c.id == event.id, events.c.template_id.is_(None))
+                .values(template_id=city_matches[0]["id"])
+            )
+            print(f"Assigned via location-only fallback: event={event.id} template={city_matches[0]['id']}")
+        else:
+            print(f"Skipped - ambiguous match: event={event.id} city={event_city_norm or 'unknown'}")
 
 def downgrade() -> None:
     bind = op.get_bind()

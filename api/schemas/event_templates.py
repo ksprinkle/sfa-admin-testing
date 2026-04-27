@@ -18,6 +18,21 @@ class EventTemplateBase(BaseModel):
     schedule_months: list[int] = Field(default_factory=lambda: [5, 6, 7, 8, 9])
     schedule_weekday: int = Field(default=5, ge=0, le=6)
     schedule_week_numbers: list[int] = Field(default_factory=lambda: [2, 3])
+    volunteer_capacity: Optional[int] = Field(default=None, ge=0)
+    featured_image: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    beach_accessibility: bool = Field(default=True)
+    beach_access_notes: Optional[str] = None
+    directions: Optional[str] = None
+    parking_info: Optional[str] = None
+    lodging_info: Optional[str] = None
+    map_url: Optional[str] = None
+    weather_report_url: Optional[str] = None
+    surf_report_url: Optional[str] = None
+    internal_notes: Optional[str] = None
 
     @field_validator("schedule_rule_type")
     @classmethod
@@ -65,6 +80,21 @@ class EventTemplateUpdate(BaseModel):
     schedule_months: Optional[list[int]] = None
     schedule_weekday: Optional[int] = Field(default=None, ge=0, le=6)
     schedule_week_numbers: Optional[list[int]] = None
+    volunteer_capacity: Optional[int] = Field(default=None, ge=0)
+    featured_image: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    beach_accessibility: Optional[bool] = None
+    beach_access_notes: Optional[str] = None
+    directions: Optional[str] = None
+    parking_info: Optional[str] = None
+    lodging_info: Optional[str] = None
+    map_url: Optional[str] = None
+    weather_report_url: Optional[str] = None
+    surf_report_url: Optional[str] = None
+    internal_notes: Optional[str] = None
 
     @field_validator("schedule_rule_type")
     @classmethod

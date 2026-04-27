@@ -19,10 +19,11 @@ Success criteria: <list>.
 Start from branch <name>, commit <hash>.
 Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with results and commit evidence.
 
-Date: 2026-04-26
+Date: 2026-04-27
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
 Latest implementation commit: 5ce8bcf
+Current workspace status: uncommitted implementation updates present (April 27 session)
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
@@ -292,7 +293,14 @@ Behavior summary:
 
 ## 4) In Progress
 
-- None currently marked in-progress.
+- SESSION-2026-04-27 (Pending Commit): Event template parity and calendar/date UX hardening
+  - Save-event-as-template now maps full logistics/media/report-link fields into `EventTemplate`.
+  - Create-event-from-template now maps those same fields into the new draft event.
+  - Event template model/schema/form expanded for logistics/media/report-link editing.
+  - Date picker/calendar UX stabilized for Tour templates (reference date highlighting, year/month behavior, deselect behavior, timezone-safe last-event label).
+  - Manual `map_url` support added across event/template models, schemas, API payloads, and admin forms.
+  - Event Detail Map button now prefers manual `map_url`, with coordinate-search fallback retained.
+  - Save-as-template now backfills NOAA weather links when coordinates exist but a manual weather URL is missing.
 
 ## 5) Pending / Next Backlog Candidates
 
@@ -306,12 +314,16 @@ Behavior summary:
 - Priority update endpoint uses query parameter (`priority`) not JSON body.
 - Volunteer capacity currently informational, not enforced for participant seat limits.
 - Real-time updates use websocket endpoint `/api/ws/updates`.
+- Admin event and template payloads now support optional `map_url` alongside `weather_report_url` and `surf_report_url`.
+- Event-template create/update and create-event-from-template flows preserve manual `map_url` values end to end.
 
 ## 7) Frontend Behavior Notes
 
 - Primary admin app is under `admin-app`.
 - In dev, API base resolves to current host (`window.location.hostname`) to support phone/laptop testing on LAN.
 - Participants/Event Detail/Check-In now each include offline queue and sync retry behavior for supported actions.
+- Event editing and Event Template editing now expose a `Map URL` input near the existing weather/surf/resource fields.
+- Event Detail Map button uses manual `map_url` first, then generated Google Maps coordinate/location search as fallback.
 
 ## 8) Validation Evidence
 
@@ -339,6 +351,32 @@ Behavior summary:
   - default schedule values persisted when schedule fields omitted
   - custom schedule values persisted when provided via request
   - temporary smoke templates cleaned up.
+- April 27 implementation validation:
+  - Static diagnostics for modified frontend/backend files report no errors.
+  - Alembic migration path updated and upgraded to head locally.
+  - Save-event-as-template mapping gap for logistics/report links identified and patched in backend route.
+  - Directions field placement updated in template form per operator feedback.
+  - Manual `map_url` smoke test passed for template create -> event create -> event update persistence.
+  - Save-event-as-template smoke test passed with `map_url` copied into the created template.
+  - Manual weather fallback smoke test passed: saving an event with coordinates and no weather URL produced a NOAA `MapClick` link.
+
+## 11) Session Delta (2026-04-27, Pending Commit)
+
+- Files touched in this session include:
+  - `api/routers/admin_events.py`
+  - `api/routers/admin_event_templates.py`
+  - `api/utils/event_builder.py`
+  - `api/models/events.py`
+  - `api/models/event_templates.py`
+  - `api/schemas/event_templates.py`
+  - `api/schemas/events.py`
+  - `admin-app/src/components/EventForm.jsx`
+  - `admin-app/src/pages/EventTemplates.jsx`
+  - `alembic/versions/g7e2d4f8b9c3a_add_map_url_field.py`
+  - `alembic/versions/f5e3d9c1a6b2_add_logistics_to_event_templates.py`
+  - `alembic/versions/a7b1e8b14ffd_merge_heads.py`
+- Pending commit note:
+  - Promote this session from In Progress to Completed Work after commit hash is available.
 
 ### TASK-014: Edit EventTemplate
 Status: Done

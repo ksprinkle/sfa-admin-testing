@@ -51,6 +51,7 @@ class EventOut(BaseModel):
     directions: Optional[str] = None
     parking_info: Optional[str] = None
     lodging_info: Optional[str] = None
+    map_url: Optional[str] = None
     weather_report_url: Optional[str] = None
     surf_report_url: Optional[str] = None
 
@@ -78,6 +79,7 @@ class EventListOut(BaseModel):
         from_attributes = True 
 
 class EventBase(BaseModel):
+    template_id: Optional[UUID] = None
     title: Optional[str] = None
     event_type: Optional[str] = None
     status: Optional[str] = None
@@ -98,6 +100,7 @@ class EventBase(BaseModel):
     directions: Optional[str] = None
     parking_info: Optional[str] = None
     lodging_info: Optional[str] = None
+    map_url: Optional[str] = None
     weather_report_url: Optional[str] = None
     surf_report_url: Optional[str] = None
     internal_notes: Optional[str] = None
@@ -192,17 +195,9 @@ class EventCreate(EventBase):
         if v == 0:
             return None
         return v
-    
-    participant_open: bool = False
-    volunteer_open: bool = False
-    exhibitor_open: bool = False
-    website_schedule_published: bool = False
 
-    featured_image: Optional[str] = None
-    
+
 class EventUpdate(EventBase):
-    pass
-
     @field_validator("participant_capacity", "volunteer_capacity")
     @classmethod
     def convert_zero_to_none(cls, v):
@@ -245,6 +240,7 @@ class AdminEventListOut(BaseModel):
     directions: Optional[str] = None
     parking_info: Optional[str] = None
     lodging_info: Optional[str] = None
+    map_url: Optional[str] = None
     weather_report_url: Optional[str] = None
     surf_report_url: Optional[str] = None
     internal_notes: Optional[str] = None

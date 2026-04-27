@@ -55,11 +55,6 @@ function normalizeExternalUrl(rawUrl) {
   return `https://${value}`
 }
 
-function getSessionCapacityLabel(session) {
-  const capacity = Number(session?.capacity)
-  return Number.isFinite(capacity) && capacity > 0 ? capacity : 15
-}
-
 export default function Events() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -318,7 +313,6 @@ export default function Events() {
   const totalParticipants = count + waitlistCount
   const eventTypeTone = getEventTypeRowTone(event.event_type)
           const featuredImageUrl = normalizeExternalUrl(event.featured_image)
-  const sessions = Array.isArray(event.sessions) ? event.sessions : []
 
   const percent = capacity
     ? Math.min((count / capacity) * 100, 100)
@@ -343,18 +337,6 @@ export default function Events() {
           )}
           <div>
             <span>{event.title}</span>
-            {sessions.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {sessions.map((session, index) => (
-                  <span
-                    key={String(session.id || index)}
-                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-700"
-                  >
-                    {(session.name || `Session ${index + 1}`)} ({Number(session.participant_count || 0)} / {getSessionCapacityLabel(session)})
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </td>

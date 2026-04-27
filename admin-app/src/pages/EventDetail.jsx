@@ -69,11 +69,16 @@ function buildLocationSummary(eventInfo) {
 }
 
 function buildMapUrl(eventInfo) {
+  // Use manual map URL if provided
+  if (eventInfo?.map_url) {
+    return eventInfo.map_url
+  }
+
   const latitude = eventInfo?.location?.latitude
   const longitude = eventInfo?.location?.longitude
 
   if (latitude != null && longitude != null) {
-    return `https://www.google.com/maps/@${latitude},${longitude},17z`
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`
   }
 
   const fallbackLocation = buildLocationSummary(eventInfo)

@@ -219,6 +219,8 @@ class ParticipantAction(BaseModel):
 
 class AdminParticipantListOut(BaseModel):
     id: UUID
+    event_id: UUID
+    session_id: Optional[UUID] = None
     first_name: str
     last_name: str
     email: str
@@ -231,6 +233,7 @@ class AdminParticipantListOut(BaseModel):
     waiver_verified: bool
     event_title: str | None = None
     event_type: Optional[str] = None
+    session_name: Optional[str] = None
     no_show_count: int = 0
     removed_at: Optional[datetime] = None
     removed_reason_code: Optional[str] = None

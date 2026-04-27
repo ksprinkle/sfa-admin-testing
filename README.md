@@ -40,6 +40,21 @@ The application is built as a **Progressive Web App (PWA)** so it can run on **p
 
 ## Recent Updates (April 2026)
 
+- Event Templates and Tour calendar workflow updates (April 27, 2026):
+      - Event Templates date picker now uses month/day/year dropdowns with inline calendar selection.
+      - Tour templates now derive default event date from matching historical events with safer fallback matching.
+      - "Show Date Calendar" supports all-days clickable mode for quick date picking.
+      - Calendar now highlights reference last-event day and keeps selected-day ring behavior stable when changing year/month.
+      - Date display timezone handling was normalized to avoid one-day drift in "Last event" labels.
+      - Date picker now supports deselecting an actively selected date without forcing year rollback.
+      - Event template form now includes expanded logistics/media fields (city/state/coordinates, directions, beach notes, parking/lodging, weather/surf links, featured image, internal notes).
+      - Event and Event Template forms now expose a manual `Map URL` field so operators can override the generated map destination.
+      - Directions field was moved into "Location Details" for better UX discoverability.
+      - Creating an event from template now carries logistics/media fields into the new draft event.
+      - Saving an event as template now carries logistics/media/report-link fields into the template for future reuse.
+      - Event Detail now prefers manual `map_url` for the Map button, then falls back to coordinate-based Google Maps search.
+      - Saving an event as template now backfills a NOAA weather link when coordinates exist but no manual weather URL was stored.
+
 - Release prep updates (April 26, 2026):
       - Admin app version set to `0.1.0` in `admin-app/package.json`.
       - Build fingerprint badge added to the admin shell so phone and laptop can be compared quickly.

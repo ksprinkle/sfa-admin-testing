@@ -53,3 +53,23 @@ Commit: be77f16
 
 - Remote push is pending because no git remote is configured in this local repository.
 - Local untracked image assets remain uncommitted and were intentionally not included in release commit/tag.
+
+## Post-v0.1.0 Maintenance (2026-04-27)
+
+- Event Templates UX:
+  - Replaced native date input behavior with month/day/year selectors and inline "Show Date Calendar" picker.
+  - Added stable reference-day highlighting for Tour default date context and improved selected-day interaction (including deselect).
+  - Fixed date-label consistency and timezone-safe rendering for "Last event" date display.
+  - Added editable `Map URL` inputs to both Event and Event Template forms so operators can override generated map links.
+- Template data coverage:
+  - Extended template schema/model/migration to support logistics/media/report-link fields used by events.
+  - Updated template-to-event creation path to carry these fields into newly created draft events.
+  - Updated save-event-as-template path to carry existing event logistics/media/report-link values into templates.
+  - Added `map_url` persistence for events and templates, including inheritance from template to created event.
+  - Added NOAA weather-link fallback during save-as-template when coordinates exist but `weather_report_url` is blank.
+- Form and layout improvements:
+  - Expanded Event Template form to edit logistics/media values directly.
+  - Moved Directions input into Location Details to better match operator expectations.
+  - Event Detail Map button now honors manual map URLs before using generated coordinate/location fallbacks.
+
+Note: These maintenance updates are currently reflected in local workspace changes and should be included in the next commit/release note rollup.

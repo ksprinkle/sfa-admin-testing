@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import JSON, Column, DateTime, Integer, String, Time
+from sqlalchemy import JSON, Column, DateTime, Integer, String, Time, Boolean, Float, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -23,5 +23,20 @@ class EventTemplate(Base):
     schedule_months = Column(JSON, nullable=False, default=lambda: [5, 6, 7, 8, 9])
     schedule_weekday = Column(Integer, nullable=False, default=5)
     schedule_week_numbers = Column(JSON, nullable=False, default=lambda: [2, 3])
+    volunteer_capacity = Column(Integer, nullable=True)
+    featured_image = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    state = Column(String, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    beach_accessibility = Column(Boolean, default=True)
+    beach_access_notes = Column(Text, nullable=True)
+    directions = Column(Text, nullable=True)
+    parking_info = Column(Text, nullable=True)
+    lodging_info = Column(Text, nullable=True)
+    map_url = Column(String, nullable=True)
+    weather_report_url = Column(String, nullable=True)
+    surf_report_url = Column(String, nullable=True)
+    internal_notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)

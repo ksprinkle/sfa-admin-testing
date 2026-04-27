@@ -18,6 +18,7 @@ const DEFAULT_FORM = {
   directions: "",
   parking_info: "",
   lodging_info: "",
+  map_url: "",
   weather_report_url: "",
   surf_report_url: "",
   participant_capacity: "",
@@ -55,6 +56,7 @@ function normalizeInitialData(initialData) {
     directions: initialData.directions ?? DEFAULT_FORM.directions,
     parking_info: initialData.parking_info ?? DEFAULT_FORM.parking_info,
     lodging_info: initialData.lodging_info ?? DEFAULT_FORM.lodging_info,
+    map_url: initialData.map_url ?? DEFAULT_FORM.map_url,
     weather_report_url: initialData.weather_report_url ?? DEFAULT_FORM.weather_report_url,
     surf_report_url: initialData.surf_report_url ?? DEFAULT_FORM.surf_report_url,
     participant_capacity: initialData.participant_capacity ?? capacity.participants ?? DEFAULT_FORM.participant_capacity,
@@ -189,6 +191,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       volunteer_capacity: cleanOptionalNumber(form.volunteer_capacity),
       no_show_minutes: cleanOptionalNumber(form.no_show_minutes),
       featured_image: cleanOptionalText(form.featured_image),
+      map_url: cleanOptionalText(form.map_url),
       weather_report_url: cleanOptionalText(form.weather_report_url),
       surf_report_url: cleanOptionalText(form.surf_report_url),
       end_date: cleanOptionalText(form.end_date),
@@ -470,6 +473,18 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
               onChange={handleChange}
               className="w-full rounded border p-2"
               rows={3}
+            />
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-sm font-medium text-gray-700">Map URL</span>
+            <input
+              type="url"
+              name="map_url"
+              placeholder="https://www.google.com/maps/place/..."
+              value={form.map_url ?? ""}
+              onChange={handleChange}
+              className="w-full rounded border p-2"
             />
           </label>
 
