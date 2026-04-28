@@ -1,6 +1,6 @@
 
 from datetime import time
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from uuid import UUID
 from sqlalchemy.orm import Session
 from typing import List
@@ -11,8 +11,9 @@ from api.dependencies import require_admin
 from api.models.events import Event
 from api.models.event_templates import EventTemplate
 from api.schemas.event_templates import EventTemplateCreate, EventTemplateOut
-from api.schemas.events import AdminEventListOut, EventOut, EventUpdate, EventCreate
+from api.schemas.events import AdminEventListOut, EventActionIn, EventActivityLogOut, EventOut, EventUpdate, EventCreate
 from api.crud.events import (
+    create_event_activity_log,
     create_event as crud_create_event,
     update_event as crud_update_event,
     auto_publish_and_open_participant_registration,
@@ -23,8 +24,13 @@ from api.utils.event_builder import build_admin_event
 from api.models.participants import Participant
 from api.schemas.events import AdminEventSummary
 from datetime import datetime
+import csv
+import io
 import logging
+from fastapi.responses import StreamingResponse
+from sqlalchemy import false, func
 from api.services.no_show_service import get_no_show_candidates, promote_no_show_slots
+from api.models.event_activity_log import EventActivityLog
 from api.models.participant_removal_log import ParticipantRemovalLog
 
 router = APIRouter(
@@ -42,6 +48,63 @@ class SaveEventAsTemplateIn(BaseModel):
     schedule_months: list[int] | None = None
     schedule_weekday: int | None = None
     schedule_week_numbers: list[int] | None = None
+
+
+def _parse_date_filter(value: str | None, field_name: str):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(value).date()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}; use YYYY-MM-DD") from exc
+
+
+def _build_event_activity_log_query(
+    db: Session,
+    *,
+    action_type: str | None,
+    reason_code: str | None,
+    event_type: str | None,
+    actor_email: str | None,
+    title_search: str | None,
+    date_from: str | None,
+    date_to: str | None,
+):
+    query = db.query(EventActivityLog)
+
+    if action_type:
+        query = query.filter(EventActivityLog.action_type == action_type.strip().lower())
+
+    if reason_code:
+        query = query.filter(EventActivityLog.reason_code == reason_code.strip().lower())
+
+    if event_type:
+        query = query.filter(func.lower(func.coalesce(EventActivityLog.event_type, "")) == event_type.strip().lower())
+
+    if actor_email:
+        email_like = f"%{actor_email.strip().lower()}%"
+        query = query.filter(func.lower(func.coalesce(EventActivityLog.actor_user_email, "")).like(email_like))
+
+    if title_search:
+        title_like = f"%{title_search.strip().lower()}%"
+        query = query.filter(func.lower(func.coalesce(EventActivityLog.event_title, "")).like(title_like))
+
+    parsed_from = _parse_date_filter(date_from, "date_from")
+    parsed_to = _parse_date_filter(date_to, "date_to")
+
+    if parsed_from:
+        query = query.filter(func.date(EventActivityLog.created_at) >= parsed_from.isoformat())
+    if parsed_to:
+        query = query.filter(func.date(EventActivityLog.created_at) <= parsed_to.isoformat())
+
+    return query
+
+
+def _normalize_event_action_payload(payload: EventActionIn | None, fallback_reason_code: str) -> tuple[str, str | None]:
+    reason_code = (payload.reason_code if payload else "") or fallback_reason_code
+    reason_note = (payload.reason_note if payload else "") or None
+    return reason_code.strip().lower() or fallback_reason_code, (reason_note or "").strip() or None
 
 
 # --- No-show endpoints must be after router is defined ---
@@ -210,6 +273,7 @@ def save_event_as_template(
         location=event.venue or "TBD",
         capacity=event.participant_capacity or first_session_capacity or 15,
         event_type=event.event_type,
+        date=event.start_date,
         default_start_time=event.start_time or (first_session.start_time.time() if first_session and first_session.start_time else time(9, 0)),
         default_end_time=event.end_time or (first_session.end_time.time() if first_session and first_session.end_time else time(12, 0)),
         session_count=session_count,
@@ -451,26 +515,212 @@ def update_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
+    previous_status = event.status
+
     event = crud_update_event(db, event, update_data)
+
+    next_status = (event.status or "").strip().lower()
+    if previous_status != event.status and next_status in {"archived", "cancelled"}:
+        create_event_activity_log(
+            db,
+            event,
+            action_type="status_change",
+            previous_status=previous_status,
+            new_status=event.status,
+            reason_code="status_change",
+            reason_note=f"Status changed to {event.status}",
+            actor_user_id=str(getattr(current_user, "id", "") or "") or None,
+            actor_user_email=getattr(current_user, "email", None),
+        )
+        db.commit()
     
+    return build_admin_event(event)
+
+
+@router.post("/{event_id}/cancel", response_model=AdminEventListOut)
+def cancel_event(
+    event_id: UUID,
+    payload: EventActionIn | None = Body(default=None),
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    event = db.query(Event).options(joinedload(Event.participants)).filter(Event.id == event_id).first()
+
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    reason_code, reason_note = _normalize_event_action_payload(payload, "cancelled")
+    previous_status = event.status
+
+    event.status = "cancelled"
+    if event.participant_open:
+        event.participant_open = False
+    if event.volunteer_open:
+        event.volunteer_open = False
+    if event.exhibitor_open:
+        event.exhibitor_open = False
+
+    create_event_activity_log(
+        db,
+        event,
+        action_type="cancelled",
+        previous_status=previous_status,
+        new_status="cancelled",
+        reason_code=reason_code,
+        reason_note=reason_note,
+        actor_user_id=str(getattr(current_user, "id", "") or "") or None,
+        actor_user_email=getattr(current_user, "email", None),
+    )
+
+    db.commit()
+    db.refresh(event)
+
     return build_admin_event(event)
 
 # 🔹 Delete event
 @router.delete("/{event_id}")
 def delete_event(
     event_id: UUID,
+    payload: EventActionIn | None = Body(default=None),
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
-    event = db.query(Event).filter(Event.id == event_id).first()
+    event = db.query(Event).options(joinedload(Event.participants)).filter(Event.id == event_id).first()
 
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    reason_code, reason_note = _normalize_event_action_payload(payload, "deleted")
+
+    create_event_activity_log(
+        db,
+        event,
+        action_type="deleted",
+        previous_status=event.status,
+        new_status="deleted",
+        reason_code=reason_code,
+        reason_note=reason_note,
+        actor_user_id=str(getattr(current_user, "id", "") or "") or None,
+        actor_user_email=getattr(current_user, "email", None),
+    )
 
     db.delete(event)
     db.commit()
 
     return {"message": "Event deleted"}
+
+
+@router.get("/history/removal-log", response_model=list[EventActivityLogOut])
+def list_event_activity_log(
+    action_type: str | None = None,
+    reason_code: str | None = None,
+    event_type: str | None = None,
+    actor_email: str | None = None,
+    title_search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 300,
+    db: Session = Depends(get_db),
+    _current_user = Depends(require_admin),
+):
+    query = _build_event_activity_log_query(
+        db,
+        action_type=action_type,
+        reason_code=reason_code,
+        event_type=event_type,
+        actor_email=actor_email,
+        title_search=title_search,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    rows = (
+        query
+        .order_by(EventActivityLog.created_at.desc())
+        .limit(max(1, min(limit, 5000)))
+        .all()
+    )
+
+    return rows
+
+
+@router.get("/history/removal-log/export.csv")
+def export_event_activity_log_csv(
+    action_type: str | None = None,
+    reason_code: str | None = None,
+    event_type: str | None = None,
+    actor_email: str | None = None,
+    title_search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 10000,
+    db: Session = Depends(get_db),
+    _current_user = Depends(require_admin),
+):
+    query = _build_event_activity_log_query(
+        db,
+        action_type=action_type,
+        reason_code=reason_code,
+        event_type=event_type,
+        actor_email=actor_email,
+        title_search=title_search,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    rows = (
+        query
+        .order_by(EventActivityLog.created_at.desc())
+        .limit(max(1, min(limit, 30000)))
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "created_at",
+        "action_type",
+        "event_id",
+        "event_title",
+        "event_type",
+        "previous_status",
+        "new_status",
+        "reason_code",
+        "reason_note",
+        "actor_user_id",
+        "actor_user_email",
+        "participant_count",
+        "waitlist_count",
+        "checked_in_count",
+    ])
+
+    for row in rows:
+        writer.writerow([
+            row.created_at.isoformat() if row.created_at else "",
+            row.action_type,
+            row.event_id,
+            row.event_title,
+            row.event_type or "",
+            row.previous_status or "",
+            row.new_status or "",
+            row.reason_code or "",
+            row.reason_note or "",
+            row.actor_user_id or "",
+            row.actor_user_email or "",
+            row.participant_count if row.participant_count is not None else "",
+            row.waitlist_count if row.waitlist_count is not None else "",
+            row.checked_in_count if row.checked_in_count is not None else "",
+        ])
+
+    csv_text = output.getvalue()
+    output.close()
+    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+
+    return StreamingResponse(
+        iter([csv_text]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=event-removal-log-{timestamp}.csv"},
+    )
 
 # 🔹 List participants for an event (admin view)
 @router.get("/{event_id}/participants",)

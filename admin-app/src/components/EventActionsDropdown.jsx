@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-function EventActionsDropdown({ onEdit, onArchive, onDelete }) {
+function EventActionsDropdown({ onEdit, onArchive, onCancel, onDelete }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -40,6 +40,19 @@ function EventActionsDropdown({ onEdit, onArchive, onDelete }) {
           >
             Archive
           </button>
+
+          {onCancel && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onCancel()
+                setOpen(false)
+              }}
+              className="block w-full text-left px-3 py-2 text-amber-700 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          )}
 
           <button
             onClick={(e) => {

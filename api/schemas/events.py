@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import date, time
+from datetime import date, datetime, time
 from uuid import UUID
 from typing import Optional
 from pydantic import field_validator, model_validator
@@ -286,3 +286,30 @@ class AdminEventSummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class EventActionIn(BaseModel):
+    reason_code: Optional[str] = None
+    reason_note: Optional[str] = None
+
+
+class EventActivityLogOut(BaseModel):
+    id: UUID
+    event_id: str
+    event_title: str
+    event_type: Optional[str] = None
+    action_type: str
+    previous_status: Optional[str] = None
+    new_status: Optional[str] = None
+    reason_code: Optional[str] = None
+    reason_note: Optional[str] = None
+    actor_user_id: Optional[str] = None
+    actor_user_email: Optional[str] = None
+    participant_count: Optional[int] = None
+    waitlist_count: Optional[int] = None
+    checked_in_count: Optional[int] = None
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True,
+    }

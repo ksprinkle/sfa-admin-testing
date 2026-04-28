@@ -56,6 +56,15 @@ Commit: be77f16
 
 ## Post-v0.1.0 Maintenance (2026-04-27)
 
+- Event lifecycle safety and auditability:
+  - Added event activity logging for cancel/delete/status-change/auto-archive actions.
+  - Added Removed Events History panel on Events page with filters, paging, and CSV export.
+  - Added cancel reason capture and delete reason capture in Events UI and API payloads.
+  - Added auto-archive logging when published events pass their event date.
+- Template delete protection:
+  - Event Templates delete now requires typed confirmation to reduce accidental deletion.
+  - Confirmation accepts either `delete` (case-insensitive) or a one-time 4-digit code shown in prompt.
+
 - Event Templates UX:
   - Replaced native date input behavior with month/day/year selectors and inline "Show Date Calendar" picker.
   - Added stable reference-day highlighting for Tour default date context and improved selected-day interaction (including deselect).

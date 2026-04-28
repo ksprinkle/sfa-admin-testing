@@ -19,6 +19,26 @@ Success criteria: <list>.
 Start from branch <name>, commit <hash>.
 Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with results and commit evidence.
 
+## Protected Working Behavior (Copy/Paste)
+
+Paste this into ChatGPT before asking for planning or code suggestions when the goal is to preserve current approved behavior.
+
+Treat the following as already implemented and working as desired. Do not propose redesigns or replacement logic for these areas unless I explicitly ask for a change.
+- Event/template logistics, media, report-link, and manual `map_url` support are implemented and should be preserved.
+- Event Detail Map behavior is approved: manual `map_url` first, then generated coordinate/location fallback.
+- Save-event-as-template now preserves logistics/media/report-link fields and backfills NOAA weather links from coordinates when needed.
+- Tour templates persist the source event date in `template.date`; this is the approved source of truth for default Tour template dates.
+- All Tour template calendar entry points must default to the same seed date from template creation time:
+  - left Event Date card
+  - right Show Date Calendar
+  - Preview / Generate Annual calendars
+- Tour template date fallback order is approved and should not be broadened: user-picked date, persisted `template.date`, legacy historical match only for older templates missing a stored date, then today.
+- Preview/generation year should default from the seed date year, not blindly from the current year.
+- Do not reintroduce broad Tour matching logic that causes different Tour templates to borrow another template's date.
+- Treat current UI behavior and field placement as intentional unless a new requirement explicitly changes it.
+
+When suggesting next steps, focus on net-new work only. Do not include already-completed features in scope unless I explicitly request revisiting them.
+
 Date: 2026-04-27
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
@@ -26,6 +46,50 @@ Latest implementation commit: 5ce8bcf
 Current workspace status: uncommitted implementation updates present (April 27 session)
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
+
+## Session Delta (Uncommitted - April 27)
+
+### Event Lifecycle Audit + Removed Events History
+Status: Implemented in working tree (not yet committed)
+Files changed:
+- api/models/event_activity_log.py
+- api/models/__init__.py
+- alembic/versions/k9d2a5f7c1e4_add_event_activity_log_table.py
+- api/crud/events.py
+- api/schemas/events.py
+- api/routers/admin_events.py
+- admin-app/src/api/events.js
+- admin-app/src/pages/Events.jsx
+
+Behavior summary:
+- Added new persistent `event_activity_logs` audit table for event lifecycle actions.
+- Added automatic audit logging for system-driven auto-archive transitions:
+  - action_type: `auto_archived`
+  - reason_code: `passed_event_date`
+- Added explicit admin cancel endpoint with reason capture:
+  - `POST /api/admin/events/{event_id}/cancel`
+  - payload: `{ reason_code, reason_note }`
+  - logs action_type `cancelled`.
+- Updated event delete endpoint to log before delete:
+  - `DELETE /api/admin/events/{event_id}` now accepts optional body `{ reason_code, reason_note }`
+  - logs action_type `deleted`.
+- Added removed-events history APIs:
+  - `GET /api/admin/events/history/removal-log`
+  - `GET /api/admin/events/history/removal-log/export.csv`
+  - filterable by `action_type`, `reason_code`, `event_type`, `actor_email`, `title_search`, `date_from`, `date_to`.
+- Added Events page "Removed Events History" section at bottom (Participants-style window):
+  - filter controls + quick action chips
+  - paginated table
+  - CSV export
+  - refresh control
+- Events UI cancel/delete flows now prompt for reason metadata and send to backend for audit logging.
+- Event Templates delete action now requires typed confirmation before delete proceeds:
+  - accepts `delete` (any case), or
+  - accepts a one-time 4-digit code shown in the confirmation prompt.
+
+Validation evidence:
+- Frontend build: pass (`npm run build` in `admin-app`)
+- Backend syntax compile: pass (`python -m compileall api`)
 
 ## Companion Documents
 
@@ -298,6 +362,11 @@ Behavior summary:
   - Create-event-from-template now maps those same fields into the new draft event.
   - Event template model/schema/form expanded for logistics/media/report-link editing.
   - Date picker/calendar UX stabilized for Tour templates (reference date highlighting, year/month behavior, deselect behavior, timezone-safe last-event label).
+  - `EventTemplate` now persists the source event date in `event_templates.date` so Tour templates retain the event date from the template's creation source.
+  - Save-event-as-template now writes `date=event.start_date` into the template record.
+  - All three Tour template calendar surfaces must default to the same seed date: left Event Date card, right Show Date Calendar, and Preview/Generate Annual calendars.
+  - Tour calendar fallback order is now: user-picked date, persisted `template.date`, legacy Tour historical match, then today.
+  - Preview/generation year defaults to the seed date year instead of blindly using the current year.
   - Manual `map_url` support added across event/template models, schemas, API payloads, and admin forms.
   - Event Detail Map button now prefers manual `map_url`, with coordinate-search fallback retained.
   - Save-as-template now backfills NOAA weather links when coordinates exist but a manual weather URL is missing.
@@ -316,6 +385,7 @@ Behavior summary:
 - Real-time updates use websocket endpoint `/api/ws/updates`.
 - Admin event and template payloads now support optional `map_url` alongside `weather_report_url` and `surf_report_url`.
 - Event-template create/update and create-event-from-template flows preserve manual `map_url` values end to end.
+- Event template payloads now also support optional persisted `date` for source-event seed date behavior.
 
 ## 7) Frontend Behavior Notes
 
@@ -324,6 +394,7 @@ Behavior summary:
 - Participants/Event Detail/Check-In now each include offline queue and sync retry behavior for supported actions.
 - Event editing and Event Template editing now expose a `Map URL` input near the existing weather/surf/resource fields.
 - Event Detail Map button uses manual `map_url` first, then generated Google Maps coordinate/location search as fallback.
+- Tour template calendars should stay visually consistent across all entry points by seeding from the same saved template date when present.
 
 ## 8) Validation Evidence
 
@@ -359,6 +430,9 @@ Behavior summary:
   - Manual `map_url` smoke test passed for template create -> event create -> event update persistence.
   - Save-event-as-template smoke test passed with `map_url` copied into the created template.
   - Manual weather fallback smoke test passed: saving an event with coordinates and no weather URL produced a NOAA `MapClick` link.
+  - `EventTemplateCreate` schema date validation bug fixed by aliasing the imported date type to avoid a Pydantic field/type name collision.
+  - Direct schema validation check passed: `EventTemplateCreate(..., date=datetime.date(...))` now accepts a real date value.
+  - Tour template calendar consistency patch applied so Show Date Calendar and Preview calendars use the same seed date as the main Event Date card.
 
 ## 11) Session Delta (2026-04-27, Pending Commit)
 
@@ -372,7 +446,9 @@ Behavior summary:
   - `api/schemas/events.py`
   - `admin-app/src/components/EventForm.jsx`
   - `admin-app/src/pages/EventTemplates.jsx`
+  - `PROJECT_SYNC_BRIEF.md`
   - `alembic/versions/g7e2d4f8b9c3a_add_map_url_field.py`
+  - `alembic/versions/h2c4e6f8a1b0_add_date_to_event_templates.py`
   - `alembic/versions/f5e3d9c1a6b2_add_logistics_to_event_templates.py`
   - `alembic/versions/a7b1e8b14ffd_merge_heads.py`
 - Pending commit note:

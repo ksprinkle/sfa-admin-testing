@@ -110,11 +110,22 @@ function isTourTemplate(template) {
   return normalizedEventType === "tour" || normalizedEventType.includes("tour")
 }
 
+function normalizeSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 // Derives the most recent matching event date for a Tour template (mirrors CalendarPreview logic)
 function derivePreviewDate(template, allEvents) {
   if (!isTourTemplate(template) || !allEvents || allEvents.length === 0) return null
-  const norm = (str) => (str || "").toLowerCase().trim()
+  const norm = normalizeSearchText
   const baseName = norm(template.name).replace(/-?template\s*$/, "").trim()
+  const keywords = baseName
+    .split(" ")
+    .filter((word) => word.length >= 3)
 
   // 1. template_id match
   let matches = allEvents.filter(
@@ -128,21 +139,23 @@ function derivePreviewDate(template, allEvents) {
       return t.includes(baseName) || baseName.includes(t)
     })
   }
-  // 3. first keyword
-  if (matches.length === 0 && baseName.length >= 4) {
-    const firstWord = baseName.split(" ")[0]
-    if (firstWord.length >= 4) {
-      matches = allEvents.filter((e) => {
-        if (!e?.start_date) return false
-        const t = norm(e?.title || e?.name || "")
-        const city = norm(e?.location?.city || e?.city || (typeof e?.location === "string" ? e.location : "") || "")
-        return t.includes(firstWord) || city.includes(firstWord)
-      })
-    }
+  // 3. keyword-based fallback (handles names like "St Pete")
+  if (matches.length === 0 && keywords.length > 0) {
+    matches = allEvents.filter((e) => {
+      if (!e?.start_date) return false
+      const title = norm(e?.title || e?.name || "")
+      const city = norm(e?.location?.city || e?.city || "")
+      const venue = norm(e?.location?.venue || (typeof e?.location === "string" ? e.location : "") || "")
+      return keywords.some((word) => title.includes(word) || city.includes(word) || venue.includes(word))
+    })
   }
   if (matches.length === 0) return null
   matches.sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
   return safeNormalizeDate(matches[0].start_date)
+}
+
+function getTemplateSeedDate(template, allEvents) {
+  return safeNormalizeDate(template?.date) || (isTourTemplate(template) ? derivePreviewDate(template, allEvents) : null)
 }
 
 function toOrdinal(value) {
@@ -309,6 +322,25 @@ function getMonthGrid(year, month) {
   return weeks
 }
 
+function getClosestWeekdayInMonth(year, month, weekday, referenceDay) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  let closest = null
+  let minDiff = Infinity
+
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    const date = new Date(year, month, d)
+    if (date.getDay() === weekday) {
+      const diff = Math.abs(d - referenceDay)
+      if (diff < minDiff) {
+        closest = date
+        minDiff = diff
+      }
+    }
+  }
+
+  return closest
+}
+
 function getDayCellClass(status, eventType) {
   const normalizedType = normalizeEventTypeKey(eventType)
   const isTour = normalizedType.includes("tour")
@@ -384,7 +416,7 @@ function EventDetailsPanel({ selectedDate, status, onClose, eventType, sessionIn
   )
 }
 
-function MonthGrid({ year, month, statusMap, onDateClick, selectedDate, eventType, allDaysClickable = false, referenceDate = null }) {
+function MonthGrid({ year, month, statusMap, onDateClick, selectedDate, eventType, allDaysClickable = false, referenceDate = null, suggestedDate = null }) {
   const monthLabel = useMemo(
     () => new Date(year, month, 1).toLocaleString("en-US", { month: "long" }),
     [year, month],
@@ -419,7 +451,8 @@ function MonthGrid({ year, month, statusMap, onDateClick, selectedDate, eventTyp
           const isSelected = selectedDate === dateKey
           const isToday = todayDateKey === dateKey
           const isReference = referenceDate ? referenceDate.slice(5) === dateKey.slice(5) : false
-          const tooltip = isNew ? "New Event" : isExisting ? "Already Exists" : isReference ? "Last event date" : ""
+          const isSuggested = suggestedDate === dateKey
+          const tooltip = isNew ? "New Event" : isExisting ? "Already Exists" : isReference ? "Last event date" : isSuggested ? "Suggested date" : ""
 
           return (
             <button
@@ -431,7 +464,7 @@ function MonthGrid({ year, month, statusMap, onDateClick, selectedDate, eventTyp
               onFocus={() => setHoveredDate(dateKey)}
               onBlur={() => setHoveredDate("")}
               disabled={!isClickable}
-              className={`relative aspect-square rounded-lg p-1 text-sm font-medium transition-all duration-150 ${isActive ? getDayCellClass(status, eventType) : isReference ? "bg-amber-100 text-amber-900 ring-1 ring-amber-400" : "bg-white text-gray-700 hover:bg-blue-50"} ${isSelected ? "ring-2 ring-blue-500" : ""} ${isToday ? "border border-blue-400" : ""} ${isClickable ? "cursor-pointer shadow-sm hover:shadow-md" : "cursor-default"}`}
+              className={`relative aspect-square rounded-lg p-1 text-sm font-medium transition-all duration-150 ${isActive ? getDayCellClass(status, eventType) : isReference ? "bg-amber-100 text-amber-900 ring-1 ring-amber-400" : "bg-white text-gray-700 hover:bg-blue-50"} ${isSelected ? "ring-2 ring-blue-500" : ""} ${isSuggested ? "border border-blue-400" : ""} ${isToday ? "border border-blue-400" : ""} ${isClickable ? "cursor-pointer shadow-sm hover:shadow-md" : "cursor-default"}`}
               aria-label={`${dateKey}${tooltip ? ` - ${tooltip}` : ""}`}
             >
               <span className={`flex h-full items-center justify-center ${isNew ? "animate-pulse" : ""}`}>{day}</span>
@@ -458,7 +491,7 @@ function MonthGrid({ year, month, statusMap, onDateClick, selectedDate, eventTyp
   )
 }
 
-function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateDate, templateId, events, templateName, templateLocation, onDatePick, hideDetailsPanel = false, allDaysClickable = false }) {
+function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateDate, templateId, events, templateName, templateLocation, onDatePick, hideDetailsPanel = false, allDaysClickable = false, suggestedDate = null, fallbackMonthDate = null }) {
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedStatus, setSelectedStatus] = useState(null)
 
@@ -470,7 +503,7 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
     if (!isTour) return null
     if (!events || events.length === 0) return null
 
-    const normalize = (str) => (str || "").toLowerCase().trim()
+    const normalize = normalizeSearchText
 
     const templateNameNorm = normalize(templateName)
     const templateLocationNorm = normalize(templateLocation)
@@ -523,13 +556,55 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
     return d.toISOString().split("T")[0]
   }, [templateDate, isTour, events, templateId, templateName, templateLocation])
 
+  const lastEventDate = useMemo(() => {
+    if (!events || !templateId) return null
+    const matches = events
+      .filter((e) => String(e?.template_id) === String(templateId) && e?.start_date)
+      .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+
+    return matches.length > 0 ? new Date(matches[0].start_date) : null
+  }, [events, templateId])
+
+  const derivedSuggestedDate = useMemo(() => {
+    if (!lastEventDate || normalizeEventTypeKey(eventType) !== "tour") return null
+
+    const selectedYear = Number(year)
+    if (!Number.isInteger(selectedYear)) return null
+
+    const month = lastEventDate.getMonth()
+    const weekday = lastEventDate.getDay()
+    const day = lastEventDate.getDate()
+
+    const suggested = getClosestWeekdayInMonth(
+      selectedYear,
+      month,
+      weekday,
+      day,
+    )
+
+    return suggested ? suggested.toISOString().split("T")[0] : null
+  }, [lastEventDate, year, eventType])
+
+  const effectiveSuggestedDate = suggestedDate || derivedSuggestedDate
+
   const normalizedDates = useMemo(() => {
+    if (previewDates && previewDates.length > 0) {
+      return previewDates
+    }
+
     if (isTour && events && events.length > 0) {
-      const norm = (str) => (str || "").toLowerCase().trim()
+      if (templateDate) {
+        return [{ date: templateDate, exists: true }]
+      }
+
+      const norm = normalizeSearchText
 
       // Derive a short base name from template name for title matching
       // e.g. "Jacksonville Beach Surf Festival-Template" → "jacksonville beach surf festival"
       const baseName = norm(templateName).replace(/-?template\s*$/, "").trim()
+      const keywords = baseName
+        .split(" ")
+        .filter((word) => word.length >= 3)
 
       // 1. Try template_id match first (most reliable)
       let matches = events.filter(
@@ -545,22 +620,19 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
         })
       }
 
-      // 3. Final fallback: first significant word of base name (e.g. "jacksonville")
-      if (matches.length === 0 && baseName.length >= 4) {
-        const firstWord = baseName.split(" ")[0]
-        if (firstWord.length >= 4) {
-          matches = events.filter((e) => {
-            if (!e?.start_date) return false
-            const eventTitle = norm(e?.title || e?.name || "")
-            const eventCity = norm(
-              e?.location?.city ||
-              e?.city ||
-              (typeof e?.location === "string" ? e.location : "") ||
-              ""
-            )
-            return eventTitle.includes(firstWord) || eventCity.includes(firstWord)
-          })
-        }
+      // 3. Final fallback: keyword match against title/city/venue
+      if (matches.length === 0 && keywords.length > 0) {
+        matches = events.filter((e) => {
+          if (!e?.start_date) return false
+          const eventTitle = norm(e?.title || e?.name || "")
+          const eventCity = norm(e?.location?.city || e?.city || "")
+          const eventVenue = norm(
+            e?.location?.venue ||
+            (typeof e?.location === "string" ? e.location : "") ||
+            ""
+          )
+          return keywords.some((word) => eventTitle.includes(word) || eventCity.includes(word) || eventVenue.includes(word))
+        })
       }
 
       if (matches.length === 0) return []
@@ -575,12 +647,8 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
       return [{ date: mostRecent, exists: true }]
     }
 
-    if (previewDates && previewDates.length > 0) {
-      return previewDates
-    }
-
     return []
-  }, [previewDates, isTour, events, templateName, templateLocation])
+  }, [previewDates, isTour, events, templateName, templateLocation, templateDate, templateId])
 
   const dateStatusMap = useMemo(() => {
     return (Array.isArray(normalizedDates) ? normalizedDates : []).reduce((acc, item) => {
@@ -598,6 +666,14 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
       return []
     }
 
+    if (isTour && normalizedDates.length === 0 && allDaysClickable) {
+      const fallback = fallbackMonthDate || derivedTemplateDate
+      if (fallback) {
+        const d = new Date(`${fallback}T00:00:00`)
+        if (!Number.isNaN(d.getTime())) return [d.getMonth()]
+      }
+    }
+
     if (normalizedDates.length > 0) {
       const monthSet = new Set()
       normalizedDates.forEach((d) => {
@@ -608,7 +684,7 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
     }
 
     return []
-  }, [normalizedDates, isTour])
+  }, [normalizedDates, isTour, allDaysClickable, fallbackMonthDate, derivedTemplateDate])
 
   function handleDateClick(date, status) {
     if (!status) return
@@ -668,6 +744,10 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
         </div>
       )}
 
+      {effectiveSuggestedDate && (
+        <div className="text-xs text-blue-500">Suggested: same weekday pattern</div>
+      )}
+
       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-700">
         <div className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-sm bg-green-500" />
@@ -691,6 +771,7 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
             eventType={eventType}
             allDaysClickable={allDaysClickable}
             referenceDate={derivedTemplateDate}
+            suggestedDate={effectiveSuggestedDate}
           />
         ))}
       </div>
@@ -918,6 +999,23 @@ function EventTemplates() {
     const confirmed = window.confirm(`Delete template \"${template.name}\"?`)
     if (!confirmed) return
 
+    const numericCode = String(Math.floor(1000 + Math.random() * 9000))
+    const enteredCode = window.prompt(
+      [
+        `To permanently delete \"${template.name}\", type either:`,
+        "- delete",
+        `- ${numericCode}`,
+      ].join("\n"),
+      ""
+    )
+    if (enteredCode === null) return
+
+    const normalizedInput = (enteredCode || "").trim().toLowerCase()
+    if (normalizedInput !== "delete" && normalizedInput !== numericCode) {
+      setError("Template deletion canceled: confirmation code did not match.")
+      return
+    }
+
     setDeletingTemplateId(String(template.id))
     setMessage("")
     setError("")
@@ -934,7 +1032,10 @@ function EventTemplates() {
 
   const handleCreateEvent = async (template) => {
     const templateId = String(template.id)
-    const selectedDate = templateDates[templateId] || getTodayIsoDate()
+    const seedDate = getTemplateSeedDate(template, allEvents)
+    const selectedDate = templateDates[templateId]
+      || seedDate
+      || getTodayIsoDate()
     if (!selectedDate) {
       setError("Choose a date before creating an event from a template")
       return
@@ -956,29 +1057,26 @@ function EventTemplates() {
 
   const handleGenerateSeason = async (template) => {
     const templateId = String(template.id)
-    const year = Number(templateYears[templateId] || getCurrentYear())
+    const seedDate = getTemplateSeedDate(template, allEvents)
+    const fallbackYear = parseIsoDateParts(seedDate || getTodayIsoDate()).year
+    const year = Number(templateYears[templateId] || fallbackYear)
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       setError("Year must be between 2000 and 2100")
       return
     }
 
-    setPreviewingTemplateId(templateId)
+    setGeneratingTemplateId(templateId)
     setMessage("")
     setError("")
     try {
-      const result = await generateAnnualEventsFromTemplate(template.id, year, true)
-      setPreviewByTemplate((prev) => ({
-        ...prev,
-        [templateId]: {
-          year,
-          dates: Array.isArray(result?.dates) ? result.dates : [],
-        },
-      }))
+      const result = await generateAnnualEventsFromTemplate(template.id, year, false)
+      setMessage(`Created ${result.created} event(s), skipped ${result.skipped} existing.`)
+      await loadEvents()
     } catch (err) {
       console.error(err)
-      setError(err?.message || "Failed to preview annual events")
+      setError(err?.message || "Failed to generate annual events")
     } finally {
-      setPreviewingTemplateId("")
+      setGeneratingTemplateId("")
     }
   }
 
@@ -1326,16 +1424,38 @@ function EventTemplates() {
             <div className="mt-4 space-y-3">
               {templates.map((template) => {
                 const templateId = String(template.id)
-                const tourDefaultDate = isTourTemplate(template) ? derivePreviewDate(template, allEvents) : null
-                const selectedDate = templateDates[templateId] || tourDefaultDate || getTodayIsoDate()
+                const seedDate = getTemplateSeedDate(template, allEvents)
+                const selectedDate = templateDates[templateId]
+                  || seedDate
+                  || getTodayIsoDate()
                 const selectedDateParts = parseIsoDateParts(selectedDate)
+                const matches = allEvents
+                  .filter((e) => String(e?.template_id) === String(template.id) && e?.start_date)
+                  .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+                const lastEventDate = matches.length > 0 ? new Date(matches[0].start_date) : null
+                const suggestedDate = (() => {
+                  if (!lastEventDate || !isTourTemplate(template)) return null
+
+                  const month = lastEventDate.getMonth()
+                  const weekday = lastEventDate.getDay()
+                  const day = lastEventDate.getDate()
+
+                  const suggested = getClosestWeekdayInMonth(
+                    selectedDateParts.year,
+                    month,
+                    weekday,
+                    day,
+                  )
+
+                  return suggested ? suggested.toISOString().split("T")[0] : null
+                })()
                 const selectedDayCount = getDaysInMonth(selectedDateParts.year, selectedDateParts.month)
                 const yearOptions = Array.from({ length: 11 }, (_, index) => selectedDateParts.year - 5 + index)
                 const isDatePickerOpen = openDatePickerTemplateId === templateId
                 const isDatePickerLoading = datePickerLoadingTemplateId === templateId
                 const datePickerPreview = datePickerPreviewByTemplate[templateId]
                 const datePickerPreviewDates = Array.isArray(datePickerPreview?.dates) ? datePickerPreview.dates : []
-                const selectedYear = templateYears[templateId] || String(getCurrentYear())
+                const selectedYear = templateYears[templateId] || String(selectedDateParts.year)
                 const creating = creatingTemplateEventId === templateId
                 const previewing = previewingTemplateId === templateId
                 const generating = generatingTemplateId === templateId
@@ -1345,7 +1465,7 @@ function EventTemplates() {
                 const templatePreviewDates = Array.isArray(preview?.dates) ? preview.dates : []
                 const previewNewCount = templatePreviewDates.filter((item) => !item?.exists).length
                 const previewExistingCount = templatePreviewDates.filter((item) => item?.exists).length
-                const normalizedTemplateDate = safeNormalizeDate(template?.date)
+                
 
                 return (
                   <article
@@ -1391,7 +1511,7 @@ function EventTemplates() {
                         <p className="mb-1.5 text-xs font-medium text-slate-500">
                           Event Date
                           {(() => {
-                            const refDate = tourDefaultDate || normalizedTemplateDate
+                            const refDate = seedDate
                             if (!refDate) return null
                             const d = new Date(refDate + "T00:00:00")
                             if (Number.isNaN(d.getTime())) return null
@@ -1443,6 +1563,9 @@ function EventTemplates() {
                             return d.toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
                           })()}
                         </p>
+                        {suggestedDate && (
+                          <div className="mt-1 text-xs text-blue-500">Suggested: same weekday pattern</div>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -1478,13 +1601,15 @@ function EventTemplates() {
                             year={selectedDateParts.year}
                             eventType={template.event_type}
                             sessionInfo={isTourTemplate(template) ? "Variable Schedule" : "Session 1 / Session 2 (Auto-Assigned)"}
-                            templateDate={tourDefaultDate || normalizedTemplateDate}
+                            templateDate={seedDate}
                             templateId={template.id}
                             templateName={template.name}
                             templateLocation={template.location}
                             events={allEvents}
                             hideDetailsPanel={true}
                             allDaysClickable={true}
+                            fallbackMonthDate={selectedDate}
+                            suggestedDate={suggestedDate}
                             onDatePick={(date) => {
                               setTemplateDates((prev) => ({
                                 ...prev,
@@ -1512,7 +1637,7 @@ function EventTemplates() {
                         disabled={previewing || generating}
                         className={`rounded px-4 py-2 font-medium ${previewing || generating ? "cursor-not-allowed bg-slate-300 text-slate-600" : "bg-slate-700 text-white hover:bg-slate-800"}`}
                       >
-                        {previewing ? "Previewing..." : "Generate Annual Events"}
+                        {generating ? "Generating..." : "Generate Annual Events"}
                       </button>
                       <button
                         type="button"
@@ -1537,7 +1662,7 @@ function EventTemplates() {
                           year={Number(selectedYear)}
                           eventType={template.event_type}
                           sessionInfo={isTourTemplate(template) ? "Variable Schedule" : "Session 1 / Session 2 (Auto-Assigned)"}
-                          templateDate={normalizedTemplateDate}
+                          templateDate={seedDate}
                           templateId={template.id}
                           templateName={template.name}
                           templateLocation={template.location}
@@ -1559,7 +1684,7 @@ function EventTemplates() {
                             year={Number(preview.year)}
                             eventType={template.event_type}
                             sessionInfo={isTourTemplate(template) ? "Variable Schedule" : "Session 1 / Session 2 (Auto-Assigned)"}
-                            templateDate={normalizedTemplateDate}
+                            templateDate={seedDate}
                             templateId={template.id}
                             templateName={template.name}
                             templateLocation={template.location}

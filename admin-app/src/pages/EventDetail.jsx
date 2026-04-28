@@ -1306,6 +1306,25 @@ function EventDetail() {
 
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 overflow-x-auto text-[11px] text-gray-500 sm:text-xs">
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="whitespace-nowrap hover:text-gray-700"
+            >
+              Dashboard
+            </button>
+            <span>/</span>
+            <button
+              type="button"
+              onClick={() => navigate("/events")}
+              className="whitespace-nowrap hover:text-gray-700"
+            >
+              Events
+            </button>
+            <span>/</span>
+            <span className="font-medium text-gray-700">Event Participants</span>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold">Event Participants</h1>
             {eventInfo?.event_type && (
@@ -1381,15 +1400,23 @@ function EventDetail() {
           <div className="flex flex-wrap items-center gap-2">
           <BackButton fallbackTo="/events" />
           <button
+            type="button"
+            onClick={() => navigate("/events")}
+            className="px-3 py-2 sm:py-1 rounded border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+            title="Go back to Events list"
+          >
+            Events List
+          </button>
+          <button
             onClick={toggleEventMode}
-            className={`px-3 py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}
+            className={`px-3 py-2 sm:py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}
             title="Toggle simplified event-day UI"
           >
             Event Mode {eventMode ? "ON" : "OFF"}
           </button>
           <button
             onClick={() => { refreshParticipants(); refreshNoShows(); }}
-            className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+            className="px-3 py-2 sm:py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
             title="Refresh participants"
           >
             ↻ Refresh
@@ -1398,7 +1425,7 @@ function EventDetail() {
             type="button"
             onClick={handleDuplicateEvent}
             disabled={duplicateLoading}
-            className={`px-3 py-1 rounded text-sm font-semibold ${duplicateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-600 text-white hover:bg-sky-700"}`}
+            className={`px-3 py-2 sm:py-1 rounded text-sm font-semibold ${duplicateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-600 text-white hover:bg-sky-700"}`}
             title="Create a new draft event with the same configuration"
           >
             {duplicateLoading ? "Duplicating..." : "Duplicate Event"}
@@ -1407,10 +1434,18 @@ function EventDetail() {
             type="button"
             onClick={handleOpenSaveTemplateModal}
             disabled={saveTemplateLoading}
-            className={`px-3 py-1 rounded text-sm font-semibold ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+            className={`px-3 py-2 sm:py-1 rounded text-sm font-semibold ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
             title="Create an event template from this event"
           >
             {saveTemplateLoading ? "Saving Template..." : "Save as Template"}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/event-templates")}
+            className="px-3 py-2 sm:py-1 rounded text-sm font-semibold bg-violet-600 text-white hover:bg-violet-700"
+            title="Go to Event Templates"
+          >
+            Templates
           </button>
           </div>
           {duplicateError && (

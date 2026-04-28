@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { fetchAllParticipants, checkInParticipant, promoteParticipant, 
   removeParticipant, verifyWaiver, updateParticipantPriority, updateParticipantType,
   fetchParticipantRemovalLog, exportParticipantRemovalLogCsv, fetchEvents } from "../api/events"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
 
@@ -120,6 +120,54 @@ function formatEventType(eventType) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ")
+}
+
+function normalizeEventStatus(status) {
+  return String(status || "").trim().toLowerCase()
+}
+
+function getTodayIsoDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function classifyParticipantEventAssociation(participant, eventById, todayIso) {
+  const eventId = String(participant?.event_id || "")
+  if (!eventId) {
+    return {
+      key: "unlinked",
+      label: "No Event",
+      pillClass: "border-slate-300 bg-slate-50 text-slate-700",
+    }
+  }
+
+  const eventInfo = eventById.get(eventId)
+  if (!eventInfo) {
+    return {
+      key: "unlinked",
+      label: "No Event Match",
+      pillClass: "border-slate-300 bg-slate-50 text-slate-700",
+    }
+  }
+
+  const status = normalizeEventStatus(eventInfo.status)
+  const startDate = String(eventInfo.start_date || "").slice(0, 10)
+  const isArchived = status === "archived"
+  const isCancelled = status === "cancelled"
+  const isPast = Boolean(startDate && startDate < todayIso)
+
+  if (isArchived || isCancelled || isPast) {
+    return {
+      key: "past_archived",
+      label: "Past/Archived",
+      pillClass: "border-amber-300 bg-amber-50 text-amber-800",
+    }
+  }
+
+  return {
+    key: "upcoming_active",
+    label: "Upcoming/Active",
+    pillClass: "border-emerald-300 bg-emerald-50 text-emerald-800",
+  }
 }
 
 function normalizeParticipantForUI(participant) {
@@ -526,6 +574,7 @@ function PriorityDropdown({ current, onChange }) {
 import ParticipantActionsDropdown from "../components/ParticipantActionsDropdown"
 
 export default function Participants() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedParticipantId = (searchParams.get("participant_id") || "").trim()
   const requestedEventId = (searchParams.get("event_id") || "").trim()
@@ -554,6 +603,7 @@ export default function Participants() {
   const participantRowRefs = useRef({})
   const focusAppliedRef = useRef(false)
   const actionSyncRef = useRef(false)
+  const participantActionLocksRef = useRef(new Set())
 
   const pendingQueueCount = queuedParticipantActions.filter((item) => item.syncStatus !== "failed").length
   const failedQueueCount = queuedParticipantActions.filter((item) => item.syncStatus === "failed").length
@@ -847,13 +897,15 @@ export default function Participants() {
   }, []);
 
   const [participants, setParticipants] = useState([])
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [showParticipantFilters, setShowParticipantFilters] = useState(() => Boolean(requestedEventId || requestedEventType || requestedSessionId))
   const [participantFilters, setParticipantFilters] = useState({
     event_id: requestedEventId,
     event_type: requestedEventType,
     session_id: requestedSessionId,
   })
+  const [eventAssociationFilter, setEventAssociationFilter] = useState("upcoming_active")
   const [allEventsForFilters, setAllEventsForFilters] = useState([])
 
   const refreshFilterEvents = useCallback(async () => {
@@ -863,8 +915,17 @@ export default function Participants() {
     } catch (err) {
       console.error("Failed to load events for filters", err)
       setAllEventsForFilters([])
+      setActionError("Could not refresh event filters. You can still work with current participant data.")
     }
   }, [])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(searchInput)
+    }, 180)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [searchInput])
 
   const participantEventOptions = Array.from(
     new Map([
@@ -931,11 +992,32 @@ export default function Participants() {
     )
   ).sort((left, right) => left.localeCompare(right))
 
+  const eventsById = useMemo(() => {
+    return new Map(
+      allEventsForFilters
+        .map((event) => [String(event.id || ""), event])
+        .filter(([id]) => Boolean(id))
+    )
+  }, [allEventsForFilters])
+
+  const todayIso = useMemo(() => getTodayIsoDate(), [])
+
+  const participantAssociationCounts = useMemo(() => {
+    return participants.reduce(
+      (counts, participant) => {
+        const association = classifyParticipantEventAssociation(participant, eventsById, todayIso)
+        counts[association.key] = (counts[association.key] || 0) + 1
+        return counts
+      },
+      { upcoming_active: 0, past_archived: 0, unlinked: 0 }
+    )
+  }, [participants, eventsById, todayIso])
+
   const filteredParticipants = participants
     .filter((p) =>
       `${p.first_name} ${p.last_name} ${p.email} ${p.event_title}`
         .toLowerCase()
-        .includes(search.toLowerCase())
+        .includes(debouncedSearch.toLowerCase())
     )
     .filter((p) => {
       if (!participantFilters.event_id) return true
@@ -948,6 +1030,11 @@ export default function Participants() {
     .filter((p) => {
       if (!participantFilters.session_id) return true
       return String(p.session_id || "") === participantFilters.session_id
+    })
+    .filter((p) => {
+      if (eventAssociationFilter === "all") return true
+      const association = classifyParticipantEventAssociation(p, eventsById, todayIso)
+      return association.key === eventAssociationFilter
     })
     .sort((a, b) => {
       if (a.checked_in !== b.checked_in) {
@@ -1072,6 +1159,10 @@ export default function Participants() {
   }, [requestedParticipantId, participants, searchParams, setSearchParams])
 
   async function handleCheckIn(participantId) {
+    const actionKey = String(participantId)
+    if (participantActionLocksRef.current.has(actionKey)) return
+    participantActionLocksRef.current.add(actionKey)
+
     setActionError("")
     updateParticipantsLocal((prev) => prev.map((p) =>
       p.id === participantId ? { ...p, checked_in: true, is_waitlisted: false } : p
@@ -1096,65 +1187,78 @@ export default function Participants() {
         await refreshParticipants()
         setActionError(`Check-in failed: ${msg}`)
       }
+    } finally {
+      participantActionLocksRef.current.delete(actionKey)
     }
   }
 
   async function handleRemove(participant) {
     if (!participant?.id) return
+    const actionKey = String(participant.id)
+    if (participantActionLocksRef.current.has(actionKey)) return
+    participantActionLocksRef.current.add(actionKey)
 
-    const reasonPrompt = [
-      `Remove ${participant.first_name} ${participant.last_name} from active roster?`,
-      "Choose reason number:",
-      "1) No-show",
-      "2) Changed mind",
-      "3) Duplicate registration",
-      "4) Admin correction",
-      "5) Safety issue",
-      "6) Other",
-    ].join("\n")
-
-    const reasonChoice = window.prompt(reasonPrompt, "1")
-    if (reasonChoice === null) return
-
-    const selectedReason = REMOVAL_REASON_OPTIONS[(reasonChoice || "").trim()]
-    if (!selectedReason) {
-      setActionError("Removal cancelled: invalid reason selection.")
-      return
-    }
-
-    let reasonNote = window.prompt("Optional note for removal log (required if reason is Other):", "")
-    if (reasonNote === null) reasonNote = ""
-
-    if (selectedReason.code === "other" && !(reasonNote || "").trim()) {
-      setActionError("A note is required when removal reason is Other.")
-      return
-    }
-
-    setActionError("")
-    updateParticipantsLocal((prev) => prev.filter((p) => p.id !== participant.id))
     try {
-      await removeParticipant(participant.id, selectedReason.code, (reasonNote || "").trim())
-      await refreshParticipants()
-      await refreshRemovalLog()
-    } catch (err) {
-      console.error(err)
-      if (isOfflineError(err)) {
-        const nextQueue = enqueueParticipantAction({
-          type: "remove",
-          participantId: participant.id,
-          reasonCode: selectedReason.code,
-          reasonNote: (reasonNote || "").trim(),
-        })
-        persistQueuedParticipantActions(nextQueue)
-        setActionError("Offline: removal saved locally and queued for sync.")
+      const reasonPrompt = [
+        `Remove ${participant.first_name} ${participant.last_name} from active roster?`,
+        "Choose reason number:",
+        "1) No-show",
+        "2) Changed mind",
+        "3) Duplicate registration",
+        "4) Admin correction",
+        "5) Safety issue",
+        "6) Other",
+      ].join("\n")
+
+      const reasonChoice = window.prompt(reasonPrompt, "1")
+      if (reasonChoice === null) return
+
+      const selectedReason = REMOVAL_REASON_OPTIONS[(reasonChoice || "").trim()]
+      if (!selectedReason) {
+        setActionError("Removal cancelled: invalid reason selection.")
         return
       }
-      await refreshParticipants()
-      setActionError(`Failed to remove: ${err.message || "Unknown error"}`)
+
+      let reasonNote = window.prompt("Optional note for removal log (required if reason is Other):", "")
+      if (reasonNote === null) reasonNote = ""
+
+      if (selectedReason.code === "other" && !(reasonNote || "").trim()) {
+        setActionError("A note is required when removal reason is Other.")
+        return
+      }
+
+      setActionError("")
+      updateParticipantsLocal((prev) => prev.filter((p) => p.id !== participant.id))
+      try {
+        await removeParticipant(participant.id, selectedReason.code, (reasonNote || "").trim())
+        await refreshParticipants()
+        await refreshRemovalLog()
+      } catch (err) {
+        console.error(err)
+        if (isOfflineError(err)) {
+          const nextQueue = enqueueParticipantAction({
+            type: "remove",
+            participantId: participant.id,
+            reasonCode: selectedReason.code,
+            reasonNote: (reasonNote || "").trim(),
+          })
+          persistQueuedParticipantActions(nextQueue)
+          setActionError("Offline: removal saved locally and queued for sync.")
+          return
+        }
+        await refreshParticipants()
+        setActionError(`Failed to remove: ${err.message || "Unknown error"}`)
+      }
+    } finally {
+      participantActionLocksRef.current.delete(actionKey)
     }
   }
 
   async function handlePromote(participantId) {
+    const actionKey = String(participantId)
+    if (participantActionLocksRef.current.has(actionKey)) return
+    participantActionLocksRef.current.add(actionKey)
+
     setActionError("")
     updateParticipantsLocal((prev) => prev.map((p) =>
       p.id === participantId ? { ...p, is_waitlisted: false } : p
@@ -1172,10 +1276,16 @@ export default function Participants() {
       }
       await refreshParticipants()
       setActionError(`Failed to promote: ${err.message || "Unknown error"}`)
+    } finally {
+      participantActionLocksRef.current.delete(actionKey)
     }
   }
 
   async function handleVerifyWaiver(participantId) {
+    const actionKey = String(participantId)
+    if (participantActionLocksRef.current.has(actionKey)) return
+    participantActionLocksRef.current.add(actionKey)
+
     setActionError("")
     updateParticipantsLocal((prev) => prev.map((p) =>
       p.id === participantId ? { ...p, waiver_verified: true } : p
@@ -1193,6 +1303,8 @@ export default function Participants() {
       }
       await refreshParticipants()
       setActionError(`Failed to verify waiver: ${err.message || "Unknown error"}`)
+    } finally {
+      participantActionLocksRef.current.delete(actionKey)
     }
   }
 
@@ -1524,17 +1636,24 @@ export default function Participants() {
 
   return (
 
-    <div className="p-6">
-      <div className="flex items-center mb-4">
-        <h1 className="text-2xl font-semibold flex-1">Participants</h1>
-        <BackButton fallbackTo="/dashboard" className="ml-2" />
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold flex-1 min-w-[180px]">Participants</h1>
+        <BackButton fallbackTo="/dashboard" className="" />
+        <button
+          type="button"
+          onClick={() => navigate("/event-templates")}
+          className="px-3 py-2 sm:py-1 bg-sky-100 text-sky-800 rounded hover:bg-sky-200 text-sm"
+        >
+          Templates
+        </button>
         <button
           onClick={async () => {
             await refreshParticipants()
             await refreshRemovalLog()
             await refreshFilterEvents()
           }}
-          className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+          className="px-3 py-2 sm:py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
           title="Refresh participants"
         >
           ↻ Refresh
@@ -1588,25 +1707,73 @@ export default function Participants() {
         <input
           type="text"
           placeholder="Search participants..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           className="w-full border rounded p-2 mb-2"
+          aria-label="Search participants"
         />
 
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => setShowParticipantFilters((prev) => !prev)}
-            className="inline-flex items-center rounded border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center rounded border border-gray-300 bg-white px-3 py-2 sm:py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
             {showParticipantFilters ? "Hide filters" : "Filter by Event / Type"}
           </button>
+
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setEventAssociationFilter("all")}
+              className={`rounded-full border px-3 py-2 sm:py-1 text-xs font-medium transition ${
+                eventAssociationFilter === "all"
+                  ? "border-slate-400 bg-slate-700 text-white"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              All ({participants.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setEventAssociationFilter("upcoming_active")}
+              className={`rounded-full border px-3 py-2 sm:py-1 text-xs font-medium transition ${
+                eventAssociationFilter === "upcoming_active"
+                  ? "border-emerald-400 bg-emerald-600 text-white"
+                  : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+              }`}
+            >
+              Upcoming/Active ({participantAssociationCounts.upcoming_active || 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setEventAssociationFilter("past_archived")}
+              className={`rounded-full border px-3 py-2 sm:py-1 text-xs font-medium transition ${
+                eventAssociationFilter === "past_archived"
+                  ? "border-amber-400 bg-amber-600 text-white"
+                  : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+              }`}
+            >
+              Past/Archived ({participantAssociationCounts.past_archived || 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setEventAssociationFilter("unlinked")}
+              className={`rounded-full border px-3 py-2 sm:py-1 text-xs font-medium transition ${
+                eventAssociationFilter === "unlinked"
+                  ? "border-slate-500 bg-slate-700 text-white"
+                  : "border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              No Event Match ({participantAssociationCounts.unlinked || 0})
+            </button>
+          </div>
 
           {(participantFilters.event_id || participantFilters.event_type) && (
             <button
               type="button"
               onClick={() => setParticipantFilters({ event_id: "", event_type: "", session_id: "" })}
-              className="inline-flex items-center rounded border border-gray-300 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100"
+              className="inline-flex items-center rounded border border-gray-300 bg-gray-50 px-2.5 py-2 sm:py-1 text-xs font-medium text-gray-700 hover:bg-gray-100"
             >
               Clear participant filters
             </button>
@@ -1673,7 +1840,7 @@ export default function Participants() {
 {/* Table of participants with columns for name, email, event, status, and actions */}
       <div className="bg-white rounded-xl shadow overflow-auto max-h-[70vh]">
 
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[980px] text-sm">
 
           <thead className="bg-gray-50 border-b sticky top-0 z-10">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1743,6 +1910,7 @@ export default function Participants() {
             {filteredParticipants.map((p) => {
               const clampedPriority = Math.max(0, Math.min(3, p.priority));
               const isVolunteerRow = normalizeRole(p.role) === "volunteer"
+              const eventAssociation = classifyParticipantEventAssociation(p, eventsById, todayIso)
               return (
                 <tr
                   key={p.id}
@@ -1779,6 +1947,9 @@ export default function Participants() {
                   </td>
                   <td className="w-20 px-1.5 py-2 text-gray-700" title={p.event_title}>
                     <span className="block truncate whitespace-nowrap">{p.event_title}</span>
+                    <span className={`mt-1 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${eventAssociation.pillClass}`}>
+                      {eventAssociation.label}
+                    </span>
                   </td>
                   <td className="w-24 px-1.5 py-2 text-gray-700" title={formatEventType(p.event_type)}>
                     <span className="block truncate whitespace-nowrap">{formatEventType(p.event_type)}</span>

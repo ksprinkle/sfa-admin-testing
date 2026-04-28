@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date as date_value, datetime, time
 from typing import Optional
 from uuid import UUID
 
@@ -10,6 +10,7 @@ class EventTemplateBase(BaseModel):
     location: str = Field(min_length=1)
     capacity: int = Field(ge=1)
     event_type: str = Field(min_length=1)
+    date: Optional[date_value] = None
     default_start_time: time
     default_end_time: time
     session_count: int = Field(ge=1)
@@ -72,6 +73,7 @@ class EventTemplateUpdate(BaseModel):
     location: Optional[str] = Field(default=None, min_length=1)
     capacity: Optional[int] = Field(default=None, ge=1)
     event_type: Optional[str] = Field(default=None, min_length=1)
+    date: Optional[date_value] = None
     default_start_time: Optional[time] = None
     default_end_time: Optional[time] = None
     session_count: Optional[int] = Field(default=None, ge=1)
@@ -140,7 +142,7 @@ class EventTemplateOut(EventTemplateBase):
 
 
 class CreateEventFromTemplateIn(BaseModel):
-    date: date
+    date: date_value
 
 
 class GenerateAnnualEventsFromTemplateIn(BaseModel):
@@ -151,11 +153,11 @@ class GenerateAnnualEventsFromTemplateIn(BaseModel):
 class GenerateAnnualEventsFromTemplateOut(BaseModel):
     created: int
     skipped: int
-    dates: list[date]
+    dates: list[date_value]
 
 
 class GenerateAnnualPreviewDateOut(BaseModel):
-    date: date
+    date: date_value
     exists: bool
 
 

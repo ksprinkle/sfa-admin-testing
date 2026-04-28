@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import JSON, Column, DateTime, Integer, String, Time, Boolean, Float, Text
+from sqlalchemy import JSON, Column, Date, DateTime, Integer, String, Time, Boolean, Float, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -15,6 +15,7 @@ class EventTemplate(Base):
     location = Column(String, nullable=False)
     capacity = Column(Integer, nullable=False)
     event_type = Column(String, nullable=False)
+    date = Column(Date, nullable=True)
     default_start_time = Column(Time, nullable=False)
     default_end_time = Column(Time, nullable=False)
     session_count = Column(Integer, nullable=False)

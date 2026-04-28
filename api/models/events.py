@@ -17,7 +17,7 @@ class Event(Base):
     slug = Column(String, unique=True, nullable=False)
 
     event_type = Column(String, nullable=False)
-    status = Column(String, default="draft")  # draft | published | archived
+    status = Column(String, default="draft")  # draft | published | archived | cancelled
     
     start_date = Column(Date, nullable=False)
     end_date = Column(Date)

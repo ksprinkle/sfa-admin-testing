@@ -119,6 +119,20 @@ export async function archiveEvent(eventId) {
   return res.json()
 }
 
+export async function cancelEvent(eventId, reason_code = "cancelled", reason_note = "") {
+  const res = await apiFetch(`/api/admin/events/${eventId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason_code, reason_note }),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to cancel event")
+  }
+
+  return res.json()
+}
+
 export async function duplicateEvent(eventId) {
   const res = await apiFetch(`/api/admin/events/${eventId}/duplicate`, {
     method: "POST",
@@ -146,13 +160,15 @@ export async function saveEventAsTemplate(eventId, payload = {}) {
   return res.json()
 }
 
-export async function deleteEvent(eventId) {
+export async function deleteEvent(eventId, reason_code = "deleted", reason_note = "") {
   const res = await apiFetch(`/api/admin/events/${eventId}`, {
-    method: "DELETE"
+    method: "DELETE",
+    body: JSON.stringify({ reason_code, reason_note }),
   })
 
   if (!res.ok) {
-    throw new Error("Failed to delete event")
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to delete event")
   }
 
   return res.json()
@@ -396,6 +412,59 @@ export async function exportParticipantRemovalLogCsv(filters = {}) {
   const contentDisposition = res.headers.get("content-disposition") || ""
   const filenameMatch = contentDisposition.match(/filename=([^;]+)/i)
   const filename = (filenameMatch?.[1] || "participant-removal-log.csv").replaceAll('"', "")
+
+  return { blob, filename }
+}
+
+export async function fetchEventRemovalLog(filters = {}) {
+  const params = new URLSearchParams()
+  if (filters.action_type) params.set("action_type", filters.action_type)
+  if (filters.reason_code) params.set("reason_code", filters.reason_code)
+  if (filters.event_type) params.set("event_type", filters.event_type)
+  if (filters.actor_email) params.set("actor_email", filters.actor_email)
+  if (filters.title_search) params.set("title_search", filters.title_search)
+  if (filters.date_from) params.set("date_from", filters.date_from)
+  if (filters.date_to) params.set("date_to", filters.date_to)
+  if (filters.limit) params.set("limit", String(filters.limit))
+
+  const query = params.toString()
+  const res = await apiFetch(`/api/admin/events/history/removal-log${query ? `?${query}` : ""}`)
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to fetch event removal log")
+  }
+
+  return res.json()
+}
+
+export async function exportEventRemovalLogCsv(filters = {}) {
+  const params = new URLSearchParams()
+  if (filters.action_type) params.set("action_type", filters.action_type)
+  if (filters.reason_code) params.set("reason_code", filters.reason_code)
+  if (filters.event_type) params.set("event_type", filters.event_type)
+  if (filters.actor_email) params.set("actor_email", filters.actor_email)
+  if (filters.title_search) params.set("title_search", filters.title_search)
+  if (filters.date_from) params.set("date_from", filters.date_from)
+  if (filters.date_to) params.set("date_to", filters.date_to)
+  if (filters.limit) params.set("limit", String(filters.limit))
+
+  const query = params.toString()
+  const res = await apiFetch(`/api/admin/events/history/removal-log/export.csv${query ? `?${query}` : ""}`, {
+    headers: {
+      Accept: "text/csv",
+    },
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(text || "Failed to export event removal log CSV")
+  }
+
+  const blob = await res.blob()
+  const contentDisposition = res.headers.get("content-disposition") || ""
+  const filenameMatch = contentDisposition.match(/filename=([^;]+)/i)
+  const filename = (filenameMatch?.[1] || "event-removal-log.csv").replaceAll('"', "")
 
   return { blob, filename }
 }
