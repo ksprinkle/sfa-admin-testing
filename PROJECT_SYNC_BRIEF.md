@@ -42,10 +42,76 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-04-28
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: c27af55
+Latest implementation commit: 0d269bc
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
+
+## Session Delta (Committed - April 28, Public Event Registration Endpoint) — 6010cc4
+
+### Backend: Public Self-Registration Route
+Status: Committed (6010cc4)
+Files changed:
+- api/routers/events.py
+- api/schemas/participants.py
+- api/main.py
+
+Behavior summary:
+- Added `POST /api/public/events/{slug}/register` on a new `public_router`.
+- Resolves event by slug; returns 404 if not found.
+- Reuses existing `create_participant(...)` CRUD — no duplicate logic.
+- `is_waitlisted` defaults False; `session_id` defaults null (unassigned).
+- Duplicate email+event returns 409 via existing CRUD conflict behavior.
+- Added `PublicEventRegister` Pydantic schema (supports participant + optional volunteer fields).
+- Registered `public_events_router` in `api/main.py`.
+
+Validation evidence:
+- Backend diagnostics: pass (`get_errors` on touched backend files)
+
+---
+
+## Session Delta (Committed - April 28, EventDetail Staffing UX Polish) — 0d269bc
+
+### Frontend: Session Staffing Indicators, Preview Chips, Suggested Moves, Summary Panel
+Status: Committed (0d269bc)
+Files changed:
+- admin-app/src/pages/EventDetail.jsx
+
+Behavior summary:
+
+Preview chip clarity + consistency:
+- Chip format: "Moving Water: John D. (Versatile), Sarah K. +1" with bold label span + name span.
+- Muted chip style: `border-gray-200 bg-gray-50 text-gray-700 rounded-full`.
+- Truncation preserved: max 2 names + "+N" overflow.
+
+Reason tooltip/inline split (cross-browser):
+- `buildPreviewReasonText` returns `{ tooltip, inline }`.
+- `tooltip`: single-line "Selected because: • reason1 • reason2" (safe for native `title`).
+- `inline`: multi-line `\n`-separated bullets rendered with `whitespace-pre-line`.
+
+Heat indicator micro-polish:
+- Badge count clamped: `assistanceCount > 5 ? "5+" : assistanceCount`.
+- Labels: "High Assistance (3)", "Moderate (2)", "Low" (no count at low).
+
+Auto-suggest action (new):
+- `waterSuggestedCount = min(shortage, candidates, 3)` per role.
+- `canSuggestWater/Beach` guards: shortfall > 0, candidates > 0, not in-flight.
+- "★ Move N Water/Beach Volunteer(s)" buttons above manual buttons; calls `handleGuidedVolunteerMoveBatch`.
+- "Why N?" muted hint line below buttons: "Based on shortage (N) and available volunteers (N)".
+- `disabled` + `opacity-60` when `canSuggest*` is false.
+- "✓ All set — staffing looks good" shown when `sessionIsBalanced`.
+
+Top-of-page summary panel (new):
+- IIFE block; no new state; derives from `groupedParticipants` + existing helpers.
+- Excludes UNASSIGNED bucket defensively (`!sessionId || sessionId === "UNASSIGNED"`).
+- Chip order: ⚠️ needs attention → 🔴 high → 🟡 moderate → 📊 total → ✓ all good.
+- Attention chip has `animate-pulse border border-amber-300` when count > 0.
+- "✓ All sessions staffed" shown only when totalSessions > 0 and attention === 0.
+
+Validation evidence:
+- Frontend diagnostics: pass (`get_errors` on EventDetail.jsx — clean at each stage)
+
+---
 
 ## Session Delta (Uncommitted - April 28, Admin Participant Registration Hardening + Offline Create UI)
 
