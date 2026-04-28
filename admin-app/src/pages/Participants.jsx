@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { fetchAllParticipants, checkInParticipant, promoteParticipant, 
   removeParticipant, verifyWaiver, updateParticipantPriority, updateParticipantType,
-  fetchParticipantRemovalLog, exportParticipantRemovalLogCsv, fetchEvents } from "../api/events"
+  fetchParticipantRemovalLog, exportParticipantRemovalLogCsv, fetchEvents,
+  fetchAdminEvent, createAdminParticipant } from "../api/events"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
+import ParticipantForm from "../components/ParticipantForm"
 
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
@@ -74,6 +76,12 @@ function normalizeVolunteerType(value) {
   }
   const aliased = aliasMap[normalized] || normalized
   return aliased || null
+}
+
+function normalizeParticipantFormEventType(value) {
+  const normalized = String(value || "").trim().toLowerCase()
+  if (normalized === "chapter" || normalized === "tour") return normalized
+  return null
 }
 
 function getGroupForRole(roleKey) {
@@ -643,10 +651,19 @@ export default function Participants() {
   const [queuedParticipantActions, setQueuedParticipantActions] = useState(() => getQueuedParticipantActions())
   const [queueNotice, setQueueNotice] = useState("")
   const [browserOnline, setBrowserOnline] = useState(navigator.onLine)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editingParticipant, setEditingParticipant] = useState(null)
+  const [createEventId, setCreateEventId] = useState("")
+  const [createSessions, setCreateSessions] = useState([])
+  const [createEventMeta, setCreateEventMeta] = useState({ title: "", event_type: "" })
+  const [createToast, setCreateToast] = useState(null)
   const participantRowRefs = useRef({})
   const focusAppliedRef = useRef(false)
   const actionSyncRef = useRef(false)
   const participantActionLocksRef = useRef(new Set())
+  const createToastTimerRef = useRef(null)
+  const retriedCreateQueueIdsRef = useRef(new Set())
 
   const pendingQueueCount = queuedParticipantActions.filter((item) => item.syncStatus !== "failed").length
   const failedQueueCount = queuedParticipantActions.filter((item) => item.syncStatus === "failed").length
@@ -670,7 +687,51 @@ export default function Participants() {
     return normalized
   }
 
+  const dismissCreateToast = useCallback(() => {
+    if (createToastTimerRef.current) {
+      window.clearTimeout(createToastTimerRef.current)
+      createToastTimerRef.current = null
+    }
+    setCreateToast(null)
+  }, [])
+
+  const showCreateToast = useCallback((message, options = {}) => {
+    const {
+      tone = "success",
+      retryQueueItemId = null,
+      durationMs = 2600,
+    } = options
+
+    if (createToastTimerRef.current) {
+      window.clearTimeout(createToastTimerRef.current)
+      createToastTimerRef.current = null
+    }
+
+    setCreateToast({ message, tone, retryQueueItemId })
+
+    if (durationMs > 0) {
+      createToastTimerRef.current = window.setTimeout(() => {
+        setCreateToast(null)
+        createToastTimerRef.current = null
+      }, durationMs)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (createToastTimerRef.current) {
+        window.clearTimeout(createToastTimerRef.current)
+      }
+    }
+  }, [])
+
   const retryRecoverableQueueActions = () => {
+    queuedParticipantActions
+      .filter((item) => item.syncStatus === "failed" && item.retryable && item.type === "create_participant")
+      .forEach((item) => {
+        retriedCreateQueueIdsRef.current.add(String(item.id))
+      })
+
     const next = queuedParticipantActions.map((item) => {
       if (item.syncStatus === "failed" && item.retryable) {
         return {
@@ -698,6 +759,11 @@ export default function Participants() {
   }
 
   const retryQueueItem = (queueItemId) => {
+    const retryTarget = queuedParticipantActions.find((item) => String(item.id) === String(queueItemId))
+    if (retryTarget?.type === "create_participant") {
+      retriedCreateQueueIdsRef.current.add(String(queueItemId))
+    }
+
     const next = queuedParticipantActions.map((item) => {
       if (String(item.id) !== String(queueItemId) || item.syncStatus !== "failed" || !item.retryable) {
         return item
@@ -867,6 +933,19 @@ export default function Participants() {
             needsParticipantRefresh = true
             continue
           }
+          if (action.type === "create_participant") {
+            await createAdminParticipant(action.payload || {})
+            if (retriedCreateQueueIdsRef.current.delete(String(action.id))) {
+              showCreateToast("Participant synced", { tone: "success" })
+            }
+            needsParticipantRefresh = true
+            continue
+          }
+          if (action.type === "edit_participant") {
+            await updateParticipantType(action.participantId, action.payload || {})
+            needsParticipantRefresh = true
+            continue
+          }
         } catch (err) {
           if (isOfflineError(err)) {
             remaining.push(
@@ -883,7 +962,7 @@ export default function Participants() {
           }
 
           const meta = getQueueErrorMeta(err)
-          remaining.push({
+          const failedAction = {
             ...action,
             syncStatus: "failed",
             status: "failed",
@@ -893,7 +972,15 @@ export default function Participants() {
             error: meta.detail,
             updatedAt: Date.now(),
             lastAttemptAt: Date.now(),
-          })
+          }
+          remaining.push(failedAction)
+          if (action.type === "create_participant") {
+            showCreateToast("Failed to sync participant", {
+              tone: "error",
+              retryQueueItemId: failedAction.id,
+              durationMs: 0,
+            })
+          }
           setQueueNotice(`1 queued change failed to sync: ${meta.summary}.`)
           console.error("Queued participant action failed", action, err)
         }
@@ -909,7 +996,52 @@ export default function Participants() {
     if (needsRemovalRefresh) {
       await refreshRemovalLog()
     }
-  }, [refreshParticipants, refreshRemovalLog])
+  }, [refreshParticipants, refreshRemovalLog, showCreateToast])
+
+  const handleCreateParticipantSubmit = useCallback((payload) => {
+    const localId = `local-create-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const selectedSession = createSessions.find((session) => String(session.id) === String(payload.session_id || ""))
+
+    const optimisticParticipant = normalizeParticipantForUI({
+      id: localId,
+      event_id: payload.event_id,
+      session_id: payload.session_id || null,
+      first_name: payload.first_name,
+      last_name: payload.last_name,
+      email: payload.email,
+      role: payload.role || "participant",
+      is_minor: Boolean(payload.is_minor),
+      requires_assistance: Boolean(payload.requires_assistance),
+      checked_in: false,
+      is_waitlisted: false,
+      priority: Number.isFinite(Number(payload.priority)) ? Number(payload.priority) : 0,
+      waiver_signed: false,
+      waiver_verified: false,
+      event_title: createEventMeta.title || undefined,
+      event_type: createEventMeta.event_type || undefined,
+      session_name: selectedSession?.name || null,
+      notes: payload.notes || null,
+      volunteer_type: null,
+      volunteer_additional_types: [],
+      volunteer_is_versatile: false,
+    })
+
+    updateParticipantsLocal((prev) => [optimisticParticipant, ...prev])
+
+    const nextQueue = enqueueParticipantAction({
+      type: "create_participant",
+      participantId: localId,
+      payload,
+    })
+    persistQueuedParticipantActions(nextQueue)
+    if (navigator.onLine) {
+      showCreateToast("Participant added", { tone: "success" })
+    } else {
+      showCreateToast("Participant saved (syncing...)", { tone: "info" })
+    }
+    setCreateModalOpen(false)
+    processQueuedParticipantActions()
+  }, [createSessions, createEventMeta, processQueuedParticipantActions, showCreateToast, updateParticipantsLocal])
 
   // WebSocket: Listen for real-time updates and refresh participants
   useEffect(() => {
@@ -984,6 +1116,7 @@ export default function Participants() {
     event_type: requestedEventType,
     session_id: requestedSessionId,
   })
+  const [showAssistanceNeededOnly, setShowAssistanceNeededOnly] = useState(false)
   const [eventAssociationFilter, setEventAssociationFilter] = useState("upcoming_active")
   const [allEventsForFilters, setAllEventsForFilters] = useState([])
 
@@ -1035,6 +1168,117 @@ export default function Participants() {
     if (!participantFilters.event_type) return true
     return String(event.event_type || "").trim().toLowerCase() === participantFilters.event_type
   })
+
+  const createEventOptions = useMemo(
+    () => participantEventOptions.map((event) => ({ id: event.id, title: event.title })),
+    [participantEventOptions]
+  )
+
+  const loadCreateEventSessions = useCallback(async (eventId) => {
+    if (!eventId) {
+      setCreateSessions([])
+      setCreateEventMeta({ title: "", event_type: "" })
+      return
+    }
+
+    const fallbackEvent = participantEventOptions.find((event) => String(event.id) === String(eventId))
+
+    try {
+      const eventDetail = await fetchAdminEvent(eventId)
+      const normalizedSessions = Array.isArray(eventDetail?.sessions)
+        ? eventDetail.sessions
+        : []
+      setCreateSessions(normalizedSessions)
+      setCreateEventMeta({
+        title: eventDetail?.title || fallbackEvent?.title || "",
+        event_type: String(eventDetail?.event_type || fallbackEvent?.event_type || "").trim().toLowerCase(),
+      })
+    } catch (err) {
+      setCreateSessions([])
+      setCreateEventMeta({
+        title: fallbackEvent?.title || "",
+        event_type: String(fallbackEvent?.event_type || "").trim().toLowerCase(),
+      })
+      console.error("Failed to load sessions for selected event", err)
+    }
+  }, [participantEventOptions])
+
+  const openCreateModal = useCallback(() => {
+    const fallbackEventId = participantFilters.event_id || createEventOptions[0]?.id || ""
+    setCreateEventId(fallbackEventId)
+    setCreateModalOpen(true)
+    if (fallbackEventId) {
+      loadCreateEventSessions(fallbackEventId)
+    } else {
+      setCreateSessions([])
+      setCreateEventMeta({ title: "", event_type: "" })
+    }
+  }, [participantFilters.event_id, createEventOptions, loadCreateEventSessions])
+
+  const closeCreateModal = useCallback(() => {
+    setCreateModalOpen(false)
+  }, [])
+
+  const openEditModal = useCallback((participant) => {
+    if (!participant?.id) return
+    setEditingParticipant(participant)
+    const participantEventId = String(participant.event_id || "")
+    setCreateEventId(participantEventId)
+    setEditModalOpen(true)
+    if (participantEventId) {
+      loadCreateEventSessions(participantEventId)
+    }
+  }, [loadCreateEventSessions])
+
+  const closeEditModal = useCallback(() => {
+    setEditModalOpen(false)
+    setEditingParticipant(null)
+  }, [])
+
+  const handleEditParticipantSubmit = useCallback((payload) => {
+    if (!editingParticipant?.id) return
+
+    const participantId = String(editingParticipant.id)
+    const selectedSession = createSessions.find((session) => String(session.id) === String(payload.session_id || ""))
+
+    updateParticipantsLocal((prev) => prev.map((participant) => {
+      if (String(participant.id) !== participantId) return participant
+
+      const nextRole = String(payload.role || participant.role || "participant").trim().toLowerCase()
+      return normalizeParticipantForUI({
+        ...participant,
+        event_id: payload.event_id || participant.event_id,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        email: payload.email,
+        role: nextRole,
+        is_minor: Boolean(payload.is_minor),
+        requires_assistance: Boolean(payload.requires_assistance),
+        priority: Number.isFinite(Number(payload.priority)) ? Number(payload.priority) : 0,
+        notes: payload.notes || null,
+        session_id: payload.session_id || null,
+        session_name: payload.session_id ? (selectedSession?.name || null) : null,
+        event_title: createEventMeta.title || participant.event_title,
+        event_type: createEventMeta.event_type || participant.event_type,
+        volunteer_type: nextRole === "volunteer" ? (payload.volunteer_type || null) : null,
+        volunteer_additional_types: nextRole === "volunteer"
+          ? (Array.isArray(payload.volunteer_additional_types) ? payload.volunteer_additional_types : [])
+          : [],
+        volunteer_is_versatile: nextRole === "volunteer" ? Boolean(payload.volunteer_is_versatile) : false,
+      })
+    }))
+
+    const nextQueue = enqueueParticipantAction({
+      type: "edit_participant",
+      participantId,
+      payload,
+    })
+    persistQueuedParticipantActions(nextQueue)
+    setEditModalOpen(false)
+    setEditingParticipant(null)
+    processQueuedParticipantActions()
+  }, [createSessions, createEventMeta, editingParticipant, processQueuedParticipantActions, updateParticipantsLocal])
+
 
   const participantSessionOptions = Array.from(
     new Map([
@@ -1109,6 +1353,10 @@ export default function Participants() {
     .filter((p) => {
       if (!participantFilters.session_id) return true
       return String(p.session_id || "") === participantFilters.session_id
+    })
+    .filter((p) => {
+      if (!showAssistanceNeededOnly) return true
+      return Boolean(p.requires_assistance)
     })
     .filter((p) => {
       if (eventAssociationFilter === "all") return true
@@ -1713,6 +1961,9 @@ export default function Participants() {
     )
   ).sort((left, right) => left.localeCompare(right))
 
+  const participantFormEventId = createEventId ? String(createEventId) : null
+  const participantFormEventType = normalizeParticipantFormEventType(createEventMeta?.event_type)
+
   return (
 
     <div className="p-4 sm:p-6">
@@ -1725,6 +1976,13 @@ export default function Participants() {
           className="px-3 py-2 sm:py-1 bg-sky-100 text-sky-800 rounded hover:bg-sky-200 text-sm"
         >
           Templates
+        </button>
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="px-3 py-2 sm:py-1 rounded bg-emerald-600 text-sm text-white hover:bg-emerald-700"
+        >
+          Add Participant
         </button>
         <button
           onClick={async () => {
@@ -1745,6 +2003,43 @@ export default function Participants() {
           {priorityError}
         </div>
       )}
+
+      <ParticipantForm
+        isOpen={createModalOpen}
+        onClose={closeCreateModal}
+        onSubmit={handleCreateParticipantSubmit}
+        onEventChange={(eventId) => {
+          setCreateEventId(eventId)
+          loadCreateEventSessions(eventId)
+        }}
+        eventOptions={createEventOptions}
+        sessions={createSessions}
+        eventId={participantFormEventId}
+        eventType={participantFormEventType}
+        defaultEventId={createEventId}
+        lockEvent={false}
+        title="Add Participant"
+        submitLabel="Add Participant"
+      />
+
+      <ParticipantForm
+        isOpen={editModalOpen}
+        onClose={closeEditModal}
+        onSubmit={handleEditParticipantSubmit}
+        onEventChange={(eventId) => {
+          setCreateEventId(eventId)
+          loadCreateEventSessions(eventId)
+        }}
+        eventOptions={createEventOptions}
+        sessions={createSessions}
+        eventId={participantFormEventId}
+        eventType={participantFormEventType}
+        defaultEventId={createEventId}
+        initialData={editingParticipant}
+        lockEvent={false}
+        title="Edit Participant"
+        submitLabel="Save Changes"
+      />
 
       {(pendingQueueCount > 0 || failedQueueCount > 0) && (
         <div className="mb-3 space-y-2 rounded border border-amber-400 bg-amber-100 px-4 py-2 text-sm text-amber-900">
@@ -1788,6 +2083,43 @@ export default function Participants() {
         </div>
       )}
 
+      {createToast && (
+        <div className="fixed right-4 top-4 z-50 rounded border px-4 py-3 text-sm shadow-lg bg-white">
+          <div className="flex items-center gap-3">
+            <span
+              className={`font-medium ${
+                createToast.tone === "error"
+                  ? "text-red-700"
+                  : createToast.tone === "info"
+                    ? "text-amber-700"
+                    : "text-emerald-700"
+              }`}
+            >
+              {createToast.message}
+            </span>
+            {createToast.retryQueueItemId && (
+              <button
+                type="button"
+                onClick={() => {
+                  retryQueueItem(createToast.retryQueueItemId)
+                  dismissCreateToast()
+                }}
+                className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-100"
+              >
+                Retry
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={dismissCreateToast}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mb-4 text-center sticky top-0 bg-warmbg z-10 pb-2">
 
         <input
@@ -1809,6 +2141,17 @@ export default function Participants() {
           </button>
 
           <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowAssistanceNeededOnly((prev) => !prev)}
+              className={`rounded-full border px-3 py-2 sm:py-1 text-xs font-medium transition ${
+                showAssistanceNeededOnly
+                  ? "border-sky-400 bg-sky-600 text-white"
+                  : "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"
+              }`}
+            >
+              Show Assistance Needed
+            </button>
             <button
               type="button"
               onClick={() => setEventAssociationFilter("all")}
@@ -1855,10 +2198,13 @@ export default function Participants() {
             </button>
           </div>
 
-          {(participantFilters.event_id || participantFilters.event_type) && (
+          {(participantFilters.event_id || participantFilters.event_type || showAssistanceNeededOnly) && (
             <button
               type="button"
-              onClick={() => setParticipantFilters({ event_id: "", event_type: "", session_id: "" })}
+              onClick={() => {
+                setParticipantFilters({ event_id: "", event_type: "", session_id: "" })
+                setShowAssistanceNeededOnly(false)
+              }}
               className="inline-flex items-center rounded border border-gray-300 bg-gray-50 px-2.5 py-2 sm:py-1 text-xs font-medium text-gray-700 hover:bg-gray-100"
             >
               Clear participant filters
@@ -2047,6 +2393,11 @@ export default function Participants() {
                         {p.no_show_count} prior no-show{p.no_show_count === 1 ? "" : "s"}
                       </span>
                     )}
+                    {p.requires_assistance && (
+                      <span className="mt-1 inline-flex items-center rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800">
+                        Needs Assistance
+                      </span>
+                    )}
                     <ParticipantTypeRadioGroup
                       participant={p}
                       onChange={(option) => handleParticipantTypeChange(p.id, option)}
@@ -2098,6 +2449,7 @@ export default function Participants() {
                   <td className="w-16 px-2 py-2 text-center">
                     <ParticipantActionsDropdown
                       participant={p}
+                      onEdit={openEditModal}
                       onVerifyWaiver={handleVerifyWaiver}
                       onCheckIn={handleCheckIn}
                       onPromote={handlePromote}

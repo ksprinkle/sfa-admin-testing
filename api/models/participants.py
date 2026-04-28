@@ -22,6 +22,7 @@ class Participant(Base):
 
     role = Column(String, nullable=False, default="participant")
     is_minor = Column(Boolean, default=False)
+    requires_assistance = Column(Boolean, nullable=False, default=False)
 
     is_waitlisted = Column(Boolean, default=False)
 

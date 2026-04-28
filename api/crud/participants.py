@@ -14,10 +14,12 @@ def create_participant(
     participant_in: ParticipantCreate,
     is_waitlisted: bool = False,
 ):
+    participant_payload = participant_in.model_dump(exclude={"event_id"})
+
     participant = Participant(
         event_id=event.id,
         is_waitlisted=is_waitlisted,
-        **participant_in.model_dump(),
+        **participant_payload,
     )
 
     db.add(participant)

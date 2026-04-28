@@ -196,6 +196,20 @@ export async function fetchAllParticipants() {
   return res.json()
 }
 
+export async function createAdminParticipant(payload) {
+  const res = await apiFetch("/api/admin/participants/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to create participant")
+  }
+
+  return res.json()
+}
+
 export async function checkInParticipant(participantId) {
   const res = await apiFetch(
     `/api/admin/participants/${participantId}/checkin`,

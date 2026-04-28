@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.exc import IntegrityError
 from api.crud.participants import promote_from_waitlist, promote_specific_waitlisted_participant
+from api.crud.participants import create_participant as create_participant_record
 from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
 from sqlalchemy.orm import joinedload
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from api.schemas.participants import AdminParticipantListOut, ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate, ParticipantRemovalLogOut
 from api.ws_manager import manager
 import json
@@ -19,12 +20,8 @@ import io
 from fastapi.responses import StreamingResponse
 from api.models.sessions import Session as EventSession
 from api.services.session_service import (
-    CHAPTER_SESSION_MINUTES,
     DEFAULT_SESSION_CAPACITY,
-    create_next_tour_session,
-    get_next_available_session,
     get_session_participant_count,
-    is_tour_event,
 )
 from api.models.participant_removal_log import ParticipantRemovalLog
 
@@ -38,6 +35,11 @@ router = APIRouter(
 )
 
 logger = logging.getLogger(__name__)
+
+
+class AdminParticipantCreate(ParticipantCreate):
+    session_id: UUID | None = None
+    notes: str | None = None
 
 
 def _base_active_participant_query(db: DBSession):
@@ -237,6 +239,7 @@ async def update_participant(
         "email",
         "role",
         "is_minor",
+        "requires_assistance",
         "priority",
         "waiver_signed",
         "waiver_verified",
@@ -254,6 +257,8 @@ async def update_participant(
         participant.volunteer_type = None
         participant.volunteer_additional_types = []
         participant.volunteer_is_versatile = False
+        if participant.requires_assistance is None:
+            participant.requires_assistance = False
 
     if "checked_in" in updates:
         if updates["checked_in"]:
@@ -293,101 +298,96 @@ async def update_participant(
 #     print("🔥 ADMIN PARTICIPANTS HIT")
 #     return {"ok": True}
 
-@router.post("/", response_model=ParticipantOut)
-def create_participant(
-    data: ParticipantCreate,
+@router.post("/", response_model=AdminParticipantListOut)
+def create_admin_participant(
+    data: AdminParticipantCreate,
     db: DBSession = Depends(get_db),
     _current_user = Depends(require_admin),
 ):
-    
     event = db.query(Event).filter(Event.id == data.event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    # Auto-assign session based on capacity.
-    # Order by session start time, not by UUID, to assign the earliest available session.
-    sessions = db.query(EventSession)\
-        .filter(EventSession.event_id == data.event_id)\
-        .order_by(EventSession.start_time.asc(), EventSession.id.asc())\
-        .all()
+    target_session = None
+    if data.session_id is not None:
+        target_session = db.query(EventSession).filter(EventSession.id == data.session_id).first()
+        if not target_session:
+            raise HTTPException(status_code=400, detail="Session not found")
+        if str(target_session.event_id) != str(event.id):
+            raise HTTPException(status_code=400, detail="Session does not belong to participant event")
 
-    if not sessions:
-        if not event.start_date or not event.start_time:
-            raise HTTPException(status_code=400, detail="No sessions configured for this event")
+        if not _is_volunteer_role(data.role):
+            current_count = get_session_participant_count(db, target_session.id)
+            session_capacity = target_session.capacity or DEFAULT_SESSION_CAPACITY
+            if current_count >= session_capacity:
+                raise HTTPException(status_code=400, detail="Session is full")
 
-        if is_tour_event(event.event_type):
-            first_tour_session = create_next_tour_session(db, event, existing_sessions=[])
-            sessions = [first_tour_session] if first_tour_session else []
-        else:
-            base_time = datetime.combine(event.start_date, event.start_time)
+    participant_in = ParticipantCreate(
+        event_id=data.event_id,
+        first_name=data.first_name,
+        last_name=data.last_name,
+        email=data.email,
+        role=data.role,
+        is_minor=data.is_minor,
+        requires_assistance=data.requires_assistance,
+        priority=data.priority,
+        volunteer_type=data.volunteer_type,
+        volunteer_additional_types=data.volunteer_additional_types,
+        volunteer_is_versatile=data.volunteer_is_versatile,
+    )
 
-            session1 = EventSession(
-                event_id=event.id,
-                name="Session 1",
-                start_time=base_time,
-                end_time=base_time + timedelta(minutes=CHAPTER_SESSION_MINUTES),
-                capacity=DEFAULT_SESSION_CAPACITY,
-            )
+    participant = create_participant_record(
+        db,
+        event,
+        participant_in,
+        is_waitlisted=False,
+    )
 
-            session2 = EventSession(
-                event_id=event.id,
-                name="Session 2",
-                start_time=base_time + timedelta(minutes=CHAPTER_SESSION_MINUTES),
-                end_time=base_time + timedelta(minutes=CHAPTER_SESSION_MINUTES * 2),
-                capacity=DEFAULT_SESSION_CAPACITY,
-            )
+    participant.notes = data.notes
+    participant.session_id = target_session.id if target_session else None
 
-            db.add_all([session1, session2])
-            db.flush()
-
-            sessions = [session1, session2]
-
-    is_volunteer = _is_volunteer_role(data.role)
-    volunteer_type = data.volunteer_type if is_volunteer else None
-    volunteer_additional_types = data.volunteer_additional_types if is_volunteer else []
-    volunteer_is_versatile = data.volunteer_is_versatile if is_volunteer else False
-
-    # Use centralized session assignment for participant roles.
-    if is_volunteer:
-        assigned_session_id = sessions[0].id if sessions else None
-        is_waitlisted = False
-    else:
-        available_session = get_next_available_session(db, data.event_id)
-        assigned_session_id = available_session.id if available_session else None
-        # If no session available, add as waitlisted (don't turn away extras)
-        is_waitlisted = not assigned_session_id
+    if target_session is not None:
+        participant.is_waitlisted = False
 
     try:
-        participant = Participant(
-            event_id=data.event_id,
-            session_id=assigned_session_id,
-            first_name=data.first_name,
-            last_name=data.last_name,
-            email=data.email,
-            role=data.role,
-            is_minor=data.is_minor,
-            is_waitlisted=is_waitlisted,
-            volunteer_type=volunteer_type,
-            volunteer_additional_types=volunteer_additional_types,
-            volunteer_is_versatile=volunteer_is_versatile,
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Participant already registered for this event",
         )
 
-        db.add(participant)
+    db.refresh(participant)
 
-        # Final capacity check to prevent exceeding session capacity under race conditions
-        if participant.session_id and not is_volunteer:
-            session_capacity = next((s.capacity for s in sessions if s.id == participant.session_id), None) or DEFAULT_SESSION_CAPACITY
-            final_count = get_session_participant_count(db, participant.session_id)
-            if final_count > session_capacity:
-                participant.is_waitlisted = True
-                participant.session_id = None
-
-        db.commit()
-        db.refresh(participant)
-        return participant
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "id": participant.id,
+        "event_id": participant.event_id,
+        "session_id": participant.session_id,
+        "first_name": participant.first_name,
+        "last_name": participant.last_name,
+        "email": participant.email,
+        "role": participant.role,
+        "is_minor": participant.is_minor,
+        "requires_assistance": participant.requires_assistance,
+        "checked_in": participant.checked_in,
+        "is_waitlisted": participant.is_waitlisted,
+        "priority": participant.priority,
+        "waiver_signed": participant.waiver_signed,
+        "waiver_verified": participant.waiver_verified,
+        "event_title": event.title,
+        "event_type": event.event_type,
+        "session_name": target_session.name if target_session else None,
+        "notes": participant.notes,
+        "no_show_count": 0,
+        "removed_at": participant.removed_at,
+        "removed_reason_code": participant.removed_reason_code,
+        "removed_reason_note": participant.removed_reason_note,
+        "removed_stage": participant.removed_stage,
+        "volunteer_type": participant.volunteer_type,
+        "volunteer_additional_types": participant.volunteer_additional_types or [],
+        "volunteer_is_versatile": participant.volunteer_is_versatile,
+    }
 
 #🔹 Participant actions (check-in, verify waiver, move to waitlist, promote, remove)
 @router.post("/{participant_id}/action")
@@ -616,6 +616,7 @@ def list_all_participants(
             "email": p.email,
             "role": p.role,
             "is_minor": p.is_minor,
+            "requires_assistance": p.requires_assistance,
             "checked_in": p.checked_in,
             "is_waitlisted": p.is_waitlisted,
             "waiver_signed": p.waiver_signed,
@@ -623,6 +624,7 @@ def list_all_participants(
             "event_title": p.event.title if p.event else None,
             "event_type": p.event.event_type if p.event else None,
             "session_name": p.session.name if p.session else None,
+            "notes": p.notes,
             "no_show_count": no_show_counts.get((p.email or "").strip().lower(), 0),
             "priority": p.priority,
             "removed_at": p.removed_at,

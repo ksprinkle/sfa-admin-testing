@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, duplicateEvent, saveEventAsTemplate } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
+import ParticipantForm from "../components/ParticipantForm"
 
 import {
   DndContext,
@@ -65,6 +66,12 @@ function formatEventType(eventType) {
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ")
+}
+
+function normalizeParticipantFormEventType(value) {
+  const normalized = String(value || "").trim().toLowerCase()
+  if (normalized === "chapter" || normalized === "tour") return normalized
+  return null
 }
 
 function buildLocationSummary(eventInfo) {
@@ -494,12 +501,18 @@ function EventDetail() {
   const [saveTemplateError, setSaveTemplateError] = useState("")
   const [saveTemplateMessage, setSaveTemplateMessage] = useState("")
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editingParticipant, setEditingParticipant] = useState(null)
+  const [createToast, setCreateToast] = useState(null)
   const [saveTemplateNameInput, setSaveTemplateNameInput] = useState("")
   const [useChapterSchedule, setUseChapterSchedule] = useState(true)
   const [scheduleMonthsInput, setScheduleMonthsInput] = useState(CHAPTER_SCHEDULE_DEFAULT.schedule_months.join(","))
   const [scheduleWeekdayInput, setScheduleWeekdayInput] = useState(String(CHAPTER_SCHEDULE_DEFAULT.schedule_weekday))
   const [scheduleWeekNumbersInput, setScheduleWeekNumbersInput] = useState(CHAPTER_SCHEDULE_DEFAULT.schedule_week_numbers.join(","))
   const queueSyncRef = useRef(false)
+  const createToastTimerRef = useRef(null)
+  const retriedCreateQueueIdsRef = useRef(new Set())
 
   const pendingQueueCount = queuedEventActions.filter((item) => item.syncStatus !== "failed").length
   const failedQueueCount = queuedEventActions.filter((item) => item.syncStatus === "failed").length
@@ -523,7 +536,51 @@ function EventDetail() {
     return normalized
   }
 
+  const dismissCreateToast = () => {
+    if (createToastTimerRef.current) {
+      window.clearTimeout(createToastTimerRef.current)
+      createToastTimerRef.current = null
+    }
+    setCreateToast(null)
+  }
+
+  const showCreateToast = (message, options = {}) => {
+    const {
+      tone = "success",
+      retryQueueItemId = null,
+      durationMs = 2600,
+    } = options
+
+    if (createToastTimerRef.current) {
+      window.clearTimeout(createToastTimerRef.current)
+      createToastTimerRef.current = null
+    }
+
+    setCreateToast({ message, tone, retryQueueItemId })
+
+    if (durationMs > 0) {
+      createToastTimerRef.current = window.setTimeout(() => {
+        setCreateToast(null)
+        createToastTimerRef.current = null
+      }, durationMs)
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (createToastTimerRef.current) {
+        window.clearTimeout(createToastTimerRef.current)
+      }
+    }
+  }, [])
+
   const retryRecoverableQueueActions = () => {
+    queuedEventActions
+      .filter((item) => item.syncStatus === "failed" && item.retryable && item.type === "create_participant")
+      .forEach((item) => {
+        retriedCreateQueueIdsRef.current.add(String(item.id))
+      })
+
     const next = queuedEventActions.map((item) => {
       if (item.syncStatus === "failed" && item.retryable) {
         return {
@@ -551,6 +608,11 @@ function EventDetail() {
   }
 
   const retryQueueItem = (queueItemId) => {
+    const retryTarget = queuedEventActions.find((item) => String(item.id) === String(queueItemId))
+    if (retryTarget?.type === "create_participant") {
+      retriedCreateQueueIdsRef.current.add(String(queueItemId))
+    }
+
     const next = queuedEventActions.map((item) => {
       if (String(item.id) !== String(queueItemId) || item.syncStatus !== "failed" || !item.retryable) {
         return item
@@ -791,6 +853,19 @@ function EventDetail() {
             needsRefresh = true
             continue
           }
+          if (action.type === "create_participant") {
+            await createAdminParticipant(action.payload || {})
+            if (retriedCreateQueueIdsRef.current.delete(String(action.id))) {
+              showCreateToast("Participant synced", { tone: "success" })
+            }
+            needsRefresh = true
+            continue
+          }
+          if (action.type === "edit_participant") {
+            await updateParticipantType(action.participantId, action.payload || {})
+            needsRefresh = true
+            continue
+          }
         } catch (err) {
           if (isOfflineError(err)) {
             remaining.push(
@@ -807,7 +882,7 @@ function EventDetail() {
           }
 
           const meta = getQueueErrorMeta(err)
-          remaining.push({
+          const failedAction = {
             ...action,
             syncStatus: "failed",
             status: "failed",
@@ -817,7 +892,15 @@ function EventDetail() {
             error: meta.detail,
             updatedAt: Date.now(),
             lastAttemptAt: Date.now(),
-          })
+          }
+          remaining.push(failedAction)
+          if (action.type === "create_participant") {
+            showCreateToast("Failed to sync participant", {
+              tone: "error",
+              retryQueueItemId: failedAction.id,
+              durationMs: 0,
+            })
+          }
           setQueueNotice(`1 queued change failed to sync: ${meta.summary}.`)
           console.error("Queued event action failed", action, err)
         }
@@ -1121,6 +1204,96 @@ function EventDetail() {
     }
   }
 
+  function handleCreateParticipantSubmit(payload) {
+    const localId = `local-create-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const selectedSession = (Array.isArray(eventInfo?.sessions) ? eventInfo.sessions : [])
+      .find((session) => String(session.id) === String(payload.session_id || ""))
+
+    updateParticipantsLocal((prev) => [
+      {
+        id: localId,
+        event_id: payload.event_id,
+        session_id: payload.session_id || null,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        email: payload.email,
+        role: payload.role || "participant",
+        is_minor: Boolean(payload.is_minor),
+        requires_assistance: Boolean(payload.requires_assistance),
+        checked_in: false,
+        is_waitlisted: false,
+        priority: Number.isFinite(Number(payload.priority)) ? Number(payload.priority) : 0,
+        waiver_signed: false,
+        waiver_verified: false,
+        session_name: selectedSession?.name || null,
+        notes: payload.notes || null,
+      },
+      ...prev,
+    ])
+
+    const nextQueue = enqueueEventAction(eventId, {
+      type: "create_participant",
+      participantId: localId,
+      payload,
+    })
+    persistQueuedEventActions(nextQueue)
+    if (navigator.onLine) {
+      showCreateToast("Participant added", { tone: "success" })
+    } else {
+      showCreateToast("Participant saved (syncing...)", { tone: "info" })
+    }
+    setCreateModalOpen(false)
+    processQueuedEventActions()
+  }
+
+  function handleOpenEditParticipant(participant) {
+    if (!participant?.id) return
+    setEditingParticipant(participant)
+    setEditModalOpen(true)
+  }
+
+  function handleEditParticipantSubmit(payload) {
+    if (!editingParticipant?.id) return
+
+    const participantId = String(editingParticipant.id)
+    const selectedSession = (Array.isArray(eventInfo?.sessions) ? eventInfo.sessions : [])
+      .find((session) => String(session.id) === String(payload.session_id || ""))
+
+    updateParticipantsLocal((prev) => prev.map((participant) => {
+      if (String(participant.id) !== participantId) return participant
+
+      const nextRole = String(payload.role || participant.role || "participant").trim().toLowerCase()
+      return {
+        ...participant,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        email: payload.email,
+        role: nextRole,
+        is_minor: Boolean(payload.is_minor),
+        requires_assistance: Boolean(payload.requires_assistance),
+        priority: Number.isFinite(Number(payload.priority)) ? Number(payload.priority) : 0,
+        notes: payload.notes || null,
+        session_id: payload.session_id || null,
+        session_name: payload.session_id ? (selectedSession?.name || null) : null,
+        volunteer_type: nextRole === "volunteer" ? (payload.volunteer_type || null) : null,
+        volunteer_additional_types: nextRole === "volunteer"
+          ? (Array.isArray(payload.volunteer_additional_types) ? payload.volunteer_additional_types : [])
+          : [],
+        volunteer_is_versatile: nextRole === "volunteer" ? Boolean(payload.volunteer_is_versatile) : false,
+      }
+    }))
+
+    const nextQueue = enqueueEventAction(eventId, {
+      type: "edit_participant",
+      participantId,
+      payload,
+    })
+    persistQueuedEventActions(nextQueue)
+    setEditModalOpen(false)
+    setEditingParticipant(null)
+    processQueuedEventActions()
+  }
+
   // ✅ stable drag handlers with proper multi-select logic
   function handleDragStart(event) {
     setActiveId(String(event.active.id))
@@ -1292,6 +1465,11 @@ function EventDetail() {
         <div className="text-xs text-gray-500">
           {p.email}
         </div>
+        {p.requires_assistance && (
+          <span className="mt-1 inline-flex items-center rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800">
+            Needs Assistance
+          </span>
+        )}
         {syncItem?.syncStatus === "pending" && (
           <div className="mt-1 flex items-center gap-1 text-xs text-amber-600">
             <SyncStatusIcon status={syncItem.status} />
@@ -1368,6 +1546,8 @@ function EventDetail() {
   const surfUrl = buildSurfUrl(eventInfo)
   const featuredImageUrl = normalizeExternalUrl(eventInfo?.featured_image)
   const hasResources = mapUrl || weatherUrl || surfUrl
+  const participantFormEventId = eventId ? String(eventId) : null
+  const participantFormEventType = normalizeParticipantFormEventType(eventInfo?.event_type)
 
   return (
     <div className="relative p-6 space-y-6" onClick={() => setSelectedIds([])}>
@@ -1418,6 +1598,54 @@ function EventDetail() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {createToast && (
+        <div className="fixed right-4 top-4 z-50 rounded border px-4 py-3 text-sm shadow-lg bg-white">
+          <div className="flex items-center gap-3">
+            <span
+              className={`font-medium ${
+                createToast.tone === "error"
+                  ? "text-red-700"
+                  : createToast.tone === "info"
+                    ? "text-amber-700"
+                    : "text-emerald-700"
+              }`}
+            >
+              {createToast.message}
+            </span>
+            {createToast.retryQueueItemId && (
+              <button
+                type="button"
+                onClick={() => {
+                  retryQueueItem(createToast.retryQueueItemId)
+                  dismissCreateToast()
+                }}
+                className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-100"
+              >
+                Retry
+                <button
+                  type="button"
+                  onPointerDown={(e) => { e.stopPropagation() }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleOpenEditParticipant(p)
+                  }}
+                  className="mt-1 text-xs text-sky-700 underline"
+                >
+                  Edit
+                </button>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={dismissCreateToast}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
@@ -1537,6 +1765,14 @@ function EventDetail() {
             title="Refresh participants"
           >
             ↻ Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreateModalOpen(true)}
+            className="px-3 py-2 sm:py-1 rounded bg-emerald-600 text-sm text-white hover:bg-emerald-700"
+            title="Add participant"
+          >
+            Add Participant
           </button>
           <button
             type="button"
@@ -1668,6 +1904,36 @@ function EventDetail() {
           </div>
         </div>
       )}
+
+      <ParticipantForm
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSubmit={handleCreateParticipantSubmit}
+        sessions={Array.isArray(eventInfo?.sessions) ? eventInfo.sessions : []}
+        eventId={participantFormEventId}
+        eventType={participantFormEventType}
+        defaultEventId={String(eventId || "")}
+        lockEvent={true}
+        title="Add Participant"
+        submitLabel="Add Participant"
+      />
+
+      <ParticipantForm
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false)
+          setEditingParticipant(null)
+        }}
+        onSubmit={handleEditParticipantSubmit}
+        sessions={Array.isArray(eventInfo?.sessions) ? eventInfo.sessions : []}
+        eventId={participantFormEventId}
+        eventType={participantFormEventType}
+        defaultEventId={String(eventId || "")}
+        initialData={editingParticipant}
+        lockEvent={true}
+        title="Edit Participant"
+        submitLabel="Save Changes"
+      />
 
       {eventInfo && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

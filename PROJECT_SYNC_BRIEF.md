@@ -42,10 +42,110 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-04-28
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 7d71a02
-Current workspace status: clean working tree
+Latest implementation commit: 13d6755
+Current workspace status: working tree has uncommitted changes
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
+
+## Session Delta (Uncommitted - April 28, Admin Participant Registration Hardening + Offline Create UI)
+
+### Backend: Admin Participant Create Route Normalization
+Status: Implemented in working tree (not yet committed)
+Files changed:
+- api/routers/admin_participants.py
+- api/crud/participants.py
+- api/schemas/participants.py
+- api/routers/admin_events.py
+
+Behavior summary:
+- Refactored `POST /api/admin/participants/` to reuse shared participant CRUD creation path.
+- Removed implicit admin auto-session assignment/session auto-creation behavior from create route.
+- Create route now supports optional explicit `session_id`; if omitted, participant remains unassigned.
+- Response model aligned to admin list shape (`AdminParticipantListOut`) for richer admin payloads.
+- Added `notes` to admin participant list schema and mapped into admin participant list/create response payloads.
+- Duplicate participant registration handling aligned with public behavior:
+  - duplicate event+email now returns HTTP 409 with stable conflict detail.
+- Added shared CRUD safety fix to exclude duplicate `event_id` kwargs when constructing ORM model.
+
+Validation evidence:
+- Backend diagnostics: pass (`get_errors` on touched backend files)
+- Runtime smoke checks: pass
+  - duplicate create returns 409
+  - create with explicit session id succeeds
+  - existing move-session endpoint still succeeds for created participant
+
+### Frontend: Offline-Queue-Based Admin Participant Create UI
+Status: Implemented in working tree (not yet committed)
+Files changed:
+- admin-app/src/components/ParticipantForm.jsx
+- admin-app/src/api/events.js
+- admin-app/src/pages/Participants.jsx
+- admin-app/src/pages/EventDetail.jsx
+
+Behavior summary:
+- Added reusable `ParticipantForm` modal component with existing backend fields only:
+  - first_name, last_name, email, role, is_minor, priority, notes, session_id
+- Added Add Participant entry points on:
+  - Participants page
+  - Event Detail page
+- Implemented create flow through existing offline queue patterns (no direct submit bypass):
+  - optimistic local insert immediately on submit
+  - enqueue `create_participant` action
+  - process queued create actions through existing queue processors
+  - non-blocking submit and modal close on submit
+- Session dropdown populates from event sessions and shows occupancy label (`Session N (x/y)`) when available.
+- Added lightweight UX polish: remembers last selected `session_id` per event in local storage for repeated sibling entry.
+
+Validation evidence:
+- Frontend diagnostics: pass (`get_errors` on ParticipantForm.jsx, events.js, Participants.jsx, EventDetail.jsx)
+- Frontend build: pass (`npm run build` in `admin-app`)
+
+## Session Delta (Uncommitted - April 28, Participant Edit Flow + Assistance Visibility + Volunteer Form Hardening)
+
+### Backend: Assistance Flag + Admin Payload Coverage + Migration Alignment
+Status: Implemented in working tree (not yet committed)
+Files changed:
+- api/models/participants.py
+- api/schemas/participants.py
+- api/routers/admin_participants.py
+- api/routers/admin_events.py
+- alembic/versions/m1a2b3c4d5e6_add_requires_assistance_to_participants.py
+- alembic/versions/808eb7aca1b1_merge_heads.py
+
+Behavior summary:
+- Added persistent `requires_assistance` support on participants with schema/model coverage.
+- Extended admin participant list and update payloads to include `requires_assistance` and `notes` consistently.
+- Preserved volunteer normalization behavior so non-volunteers can carry the assistance flag while volunteers force it false.
+- Added guarded Alembic migration for `requires_assistance` and merged multiple heads into a single linear upgrade path.
+
+Validation evidence:
+- Backend diagnostics: pass (`get_errors` on touched backend files)
+- Runtime verification: pass
+  - resolved `participants.requires_assistance` schema drift
+  - `GET /api/admin/participants` recovered to 200 after migration alignment
+
+### Frontend: Edit Reuse + Event Context Standardization + Volunteer UX + Assistance Visibility
+Status: Implemented in working tree (not yet committed)
+Files changed:
+- admin-app/src/components/ParticipantForm.jsx
+- admin-app/src/components/ParticipantActionsDropdown.jsx
+- admin-app/src/pages/Participants.jsx
+- admin-app/src/pages/EventDetail.jsx
+
+Behavior summary:
+- Reused `ParticipantForm` for participant edit flows on both Participants and Event Detail.
+- Added edit entry points on participant row actions and event-detail participant cards.
+- Routed edit submissions through the existing offline queue/update pattern using `edit_participant` actions.
+- Standardized `ParticipantForm` integration to always pass `eventId` and normalized nullable `eventType` (`chapter`, `tour`, or `null`).
+- Added deterministic volunteer primary type selection when multiple volunteer types are selected:
+  - priority order `water`, `beach`, `food`, `raffle`
+- Added helper copy in the volunteer form to clarify which selected volunteer types are driving additional role options.
+- Added compact `Needs Assistance` badges to Participants rows and Event Detail cards.
+- Added a simple Participants-page-only `Show Assistance Needed` filter toggle.
+
+Validation evidence:
+- Frontend diagnostics: pass (`get_errors` on ParticipantForm.jsx, ParticipantActionsDropdown.jsx, Participants.jsx, EventDetail.jsx)
+- Frontend build: pass (`npm run build` in `admin-app``; chunk-size warning only)
 
 ## Session Delta (Committed - April 28, Check-In Routing UX)
 

@@ -91,6 +91,7 @@ class ParticipantCreate(BaseModel):
     email: EmailStr
     role: str = "participant"
     is_minor: bool = False
+    requires_assistance: bool = False
     priority: int = 0  # 0 = unset, 1 = high, 2 = medium, 3 = low
     volunteer_type: Optional[str] = None
     volunteer_additional_types: list[str] = Field(default_factory=list)
@@ -141,6 +142,8 @@ class ParticipantCreate(BaseModel):
             payload["volunteer_type"] = None
             payload["volunteer_additional_types"] = []
             payload["volunteer_is_versatile"] = False
+        else:
+            payload["requires_assistance"] = False
 
         if normalized_role:
             payload["role"] = normalized_role
@@ -168,6 +171,7 @@ class ParticipantOut(BaseModel):
     email: str
     role: str
     is_minor: bool
+    requires_assistance: bool = False
     is_waitlisted: bool
     priority: int
     checked_in: bool
@@ -226,6 +230,7 @@ class AdminParticipantListOut(BaseModel):
     email: str
     role: str
     is_minor: bool
+    requires_assistance: bool = False
     checked_in: bool
     is_waitlisted: bool
     priority: int
@@ -234,6 +239,7 @@ class AdminParticipantListOut(BaseModel):
     event_title: str | None = None
     event_type: Optional[str] = None
     session_name: Optional[str] = None
+    notes: Optional[str] = None
     no_show_count: int = 0
     removed_at: Optional[datetime] = None
     removed_reason_code: Optional[str] = None
@@ -260,6 +266,7 @@ class ParticipantUpdate(BaseModel):
     email: Optional[EmailStr] = None
     role: Optional[str] = None
     is_minor: Optional[bool] = None
+    requires_assistance: Optional[bool] = None
     is_waitlisted: Optional[bool] = None
     priority: Optional[int] = None
     waiver_signed: Optional[bool] = None

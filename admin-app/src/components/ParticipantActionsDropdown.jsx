@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react"
 
 export default function ParticipantActionsDropdown({
   participant,
+  onEdit,
   onVerifyWaiver,
   onCheckIn,
   onPromote,
@@ -34,6 +35,18 @@ export default function ParticipantActionsDropdown({
 
       {open && (
         <div className="absolute right-0 mt-1 bg-white border rounded shadow-md z-10">
+
+          {onEdit && (
+            <button
+              className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+              onClick={() => {
+                onEdit(participant)
+                setOpen(false)
+              }}
+            >
+              Edit
+            </button>
+          )}
 
           {!participant.waiver_verified && (
             <button
