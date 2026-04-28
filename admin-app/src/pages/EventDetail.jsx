@@ -1542,7 +1542,7 @@ function EventDetail() {
             type="button"
             onClick={handleDuplicateEvent}
             disabled={duplicateLoading}
-            className={`px-3 py-2 sm:py-1 rounded text-sm font-semibold ${duplicateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-600 text-white hover:bg-sky-700"}`}
+            className={`px-3 py-2 sm:py-1 rounded text-sm ${duplicateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-100 text-sky-800 hover:bg-sky-200"}`}
             title="Create a new draft event with the same configuration"
           >
             {duplicateLoading ? "Duplicating..." : "Duplicate Event"}
@@ -1551,7 +1551,7 @@ function EventDetail() {
             type="button"
             onClick={handleOpenSaveTemplateModal}
             disabled={saveTemplateLoading}
-            className={`px-3 py-2 sm:py-1 rounded text-sm font-semibold ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}
+            className={`px-3 py-2 sm:py-1 rounded text-sm ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-100 text-sky-800 hover:bg-sky-200"}`}
             title="Create an event template from this event"
           >
             {saveTemplateLoading ? "Saving Template..." : "Save as Template"}
@@ -1559,7 +1559,7 @@ function EventDetail() {
           <button
             type="button"
             onClick={() => navigate("/event-templates")}
-            className="px-3 py-2 sm:py-1 rounded text-sm font-semibold bg-violet-600 text-white hover:bg-violet-700"
+            className="px-3 py-2 sm:py-1 bg-sky-100 text-sky-800 rounded hover:bg-sky-200 text-sm"
             title="Go to Event Templates"
           >
             Templates
