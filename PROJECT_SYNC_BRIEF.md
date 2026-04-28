@@ -42,15 +42,15 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-04-28
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 962e593
-Current workspace status: Check-In tab UX committed; remaining uncommitted styling updates present in admin-app/src/pages/EventDetail.jsx
+Latest implementation commit: 7d71a02
+Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
-## Session Delta (Uncommitted - April 28, Check-In Routing UX)
+## Session Delta (Committed - April 28, Check-In Routing UX)
 
 ### Check-In Tab Event-Selection Guidance
-Status: Implemented in working tree (not yet committed)
+Status: Committed
 Files changed:
 - admin-app/src/components/BottomNav.jsx
 - admin-app/src/pages/Events.jsx
@@ -69,10 +69,10 @@ Validation evidence:
 - Frontend diagnostics: pass (`get_errors` on BottomNav.jsx and Events.jsx)
 - Frontend build: pass (`npm run build` in `admin-app`)
 
-## Session Delta (Uncommitted - April 28)
+## Session Delta (Committed - April 28)
 
 ### Offline Queue Row-Level Sync UX
-Status: Implemented in working tree (not yet committed)
+Status: Committed
 Files changed:
 - admin-app/src/pages/Participants.jsx
 - admin-app/src/pages/EventDetail.jsx
