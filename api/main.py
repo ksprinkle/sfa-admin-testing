@@ -10,6 +10,7 @@ from api.models import events, event_templates, participants, participant_remova
 
 
 from api.routers.events import router as events_router
+from api.routers.events import public_router as public_events_router
 from api.routers.auth import router as auth_router
 from api.routers.admin_events import router as admin_events_router
 from api.routers.admin_event_templates import router as admin_event_templates_router
@@ -39,6 +40,7 @@ app.add_middleware(
 
 # Register all routers
 app.include_router(events_router, prefix="/api")
+app.include_router(public_events_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(admin_events_router, prefix="/api")
 app.include_router(admin_event_templates_router, prefix="/api")

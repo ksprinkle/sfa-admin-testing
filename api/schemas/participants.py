@@ -340,3 +340,75 @@ class VolunteerSignup(BaseModel):
         value: list[str],
     ) -> list[str]:
         return _normalize_roles(list(value), ADDITIONAL_VOLUNTEER_TYPES)
+
+
+class PublicEventRegister(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    role: str = "participant"
+    is_minor: bool = False
+    requires_assistance: bool = False
+    priority: int = 0
+    volunteer_type: Optional[str] = None
+    volunteer_additional_types: list[str] = Field(default_factory=list)
+    volunteer_is_versatile: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_role_and_type_aliases(cls, data):
+        if not isinstance(data, dict):
+            return data
+
+        payload = dict(data)
+
+        raw_type = payload.get("volunteer_type")
+        normalized_type = (str(raw_type).strip().lower() if raw_type is not None else "")
+        type_aliases = dict(PRIMARY_VOLUNTEER_ALIAS_MAP)
+        normalized_type = type_aliases.get(normalized_type, normalized_type)
+
+        raw_role = payload.get("role")
+        normalized_role = (str(raw_role).strip().lower() if raw_role is not None else "")
+
+        if normalized_role == "surfer":
+            normalized_role = "participant"
+
+        if normalized_type:
+            if normalized_type in {"surfer", "participant"}:
+                if not normalized_role or normalized_role == "participant":
+                    normalized_role = "participant"
+                    payload["volunteer_type"] = None
+            elif normalized_type in VOLUNTEER_GROUP_LABELS:
+                normalized_role = "volunteer"
+                payload["volunteer_type"] = None
+            elif normalized_type in PRIMARY_VOLUNTEER_TYPES:
+                if not normalized_role or normalized_role == "volunteer":
+                    normalized_role = "volunteer"
+                    payload["volunteer_type"] = normalized_type
+
+        if not normalized_role:
+            normalized_role = "participant"
+
+        if normalized_role != "volunteer":
+            payload["volunteer_type"] = None
+            payload["volunteer_additional_types"] = []
+            payload["volunteer_is_versatile"] = False
+        else:
+            payload["requires_assistance"] = False
+
+        if normalized_role:
+            payload["role"] = normalized_role
+
+        return payload
+
+    @field_validator("volunteer_type")
+    @classmethod
+    def normalize_public_primary_volunteer_type(cls, value: Optional[str]) -> Optional[str]:
+        return _normalize_primary_volunteer_type(value)
+
+    @field_validator("volunteer_additional_types")
+    @classmethod
+    def normalize_public_additional_roles(cls, value: Optional[list[str]]) -> list[str]:
+        return _normalize_roles(value, ADDITIONAL_VOLUNTEER_TYPES)
+
+    model_config = ConfigDict(from_attributes=True)

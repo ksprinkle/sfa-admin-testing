@@ -15,7 +15,7 @@ from datetime import date
 from typing import Optional
 from api.schemas.events import EventUpdate
 from api.crud.events import update_event
-from api.schemas.participants import ParticipantCreate, ParticipantOut, VolunteerSignup
+from api.schemas.participants import ParticipantCreate, ParticipantOut, VolunteerSignup, PublicEventRegister
 from api.crud.participants import create_participant
 from api.crud.participants import get_confirmed_participant_count
 from api.crud.participants import get_participants_for_event
@@ -29,6 +29,7 @@ from api.utils.event_counts import (
 )
 from sqlalchemy import func
 router = APIRouter(prefix="/events", tags=["Events"])
+public_router = APIRouter(prefix="/public/events", tags=["Public Events"])
 
 # PUBLIC List upcoming events with optional filters and participant counts
 @router.get("", response_model=list[EventListOut])
@@ -262,6 +263,30 @@ def signup_volunteer(
     )
 
     participant = create_participant(db, event, participant_in, is_waitlisted=is_waitlisted)
+
+    db.commit()
+    db.refresh(participant)
+
+    return participant
+
+
+@public_router.post("/{slug}/register", response_model=ParticipantOut, status_code=201)
+def public_register_event_participant(
+    slug: str,
+    participant_in: PublicEventRegister,
+    db: Session = Depends(get_db),
+):
+    event = get_event_by_slug(db, slug, is_admin=False)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    participant = create_participant(
+        db,
+        event,
+        participant_in,
+        is_waitlisted=False,
+    )
+    participant.session_id = None
 
     db.commit()
     db.refresh(participant)
