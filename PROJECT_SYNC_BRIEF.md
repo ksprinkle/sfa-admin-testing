@@ -42,8 +42,8 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-04-28
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: f40e6dc
-Current workspace status: uncommitted Check-In tab UX updates present (April 28 session)
+Latest implementation commit: 962e593
+Current workspace status: Check-In tab UX committed; remaining uncommitted styling updates present in admin-app/src/pages/EventDetail.jsx
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
