@@ -9,6 +9,7 @@ from api.crud.participants import promote_from_waitlist
 from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.events import Event
+from api.models.sessions import Session as EventSession
 from api.models.event_templates import EventTemplate
 from api.schemas.event_templates import EventTemplateCreate, EventTemplateOut
 from api.schemas.events import AdminEventListOut, EventActionIn, EventActivityLogOut, EventOut, EventUpdate, EventCreate
@@ -28,8 +29,9 @@ import csv
 import io
 import logging
 from fastapi.responses import StreamingResponse
-from sqlalchemy import false, func
+from sqlalchemy import case, false, func
 from api.services.no_show_service import get_no_show_candidates, promote_no_show_slots
+from api.services.session_service import DEFAULT_SESSION_CAPACITY
 from api.models.event_activity_log import EventActivityLog
 from api.models.participant_removal_log import ParticipantRemovalLog
 
@@ -476,6 +478,99 @@ def event_summary(
         "volunteer_flexible_group_counts": volunteer_flexible_group_counts,
         "versatile_volunteer_count": versatile_volunteer_count,
 }
+
+
+@router.get("/{event_id}/session-stats")
+def get_event_session_stats(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    sessions = (
+        db.query(EventSession)
+        .filter(EventSession.event_id == event_id)
+        .order_by(EventSession.start_time.asc(), EventSession.name.asc())
+        .all()
+    )
+
+    session_ids = [session.id for session in sessions]
+
+    counts_by_session: dict[str, dict[str, int]] = {}
+    if session_ids:
+        count_rows = (
+            db.query(
+                Participant.session_id.label("session_id"),
+                func.count(Participant.id).label("current_count"),
+                func.sum(case((Participant.requires_assistance.is_(True), 1), else_=0)).label("assistance_count"),
+                func.sum(case((Participant.is_minor.is_(True), 1), else_=0)).label("minor_count"),
+            )
+            .filter(
+                Participant.event_id == event_id,
+                Participant.removed_at.is_(None),
+                Participant.session_id.in_(session_ids),
+                func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+            )
+            .group_by(Participant.session_id)
+            .all()
+        )
+        counts_by_session = {
+            str(row.session_id): {
+                "current_count": int(row.current_count or 0),
+                "assistance_count": int(row.assistance_count or 0),
+                "minor_count": int(row.minor_count or 0),
+            }
+            for row in count_rows
+        }
+
+    totals_row = (
+        db.query(
+            func.count(Participant.id).label("total_count"),
+            func.sum(case((Participant.requires_assistance.is_(True), 1), else_=0)).label("total_assistance"),
+            func.sum(case((Participant.is_minor.is_(True), 1), else_=0)).label("total_minors"),
+        )
+        .filter(
+            Participant.event_id == event_id,
+            Participant.removed_at.is_(None),
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+        )
+        .first()
+    )
+
+    total_count = int(getattr(totals_row, "total_count", 0) or 0)
+    total_assistance = int(getattr(totals_row, "total_assistance", 0) or 0)
+    total_minors = int(getattr(totals_row, "total_minors", 0) or 0)
+
+    assistance_ratio = (total_assistance / total_count) if total_count > 0 else 0.0
+    minor_ratio = (total_minors / total_count) if total_count > 0 else 0.0
+
+    session_stats = []
+    for session in sessions:
+        capacity = int(session.capacity or DEFAULT_SESSION_CAPACITY)
+        session_counts = counts_by_session.get(str(session.id), {})
+        current_count = int(session_counts.get("current_count", 0))
+        assistance_count = int(session_counts.get("assistance_count", 0))
+        minor_count = int(session_counts.get("minor_count", 0))
+        target_assistance = int(round(capacity * assistance_ratio))
+        target_minors = int(round(capacity * minor_ratio))
+
+        session_stats.append(
+            {
+                "session_id": session.id,
+                "capacity": capacity,
+                "current_count": current_count,
+                "available_spots": max(capacity - current_count, 0),
+                "assistance_count": assistance_count,
+                "target_assistance": target_assistance,
+                "minor_count": minor_count,
+                "target_minors": target_minors,
+            }
+        )
+
+    return {"sessions": session_stats}
 
 # 🔹 List all events (admin view)
 @router.get("/", response_model=List[AdminEventListOut])

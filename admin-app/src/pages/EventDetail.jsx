@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchRecommendedSessions } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchEventSessionStats, fetchRecommendedSessions } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
@@ -407,6 +407,19 @@ function EventDetail() {
       const data = await fetchEventParticipants(eventId)
       setParticipants(data || [])
       saveCachedEventParticipants(eventId, data || [])
+
+      try {
+        const statsPayload = await fetchEventSessionStats(eventId)
+        const nextStats = Object.fromEntries(
+          (Array.isArray(statsPayload?.sessions) ? statsPayload.sessions : []).map((sessionStats) => [
+            String(sessionStats?.session_id || ""),
+            sessionStats,
+          ]).filter(([sessionStatsId]) => sessionStatsId)
+        )
+        setSessionStatsById(nextStats)
+      } catch {
+        // Keep existing stats if session stats refresh fails.
+      }
     } catch (err) {
       console.error("Failed to refresh participants", err)
       const cached = getCachedEventParticipants(eventId)
@@ -517,6 +530,8 @@ function EventDetail() {
   const [bulkAssignMessage, setBulkAssignMessage] = useState("")
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingParticipant, setEditingParticipant] = useState(null)
+  const [sessionStatsById, setSessionStatsById] = useState({})
+  const [editingParticipantTopRecommendationId, setEditingParticipantTopRecommendationId] = useState("")
   const [createToast, setCreateToast] = useState(null)
   const [saveTemplateNameInput, setSaveTemplateNameInput] = useState("")
   const [useChapterSchedule, setUseChapterSchedule] = useState(true)
@@ -1005,14 +1020,23 @@ function EventDetail() {
     async function loadAll() {
       setLoading(true)
       try {
-        const [data, eventData] = await Promise.all([
+        const [data, eventData, statsPayload] = await Promise.all([
           fetchEventParticipants(eventId),
           fetchAdminEvent(eventId),
+          fetchEventSessionStats(eventId),
         ])
 
         setParticipants(data || [])
         saveCachedEventParticipants(eventId, data || [])
         setEventInfo(eventData || null)
+        setSessionStatsById(
+          Object.fromEntries(
+            (Array.isArray(statsPayload?.sessions) ? statsPayload.sessions : []).map((sessionStats) => [
+              String(sessionStats?.session_id || ""),
+              sessionStats,
+            ]).filter(([sessionStatsId]) => sessionStatsId)
+          )
+        )
         setEventStartAt(toEventStartDate(eventData?.start_date, eventData?.start_time))
         await processQueuedEventActions()
         await refreshNoShows()
@@ -1020,6 +1044,7 @@ function EventDetail() {
         const cached = getCachedEventParticipants(eventId)
         setParticipants(cached)
         setEventInfo(null)
+        setSessionStatsById({})
         setNoShows([])
         setEventStartAt(null)
       } finally {
@@ -1029,6 +1054,34 @@ function EventDetail() {
 
     loadAll()
   }, [eventId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadEditingParticipantRecommendation() {
+      if (!editingParticipant?.id) {
+        setEditingParticipantTopRecommendationId("")
+        return
+      }
+
+      try {
+        const recommendations = await fetchRecommendedSessions(editingParticipant.id)
+        if (!cancelled) {
+          setEditingParticipantTopRecommendationId(String(recommendations?.[0]?.session_id || ""))
+        }
+      } catch {
+        if (!cancelled) {
+          setEditingParticipantTopRecommendationId("")
+        }
+      }
+    }
+
+    loadEditingParticipantRecommendation()
+
+    return () => {
+      cancelled = true
+    }
+  }, [editingParticipant?.id])
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1261,6 +1314,44 @@ function EventDetail() {
     const index = sortedSessionIds.findIndex((id) => id === sessionId)
     if (index >= 0) return `Session ${index + 1}`
     return "Session"
+  }
+
+  const getSessionVisualState = (sessionId) => {
+    const sessionStats = sessionStatsById[String(sessionId || "")]
+    const capacity = Number(sessionStats?.capacity || 0)
+    const currentCount = Number(sessionStats?.current_count || 0)
+    const fillRatio = capacity > 0 ? currentCount / capacity : 0
+    const isTopRecommendation = String(sessionId || "") !== "" && String(sessionId || "") === String(editingParticipantTopRecommendationId || "")
+
+    if (isTopRecommendation) {
+      return {
+        cardClass: "border-sky-400 ring-2 ring-sky-100",
+        badgeClass: "border-sky-200 bg-sky-50 text-sky-700",
+        badgeLabel: "Top recommendation",
+      }
+    }
+
+    if (capacity > 0 && fillRatio > 0.9) {
+      return {
+        cardClass: "border-red-300 bg-red-50/70",
+        badgeClass: "border-red-200 bg-red-50 text-red-700",
+        badgeLabel: "Nearly full",
+      }
+    }
+
+    if (capacity > 0 && fillRatio < 0.5) {
+      return {
+        cardClass: "border-amber-300 bg-amber-50/70",
+        badgeClass: "border-amber-200 bg-amber-50 text-amber-700",
+        badgeLabel: "Underutilized",
+      }
+    }
+
+    return {
+      cardClass: "",
+      badgeClass: "",
+      badgeLabel: "",
+    }
   }
 
   const findSurplusSession = (targetSessionId, volunteerType) => {
@@ -1860,7 +1951,7 @@ function EventDetail() {
     setSelectedIds([])
   }
 
-  function DroppableSession({ sessionId, children }) {
+  function DroppableSession({ sessionId, children, className = "" }) {
     const { setNodeRef } = useDroppable({
       id: `session-${sessionId}`,
     })
@@ -1868,7 +1959,7 @@ function EventDetail() {
     return (
       <div
         ref={setNodeRef}
-        className={`bg-white rounded-xl border p-4 min-h-[120px] ${isSessionFull(sessionId) ? 'border-red-500 bg-red-100' : ''}`}
+        className={`bg-white rounded-xl border p-4 min-h-[120px] ${isSessionFull(sessionId) ? 'border-red-500 bg-red-100' : ''} ${className}`.trim()}
       >
         {isSessionFull(sessionId) && (
           <div className="text-red-500 font-bold text-center mb-2">FULL</div>
@@ -2673,6 +2764,16 @@ function EventDetail() {
             const softStatus = getSessionSoftStatus(idx, group)
             const sessionLabel = sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : (sessionNameMap[sessionId] || `Session ${idx + 1}`)
             const sessionStatus = getSessionStatus(sessionId)
+            const sessionStats = sessionStatsById[String(sessionId || "")]
+            const availableSpots = Number(
+              sessionStats?.available_spots ?? (
+                Number(sessionStats?.capacity || 0) - Number(sessionStats?.current_count || 0)
+              )
+            )
+            const availabilityBadge = Number.isFinite(availableSpots)
+              ? (availableSpots === 0 ? "Full" : availableSpots <= 2 ? "Nearly Full" : "")
+              : ""
+            const sessionVisualState = getSessionVisualState(sessionId)
             const staffing = getSessionStaffingIndicators(sessionId)
             const assistanceHeat = staffing ? getSessionAssistanceHeat(staffing) : null
             const staffingGuidance = staffing ? getSessionStaffingGuidance(sessionId) : []
@@ -2704,10 +2805,22 @@ function EventDetail() {
               && waterShortfall === 0 && beachShortfall === 0
               && (staffing.requiredWater > 0 || staffing.requiredBeach > 0)
             return (
-              <DroppableSession key={sessionId} sessionId={sessionId}>
+              <DroppableSession key={sessionId} sessionId={sessionId} className={sessionVisualState.cardClass}>
                 <div className="flex justify-between mb-2">
                   <h3 className="flex items-center gap-2 font-semibold">
                     <span>{sessionLabel} {sessionStatus.emoji}</span>
+                    {availabilityBadge && (
+                      <span
+                        className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${availabilityBadge === "Full" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}
+                      >
+                        {availabilityBadge}
+                      </span>
+                    )}
+                    {sessionVisualState.badgeLabel && (
+                      <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${sessionVisualState.badgeClass}`}>
+                        {sessionVisualState.badgeLabel}
+                      </span>
+                    )}
                     {assistanceHeat && (
                       <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${assistanceHeat.className}`}>
                         <span>{assistanceHeat.emoji}</span>

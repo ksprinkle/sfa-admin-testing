@@ -307,6 +307,16 @@ export async function fetchEventSummary(eventId) {
   return res.json()
 }
 
+export async function fetchEventSessionStats(eventId) {
+  const res = await apiFetch(`/api/admin/events/${eventId}/session-stats`)
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch session stats")
+  }
+
+  return res.json()
+}
+
 export async function fetchAdminEvent(eventId) {
   const res = await apiFetch(`/api/admin/events/${eventId}`)
 

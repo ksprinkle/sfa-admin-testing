@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
-import { fetchRecommendedSessions } from "../api/events"
+import { fetchEventSessionStats, fetchRecommendedSessions } from "../api/events"
+import SessionIndicators from "./SessionIndicators"
+import SessionLoadBar from "./SessionLoadBar"
 
 const ROLE_OPTIONS = [
   { value: "participant", label: "Participant" },
@@ -180,6 +182,8 @@ export default function ParticipantForm({
   const [volunteerAdditionalTypes, setVolunteerAdditionalTypes] = useState([])
   const [volunteerIsVersatile, setVolunteerIsVersatile] = useState(false)
   const [recommendations, setRecommendations] = useState([])
+  const [sessionStatsById, setSessionStatsById] = useState({})
+  const [expandedReasons, setExpandedReasons] = useState({})
   const [formError, setFormError] = useState("")
 
   useEffect(() => {
@@ -210,6 +214,8 @@ export default function ParticipantForm({
     )
     setVolunteerIsVersatile(Boolean(isEditMode && initialRole === "volunteer" ? initialData?.volunteer_is_versatile : false))
     setRecommendations([])
+    setSessionStatsById({})
+    setExpandedReasons({})
     setFormError("")
   }, [isOpen, defaultEventId, initialData])
 
@@ -252,6 +258,41 @@ export default function ParticipantForm({
       cancelled = true
     }
   }, [initialData?.id, isOpen, role, sessionId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSessionStats() {
+      if (!isOpen || !initialData?.id || sessionId || role === "volunteer" || !eventId) {
+        setSessionStatsById({})
+        return
+      }
+
+      try {
+        const payload = await fetchEventSessionStats(eventId)
+        const nextStats = Object.fromEntries(
+          (Array.isArray(payload?.sessions) ? payload.sessions : []).map((sessionStats) => [
+            String(sessionStats?.session_id || ""),
+            sessionStats,
+          ]).filter(([sessionStatsId]) => sessionStatsId)
+        )
+
+        if (!cancelled) {
+          setSessionStatsById(nextStats)
+        }
+      } catch {
+        if (!cancelled) {
+          setSessionStatsById({})
+        }
+      }
+    }
+
+    loadSessionStats()
+
+    return () => {
+      cancelled = true
+    }
+  }, [eventId, initialData?.id, isOpen, role, sessionId])
 
   const sessionOptions = useMemo(() => {
     return (Array.isArray(sessions) ? sessions : []).map((session, index) => {
@@ -336,6 +377,15 @@ export default function ParticipantForm({
     if (!nextSessionId) return
     setSessionId(nextSessionId)
     setRecommendations([])
+  }
+
+  const toggleReasons = (recommendedSessionId) => {
+    const key = String(recommendedSessionId || "")
+    if (!key) return
+    setExpandedReasons((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
   }
 
   const handleSubmit = (event) => {
@@ -558,28 +608,84 @@ export default function ParticipantForm({
               <h4 className="text-sm font-semibold text-slate-900">Suggested Sessions</h4>
 
               <div className="mt-2 space-y-2">
-                {recommendations.map((rec) => (
-                  <div key={rec.session_id} className="rounded border border-sky-100 bg-white p-3">
-                    <div className="text-sm font-medium text-slate-800">
-                      <strong>{sessionNameById[String(rec.session_id)] || `Session ${rec.session_id}`}</strong>
-                      <span className="ml-2 opacity-60">({Math.round(Number(rec.score || 0))})</span>
-                    </div>
+                {recommendations.map((rec, index) => {
+                  const sessionStats = sessionStatsById[String(rec.session_id)]
+                  const reasonsExpanded = Boolean(expandedReasons[String(rec.session_id)])
+                  const isTopRecommendation = index === 0
+                  const availableSpots = Number(
+                    sessionStats?.available_spots ?? (
+                      Number(sessionStats?.capacity || 0) - Number(sessionStats?.current_count || 0)
+                    )
+                  )
+                  const sessionAvailabilityBadge = Number.isFinite(availableSpots)
+                    ? (availableSpots === 0 ? "Full" : availableSpots <= 2 ? "Nearly Full" : "")
+                    : ""
 
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-                      {(Array.isArray(rec.reasons) ? rec.reasons : []).map((reason, index) => (
-                        <li key={index}>{reason}</li>
-                      ))}
-                    </ul>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAssign(rec.session_id)}
-                      className="mt-3 rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
+                  return (
+                    <div
+                      key={rec.session_id}
+                      className={`rounded border bg-white p-3 ${isTopRecommendation ? "border-sky-400 bg-sky-100/60 shadow-sm" : "border-sky-100"}`}
                     >
-                      Assign
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-slate-800">
+                            <strong>{sessionNameById[String(rec.session_id)] || `Session ${rec.session_id}`}</strong>
+                            <span className="ml-2 opacity-60">({Math.round(Number(rec.score || 0))})</span>
+                            {sessionAvailabilityBadge && (
+                              <span
+                                className={`ml-2 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${sessionAvailabilityBadge === "Full" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}
+                              >
+                                {sessionAvailabilityBadge}
+                              </span>
+                            )}
+                          </div>
+                          {isTopRecommendation && (
+                            <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-sky-700">Top recommendation</div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleReasons(rec.session_id)}
+                          className="shrink-0 rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          {reasonsExpanded ? "Hide why" : "Why?"}
+                        </button>
+                      </div>
+
+                      {sessionStats && (
+                        <div className="mt-3 space-y-2">
+                          <SessionLoadBar
+                            current={sessionStats.current_count}
+                            capacity={sessionStats.capacity}
+                          />
+                          <SessionIndicators
+                            assistance_count={sessionStats.assistance_count}
+                            target_assistance={sessionStats.target_assistance}
+                            minor_count={sessionStats.minor_count}
+                            target_minors={sessionStats.target_minors}
+                          />
+                        </div>
+                      )}
+
+                      {reasonsExpanded && (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
+                          {(Array.isArray(rec.reasons) ? rec.reasons : []).map((reason, reasonIndex) => (
+                            <li key={reasonIndex}>{reason}</li>
+                          ))}
+                        </ul>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleAssign(rec.session_id)}
+                        className="mt-3 rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
+                      >
+                        Assign
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
