@@ -191,6 +191,22 @@ function getSyncStatus(entityId, queue) {
   return (queue || []).find((item) => String(item.participantId) === String(entityId) && item.syncStatus !== "synced") || null
 }
 
+function SyncStatusIcon({ status }) {
+  if (status === "pending") {
+    return <span className="ml-0.5 inline-block animate-spin text-xs text-amber-600">⏳</span>
+  }
+
+  if (status === "failed") {
+    return <span className="ml-0.5 inline-block text-xs text-red-500">●</span>
+  }
+
+  if (status === "synced") {
+    return <span className="ml-0.5 inline-block text-xs text-green-500">✓</span>
+  }
+
+  return null
+}
+
 function dedupeEventQueue(actions) {
   const byKey = new Map()
   for (const action of actions || []) {
@@ -553,6 +569,12 @@ function EventDetail() {
     persistQueuedEventActions(next)
     setQueueNotice("")
     processQueuedEventActions()
+  }
+
+  const retryAllFailed = (queue) => {
+    ;(queue || [])
+      .filter((item) => item.status === "failed")
+      .forEach((item) => retryQueueItem(item.id))
   }
 
   const updateParticipantsLocal = (updater) => {
@@ -1271,11 +1293,17 @@ function EventDetail() {
           {p.email}
         </div>
         {syncItem?.syncStatus === "pending" && (
-          <div className="mt-1 text-xs text-amber-600">Syncing...</div>
+          <div className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+            <SyncStatusIcon status={syncItem.status} />
+            <span>Syncing</span>
+          </div>
         )}
         {syncItem?.syncStatus === "failed" && (
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-red-600">Failed</span>
+            <span className="flex items-center gap-1 text-red-600">
+              <SyncStatusIcon status={syncItem.status} />
+              <span>Failed</span>
+            </span>
             {syncItem.retryable && (
               <button
                 type="button"
@@ -1367,6 +1395,13 @@ function EventDetail() {
           {queueNotice && <div>{queueNotice}</div>}
           {failedQueueCount > 0 && (
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => retryAllFailed(queuedEventActions)}
+                className="text-xs text-blue-600 underline"
+              >
+                Retry All Failed ({failedQueueCount})
+              </button>
               <button
                 type="button"
                 onClick={retryRecoverableQueueActions}

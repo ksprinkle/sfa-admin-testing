@@ -451,6 +451,22 @@ function getSyncStatus(entityId, queue) {
   return (queue || []).find((item) => String(item.participantId) === String(entityId) && item.syncStatus !== "synced") || null
 }
 
+function SyncStatusIcon({ status }) {
+  if (status === "pending") {
+    return <span className="ml-0.5 inline-block animate-spin text-xs text-amber-600">⏳</span>
+  }
+
+  if (status === "failed") {
+    return <span className="ml-0.5 inline-block text-xs text-red-500">●</span>
+  }
+
+  if (status === "synced") {
+    return <span className="ml-0.5 inline-block text-xs text-green-500">✓</span>
+  }
+
+  return null
+}
+
 function dedupeParticipantQueue(actions) {
   const byKey = new Map()
   for (const entry of actions || []) {
@@ -700,6 +716,12 @@ export default function Participants() {
     persistQueuedParticipantActions(next)
     setQueueNotice("")
     processQueuedParticipantActions()
+  }
+
+  const retryAllFailed = (queue) => {
+    ;(queue || [])
+      .filter((item) => item.status === "failed")
+      .forEach((item) => retryQueueItem(item.id))
   }
 
   async function handlePriorityChange(participantId, newPriority) {
@@ -1735,6 +1757,13 @@ export default function Participants() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                onClick={() => retryAllFailed(queuedParticipantActions)}
+                className="text-xs text-blue-600 underline"
+              >
+                Retry All Failed ({failedQueueCount})
+              </button>
+              <button
+                type="button"
                 onClick={retryRecoverableQueueActions}
                 className="rounded border border-amber-500 bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
               >
@@ -1988,11 +2017,17 @@ export default function Participants() {
                       <span className="block truncate whitespace-nowrap">{p.first_name} {p.last_name}</span>
                     </span>
                     {syncItem?.syncStatus === "pending" && (
-                      <div className="text-xs text-amber-600">Syncing...</div>
+                      <div className="flex items-center gap-1 text-xs text-amber-600">
+                        <SyncStatusIcon status={syncItem.status} />
+                        <span>Syncing</span>
+                      </div>
                     )}
                     {syncItem?.syncStatus === "failed" && (
                       <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-red-600">Failed</span>
+                        <span className="flex items-center gap-1 text-red-600">
+                          <SyncStatusIcon status={syncItem.status} />
+                          <span>Failed</span>
+                        </span>
                         {syncItem.retryable && (
                           <button
                             type="button"

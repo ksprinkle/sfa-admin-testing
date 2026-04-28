@@ -69,6 +69,8 @@ Commit: be77f16
   - Event Detail participant cards now show per-card sync state for queued session move/priority updates.
   - Failed queued items surface lightweight inline error detail and a retry action without reverting optimistic UI.
   - Queue banners now summarize pending and failed counts more clearly.
+  - Added global `Retry All Failed (n)` queue action in Participants and Event Detail.
+  - Added consistent icon-based sync indicators for row/card queue states.
 
 - Event Templates UX:
   - Replaced native date input behavior with month/day/year selectors and inline "Show Date Calendar" picker.

@@ -62,6 +62,13 @@ Behavior summary:
   - `Failed` for failed items
   - inline `Retry` action for retryable failures
   - lightweight inline error detail text when a queued action fails
+- Added global queue action for failed items:
+  - `Retry All Failed (n)` button in queue banners on Participants and Event Detail
+  - implemented via lightweight helper that reuses existing per-item retry path
+- Added consistent icon-based sync state rendering for row/card status:
+  - pending uses `⏳`
+  - failed uses `●`
+  - synced support included in shared helper
 - Added safe queue item metadata aliases for UI display only:
   - `status`
   - `error`
