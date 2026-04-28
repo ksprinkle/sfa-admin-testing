@@ -42,8 +42,8 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-04-28
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 13d6755
-Current workspace status: working tree has uncommitted changes
+Latest implementation commit: c27af55
+Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
 
