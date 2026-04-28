@@ -39,13 +39,43 @@ Treat the following as already implemented and working as desired. Do not propos
 
 When suggesting next steps, focus on net-new work only. Do not include already-completed features in scope unless I explicitly request revisiting them.
 
-Date: 2026-04-27
+Date: 2026-04-28
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
 Latest implementation commit: dcee754
-Current workspace status: clean after commit on April 27 session
+Current workspace status: uncommitted offline queue UX updates present (April 28 session)
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
+
+## Session Delta (Uncommitted - April 28)
+
+### Offline Queue Row-Level Sync UX
+Status: Implemented in working tree (not yet committed)
+Files changed:
+- admin-app/src/pages/Participants.jsx
+- admin-app/src/pages/EventDetail.jsx
+
+Behavior summary:
+- Preserved existing offline queue logic, retry flow, optimistic updates, and backend/API behavior.
+- Added per-row/per-card sync state visibility for queued participant actions:
+  - `Syncing...` for pending items
+  - `Failed` for failed items
+  - inline `Retry` action for retryable failures
+  - lightweight inline error detail text when a queued action fails
+- Added safe queue item metadata aliases for UI display only:
+  - `status`
+  - `error`
+  - `lastAttemptAt`
+  - stable local `id` for row-level retry targeting
+- Enhanced offline queue summary banner wording to show `pending · failed` counts.
+- Conflict/server rejection handling remains non-blocking:
+  - optimistic UI state is preserved
+  - failed rows are marked visually
+  - user can retry or manually correct state in the UI
+
+Validation evidence:
+- Frontend diagnostics: pass (`get_errors` on Participants.jsx and EventDetail.jsx)
+- Frontend build: pass (`npm run build` in `admin-app`)
 
 ## Session Delta (Uncommitted - April 27)
 

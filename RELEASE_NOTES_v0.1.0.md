@@ -64,6 +64,11 @@ Commit: be77f16
 - Template delete protection:
   - Event Templates delete now requires typed confirmation to reduce accidental deletion.
   - Confirmation accepts either `delete` (case-insensitive) or a one-time 4-digit code shown in prompt.
+- Offline queue UX visibility:
+  - Participants rows now show per-row sync state for queued offline actions.
+  - Event Detail participant cards now show per-card sync state for queued session move/priority updates.
+  - Failed queued items surface lightweight inline error detail and a retry action without reverting optimistic UI.
+  - Queue banners now summarize pending and failed counts more clearly.
 
 - Event Templates UX:
   - Replaced native date input behavior with month/day/year selectors and inline "Show Date Calendar" picker.
@@ -81,4 +86,4 @@ Commit: be77f16
   - Moved Directions input into Location Details to better match operator expectations.
   - Event Detail Map button now honors manual map URLs before using generated coordinate/location fallbacks.
 
-Note: These maintenance updates are currently reflected in local workspace changes and should be included in the next commit/release note rollup.
+Note: These maintenance updates are being accumulated into local maintenance commits after v0.1.0.

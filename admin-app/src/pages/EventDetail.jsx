@@ -24,6 +24,10 @@ const EVENT_DETAIL_PARTICIPANTS_CACHE_PREFIX = "sfa.offline.eventdetail.particip
 const EVENT_DETAIL_ACTION_QUEUE_PREFIX = "sfa.offline.eventdetail.queue."
 const NON_RETRYABLE_STATUS_CODES = new Set([400, 404])
 const RECOVERABLE_STATUS_CODES = new Set([409, 429, 500, 502, 503, 504])
+
+function buildQueueItemId(action, entityId, updatedAt) {
+  return String(action?.id || `${String(action?.type || "action")}:${String(entityId || "unknown")}:${Number(updatedAt || Date.now())}`)
+}
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
   { value: 2, label: "Medium", dotClass: "bg-amber-400" },
@@ -156,15 +160,35 @@ function normalizeQueuedEventAction(action) {
   if (!action || typeof action !== "object") return null
   if (!action.type || action.participantId == null) return null
 
+  const updatedAt = Number.isFinite(Number(action.updatedAt)) ? Number(action.updatedAt) : Date.now()
+  const syncStatus = action.syncStatus === "failed"
+    ? "failed"
+    : action.syncStatus === "synced"
+      ? "synced"
+      : action.status === "failed"
+        ? "failed"
+        : action.status === "synced"
+          ? "synced"
+          : "pending"
+  const lastError = String(action.lastError || action.error || "")
+
   return {
     ...action,
+    id: buildQueueItemId(action, action.participantId, updatedAt),
     participantId: String(action.participantId),
-    syncStatus: action.syncStatus === "failed" ? "failed" : "pending",
+    syncStatus,
+    status: syncStatus,
     retryable: action.retryable !== false,
     lastStatus: Number.isFinite(Number(action.lastStatus)) ? Number(action.lastStatus) : null,
-    lastError: String(action.lastError || ""),
-    updatedAt: Number.isFinite(Number(action.updatedAt)) ? Number(action.updatedAt) : Date.now(),
+    lastError,
+    error: lastError || null,
+    updatedAt,
+    lastAttemptAt: updatedAt,
   }
+}
+
+function getSyncStatus(entityId, queue) {
+  return (queue || []).find((item) => String(item.participantId) === String(entityId) && item.syncStatus !== "synced") || null
 }
 
 function dedupeEventQueue(actions) {
@@ -232,10 +256,13 @@ function enqueueEventAction(eventId, action) {
   const normalized = normalizeQueuedEventAction({
     ...action,
     syncStatus: "pending",
+    status: "pending",
     retryable: true,
     lastStatus: null,
     lastError: "",
+    error: null,
     updatedAt: Date.now(),
+    lastAttemptAt: Date.now(),
   })
   if (!normalized) return getQueuedEventActions(eventId)
 
@@ -486,9 +513,12 @@ function EventDetail() {
         return {
           ...item,
           syncStatus: "pending",
+          status: "pending",
           lastStatus: null,
           lastError: "",
+          error: null,
           updatedAt: Date.now(),
+          lastAttemptAt: Date.now(),
         }
       }
       return item
@@ -502,6 +532,27 @@ function EventDetail() {
     const next = queuedEventActions.filter((item) => item.syncStatus !== "failed")
     persistQueuedEventActions(next)
     setQueueNotice("")
+  }
+
+  const retryQueueItem = (queueItemId) => {
+    const next = queuedEventActions.map((item) => {
+      if (String(item.id) !== String(queueItemId) || item.syncStatus !== "failed" || !item.retryable) {
+        return item
+      }
+      return {
+        ...item,
+        syncStatus: "pending",
+        status: "pending",
+        lastStatus: null,
+        lastError: "",
+        error: null,
+        updatedAt: Date.now(),
+        lastAttemptAt: Date.now(),
+      }
+    })
+    persistQueuedEventActions(next)
+    setQueueNotice("")
+    processQueuedEventActions()
   }
 
   const updateParticipantsLocal = (updater) => {
@@ -724,7 +775,10 @@ function EventDetail() {
               ...queued.slice(i).map((entry) => ({
                 ...entry,
                 syncStatus: entry.syncStatus === "failed" ? "failed" : "pending",
+                status: entry.syncStatus === "failed" ? "failed" : "pending",
+                error: entry.lastError || entry.error || null,
                 updatedAt: Date.now(),
+                lastAttemptAt: Date.now(),
               }))
             )
             break
@@ -734,10 +788,13 @@ function EventDetail() {
           remaining.push({
             ...action,
             syncStatus: "failed",
+            status: "failed",
             retryable: meta.retryable,
             lastStatus: meta.status,
             lastError: meta.detail,
+            error: meta.detail,
             updatedAt: Date.now(),
+            lastAttemptAt: Date.now(),
           })
           setQueueNotice(`1 queued change failed to sync: ${meta.summary}.`)
           console.error("Queued event action failed", action, err)
@@ -1171,6 +1228,7 @@ function EventDetail() {
     const baseRoleCardClass = isVolunteerCard
       ? "bg-cyan-50/45 border-cyan-200"
       : "bg-amber-50/35 border-amber-200"
+    const syncItem = getSyncStatus(p.id, queuedEventActions)
     return (
       <div
         ref={setNodeRef}
@@ -1212,6 +1270,30 @@ function EventDetail() {
         <div className="text-xs text-gray-500">
           {p.email}
         </div>
+        {syncItem?.syncStatus === "pending" && (
+          <div className="mt-1 text-xs text-amber-600">Syncing...</div>
+        )}
+        {syncItem?.syncStatus === "failed" && (
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-red-600">Failed</span>
+            {syncItem.retryable && (
+              <button
+                type="button"
+                onPointerDown={(e) => { e.stopPropagation() }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  retryQueueItem(syncItem.id)
+                }}
+                className="text-blue-600 underline"
+              >
+                Retry
+              </button>
+            )}
+            {syncItem.error && (
+              <span className="text-gray-500">({syncItem.error})</span>
+            )}
+          </div>
+        )}
         <div className="mt-1 text-xs font-medium space-y-1">
           <div className="flex items-center gap-2">
             <span
@@ -1279,7 +1361,7 @@ function EventDetail() {
       {(pendingQueueCount > 0 || failedQueueCount > 0) && (
         <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <div>
-            Offline queue active: {pendingQueueCount} pending, {failedQueueCount} failed.
+            Offline queue active: {pendingQueueCount} pending · {failedQueueCount} failed.
             {!browserOnline ? " Device is offline." : " Syncing will continue while online."}
           </div>
           {queueNotice && <div>{queueNotice}</div>}
