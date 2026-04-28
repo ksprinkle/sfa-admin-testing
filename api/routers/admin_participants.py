@@ -10,10 +10,11 @@ from api.dependencies import require_admin
 from api.models.events import Event
 from sqlalchemy.orm import joinedload
 from datetime import date, datetime
+from types import SimpleNamespace
 from api.schemas.participants import AdminParticipantListOut, ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate, ParticipantRemovalLogOut
 from api.ws_manager import manager
 import json
-from sqlalchemy import func, false
+from sqlalchemy import case, func, false
 import logging
 import csv
 import io
@@ -23,6 +24,7 @@ from api.services.session_service import (
     DEFAULT_SESSION_CAPACITY,
     get_session_participant_count,
 )
+from backend.app.services.session_recommender import recommend_sessions
 from api.models.participant_removal_log import ParticipantRemovalLog
 
 
@@ -637,6 +639,101 @@ def list_all_participants(
         }
         for p in participants
     ]
+
+
+@router.get("/{participant_id}/recommended-sessions")
+def get_recommended_sessions(
+    participant_id: UUID,
+    db: DBSession = Depends(get_db),
+    _current_user = Depends(require_admin),
+):
+    participant = _base_active_participant_query(db).filter(Participant.id == participant_id).first()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    sessions = (
+        db.query(EventSession)
+        .filter(EventSession.event_id == participant.event_id)
+        .order_by(EventSession.start_time.asc(), EventSession.name.asc())
+        .all()
+    )
+
+    session_ids = [session.id for session in sessions]
+
+    counts_by_session: dict[str, dict[str, int]] = {}
+    if session_ids:
+        count_rows = (
+            db.query(
+                Participant.session_id.label("session_id"),
+                func.count(Participant.id).label("current_count"),
+                func.sum(case((Participant.requires_assistance.is_(True), 1), else_=0)).label("assistance_count"),
+                func.sum(case((Participant.is_minor.is_(True), 1), else_=0)).label("minor_count"),
+            )
+            .filter(
+                Participant.event_id == participant.event_id,
+                Participant.removed_at.is_(None),
+                Participant.session_id.in_(session_ids),
+                func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+            )
+            .group_by(Participant.session_id)
+            .all()
+        )
+        counts_by_session = {
+            str(row.session_id): {
+                "current_count": int(row.current_count or 0),
+                "assistance_count": int(row.assistance_count or 0),
+                "minor_count": int(row.minor_count or 0),
+            }
+            for row in count_rows
+        }
+
+    totals_row = (
+        db.query(
+            func.count(Participant.id).label("total_count"),
+            func.sum(case((Participant.requires_assistance.is_(True), 1), else_=0)).label("total_assistance"),
+            func.sum(case((Participant.is_minor.is_(True), 1), else_=0)).label("total_minors"),
+        )
+        .filter(
+            Participant.event_id == participant.event_id,
+            Participant.removed_at.is_(None),
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+        )
+        .first()
+    )
+
+    total_count = int(getattr(totals_row, "total_count", 0) or 0)
+    total_assistance = int(getattr(totals_row, "total_assistance", 0) or 0)
+    total_minors = int(getattr(totals_row, "total_minors", 0) or 0)
+
+    assistance_ratio = (total_assistance / total_count) if total_count > 0 else 0.0
+    minor_ratio = (total_minors / total_count) if total_count > 0 else 0.0
+
+    derived_sessions = []
+    for session in sessions:
+        capacity = int(session.capacity or DEFAULT_SESSION_CAPACITY)
+        session_counts = counts_by_session.get(str(session.id), {})
+        target_assistance = int(round(capacity * assistance_ratio))
+        target_minors = int(round(capacity * minor_ratio))
+
+        derived_sessions.append(
+            SimpleNamespace(
+                id=session.id,
+                current_count=int(session_counts.get("current_count", 0)),
+                capacity=capacity,
+                assistance_count=int(session_counts.get("assistance_count", 0)),
+                target_assistance=target_assistance,
+                minor_count=int(session_counts.get("minor_count", 0)),
+                target_minors=target_minors,
+            )
+        )
+
+    recommended = recommend_sessions(participant, derived_sessions)
+    if recommended is Ellipsis or recommended is None:
+        recommended = []
+
+    top_three = list(recommended)[:3]
+
+    return {"recommendations": top_three}
 
 
 @router.get("/removal-log", response_model=list[ParticipantRemovalLogOut])

@@ -213,6 +213,42 @@ Validation evidence:
 - Frontend diagnostics: pass (`get_errors` on ParticipantForm.jsx, ParticipantActionsDropdown.jsx, Participants.jsx, EventDetail.jsx)
 - Frontend build: pass (`npm run build` in `admin-app``; chunk-size warning only)
 
+## Session Delta (Committed - April 28, Intake-Aware Session Assignment)
+
+### Status
+- Recommendation engine implemented (scoring + balancing)
+- Endpoint returning ranked session suggestions
+- ParticipantForm displays explainable recommendations
+- Bulk auto-assign uses recommendation engine via offline queue
+
+### Behavior
+- Balances:
+  - Capacity
+  - Assistance needs
+  - Minor/adult distribution
+- No automatic assignment during creation
+- All assignments remain user-initiated
+
+### Notes
+- Recommendation engine is stateless and side-effect free
+- Bulk assignment runs sequentially to avoid race conditions
+
+### Working Changes
+- backend/app/services/session_recommender.py (implemented logic)
+- api/routers/admin_participants.py (endpoint)
+- admin-app/src/components/ParticipantForm.jsx (UI)
+- admin-app/src/pages/EventDetail.jsx (bulk tool)
+- admin-app/src/api/events.js (API client)
+
+### Validation evidence
+- Backend diagnostics: pass (`get_errors` on session_recommender.py and admin_participants.py)
+- Frontend diagnostics: pass (`get_errors` on ParticipantForm.jsx, EventDetail.jsx, and events.js)
+- Runtime verification: pass
+  - full sessions are excluded from recommendations
+  - ranked recommendations return non-identical scores when capacity exists
+  - recommendation reasons are present in returned payloads
+  - different participants can produce different top recommendations
+
 ## Session Delta (Committed - April 28, Check-In Routing UX)
 
 ### Check-In Tab Event-Selection Guidance

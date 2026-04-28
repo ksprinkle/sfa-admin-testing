@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchRecommendedSessions } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
@@ -513,6 +513,8 @@ function EventDetail() {
   const [saveTemplateMessage, setSaveTemplateMessage] = useState("")
   const [saveTemplateModalOpen, setSaveTemplateModalOpen] = useState(false)
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [bulkAssignLoading, setBulkAssignLoading] = useState(false)
+  const [bulkAssignMessage, setBulkAssignMessage] = useState("")
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingParticipant, setEditingParticipant] = useState(null)
   const [createToast, setCreateToast] = useState(null)
@@ -1087,11 +1089,19 @@ function EventDetail() {
 
   const isVolunteer = (participant) => (participant?.role || "").toLowerCase().trim() === "volunteer"
 
-  const isSessionFull = (sessionId) => {
-    const count = sortedParticipants.filter(
+  const getSessionCapacity = (sessionId) => {
+    const matchedSession = (Array.isArray(eventInfo?.sessions) ? eventInfo.sessions : []).find(
+      (session) => String(session?.id || "") === String(sessionId || "")
+    )
+    const parsedCapacity = Number(matchedSession?.capacity)
+    return Number.isFinite(parsedCapacity) && parsedCapacity > 0 ? parsedCapacity : 15
+  }
+
+  const isSessionFull = (sessionId, sourceParticipants = sortedParticipants, extraAssignments = 0) => {
+    const count = sourceParticipants.filter(
       p => p.session_id === sessionId && !isVolunteer(p)
     ).length
-    return count >= 15
+    return (count + Number(extraAssignments || 0)) >= getSessionCapacity(sessionId)
   }
 
   const getSessionStatus = (sessionId) => {
@@ -1633,6 +1643,79 @@ function EventDetail() {
       }
       await refreshParticipants()
       throw err
+    }
+  }
+
+  async function queueAssignment(participantId, targetSessionId) {
+    await handleMoveParticipant(participantId, targetSessionId)
+  }
+
+  // Add a button to auto-assign all unassigned participants
+  // Use existing queueAssignment and recommendation endpoint
+  async function handleAutoAssignUnassignedParticipants() {
+    if (bulkAssignLoading) return
+
+    const unassigned = participants.filter((participant) => {
+      if (participant?.removed_at) return false
+      if (isVolunteer(participant)) return false
+      return !participant?.session_id
+    })
+
+    if (!unassigned.length) {
+      setBulkAssignMessage("No unassigned participants to auto-assign.")
+      return
+    }
+
+    setBulkAssignLoading(true)
+    setBulkAssignMessage("")
+
+    let assignedCount = 0
+    let skippedCount = 0
+    let failedCount = 0
+    const queuedAssignmentsBySession = new Map()
+
+    try {
+      for (const participant of unassigned) {
+        try {
+          const data = await fetchRecommendedSessions(participant.id)
+
+          if (!data.length) {
+            skippedCount += 1
+            continue
+          }
+
+          const best = data[0]
+          const targetSessionId = String(best?.session_id || "")
+
+          if (!targetSessionId) {
+            skippedCount += 1
+            continue
+          }
+
+          const queuedForTarget = Number(queuedAssignmentsBySession.get(targetSessionId) || 0)
+
+          // EXTRA SAFETY: recommendation data may be slightly stale during a batch.
+          if (best?.is_full || isSessionFull(targetSessionId, sortedParticipants, queuedForTarget)) {
+            skippedCount += 1
+            continue
+          }
+
+          await queueAssignment(participant.id, targetSessionId)
+          queuedAssignmentsBySession.set(targetSessionId, queuedForTarget + 1)
+          assignedCount += 1
+        } catch {
+          failedCount += 1
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+
+      await refreshParticipants()
+      setBulkAssignMessage(
+        `Auto-assign complete: ${assignedCount} assigned, ${skippedCount} skipped, ${failedCount} failed.`
+      )
+    } finally {
+      setBulkAssignLoading(false)
     }
   }
 
@@ -2206,6 +2289,16 @@ function EventDetail() {
           >
             Add Participant
           </button>
+          {/* Add a button to auto-assign all unassigned participants */}
+          <button
+            type="button"
+            onClick={handleAutoAssignUnassignedParticipants}
+            disabled={bulkAssignLoading}
+            className={`px-3 py-2 sm:py-1 rounded text-sm ${bulkAssignLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-indigo-100 text-indigo-800 hover:bg-indigo-200"}`}
+            title="Auto-assign unassigned participants using recommendations"
+          >
+            {bulkAssignLoading ? "Auto-Assigning..." : "Auto-Assign Unassigned"}
+          </button>
           <button
             type="button"
             onClick={handleDuplicateEvent}
@@ -2241,6 +2334,9 @@ function EventDetail() {
           )}
           {saveTemplateMessage && (
             <p className="text-xs text-emerald-700">{saveTemplateMessage}</p>
+          )}
+          {bulkAssignMessage && (
+            <p className="text-xs text-slate-700">{bulkAssignMessage}</p>
           )}
         </div>
       </div>

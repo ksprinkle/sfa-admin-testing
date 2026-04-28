@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { fetchRecommendedSessions } from "../api/events"
 
 const ROLE_OPTIONS = [
   { value: "participant", label: "Participant" },
@@ -178,6 +179,7 @@ export default function ParticipantForm({
   const [volunteerTypes, setVolunteerTypes] = useState([])
   const [volunteerAdditionalTypes, setVolunteerAdditionalTypes] = useState([])
   const [volunteerIsVersatile, setVolunteerIsVersatile] = useState(false)
+  const [recommendations, setRecommendations] = useState([])
   const [formError, setFormError] = useState("")
 
   useEffect(() => {
@@ -207,6 +209,7 @@ export default function ParticipantForm({
         : []
     )
     setVolunteerIsVersatile(Boolean(isEditMode && initialRole === "volunteer" ? initialData?.volunteer_is_versatile : false))
+    setRecommendations([])
     setFormError("")
   }, [isOpen, defaultEventId, initialData])
 
@@ -222,6 +225,34 @@ export default function ParticipantForm({
     setRequiresAssistance(false)
   }, [role])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadRecommendations() {
+      if (!isOpen || !initialData?.id || sessionId || role === "volunteer") {
+        setRecommendations([])
+        return
+      }
+
+      try {
+        const nextRecommendations = await fetchRecommendedSessions(initialData.id)
+        if (!cancelled) {
+          setRecommendations(Array.isArray(nextRecommendations) ? nextRecommendations : [])
+        }
+      } catch {
+        if (!cancelled) {
+          setRecommendations([])
+        }
+      }
+    }
+
+    loadRecommendations()
+
+    return () => {
+      cancelled = true
+    }
+  }, [initialData?.id, isOpen, role, sessionId])
+
   const sessionOptions = useMemo(() => {
     return (Array.isArray(sessions) ? sessions : []).map((session, index) => {
       const name = session?.name || `Session ${index + 1}`
@@ -236,6 +267,15 @@ export default function ParticipantForm({
         label: capacityLabel,
       }
     }).filter((option) => option.id)
+  }, [sessions])
+
+  const sessionNameById = useMemo(() => {
+    return Object.fromEntries(
+      (Array.isArray(sessions) ? sessions : []).map((session, index) => [
+        String(session?.id || ""),
+        session?.name || `Session ${index + 1}`,
+      ])
+    )
   }, [sessions])
 
   const resolvedEventType = useMemo(() => {
@@ -290,6 +330,13 @@ export default function ParticipantForm({
   }, [allowedAdditionalTypeOptions])
 
   if (!isOpen) return null
+
+  const handleAssign = (recommendedSessionId) => {
+    const nextSessionId = String(recommendedSessionId || "")
+    if (!nextSessionId) return
+    setSessionId(nextSessionId)
+    setRecommendations([])
+  }
 
   const handleSubmit = (event) => {
     event.preventDefault()
@@ -505,6 +552,37 @@ export default function ParticipantForm({
               ))}
             </select>
           </label>
+
+          {!sessionId && recommendations?.length > 0 && (
+            <div className="sm:col-span-2 rounded-lg border border-sky-200 bg-sky-50 p-3">
+              <h4 className="text-sm font-semibold text-slate-900">Suggested Sessions</h4>
+
+              <div className="mt-2 space-y-2">
+                {recommendations.map((rec) => (
+                  <div key={rec.session_id} className="rounded border border-sky-100 bg-white p-3">
+                    <div className="text-sm font-medium text-slate-800">
+                      <strong>{sessionNameById[String(rec.session_id)] || `Session ${rec.session_id}`}</strong>
+                      <span className="ml-2 opacity-60">({Math.round(Number(rec.score || 0))})</span>
+                    </div>
+
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+                      {(Array.isArray(rec.reasons) ? rec.reasons : []).map((reason, index) => (
+                        <li key={index}>{reason}</li>
+                      ))}
+                    </ul>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAssign(rec.session_id)}
+                      className="mt-3 rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
+                    >
+                      Assign
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className="sm:col-span-2">
             <span className="mb-1 block text-sm font-medium text-slate-700">Notes (optional)</span>

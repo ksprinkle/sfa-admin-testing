@@ -340,6 +340,20 @@ export async function updateParticipantSession(participantId, sessionId) {
   return res.json()
 }
 
+export async function fetchRecommendedSessions(participantId) {
+  const res = await apiFetch(`/api/admin/participants/${participantId}/recommended-sessions`)
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to fetch recommended sessions")
+  }
+
+  const payload = await res.json()
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.recommendations)) return payload.recommendations
+  return []
+}
+
 export async function updateParticipantPriority(participantId, priority) {
   // Send priority as query param to match FastAPI signature
   const res = await apiFetch(
