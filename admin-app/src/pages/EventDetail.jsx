@@ -25,6 +25,7 @@ const EVENT_DETAIL_PARTICIPANTS_CACHE_PREFIX = "sfa.offline.eventdetail.particip
 const EVENT_DETAIL_ACTION_QUEUE_PREFIX = "sfa.offline.eventdetail.queue."
 const NON_RETRYABLE_STATUS_CODES = new Set([400, 404])
 const RECOVERABLE_STATUS_CODES = new Set([409, 429, 500, 502, 503, 504])
+const RECENTLY_MOVED_TTL_MS = 2 * 60 * 1000
 
 function buildQueueItemId(action, entityId, updatedAt) {
   return String(action?.id || `${String(action?.type || "action")}:${String(entityId || "unknown")}:${Number(updatedAt || Date.now())}`)
@@ -165,7 +166,12 @@ function saveCachedEventParticipants(eventId, participants) {
 
 function normalizeQueuedEventAction(action) {
   if (!action || typeof action !== "object") return null
-  if (!action.type || action.participantId == null) return null
+  const participantIdRaw = action.participantId ?? action.participant_id
+  if (!action.type || participantIdRaw == null) return null
+
+  const normalizedParticipantId = String(participantIdRaw)
+  const targetSessionIdRaw = action.targetSessionId ?? action.newSessionId ?? action.new_session_id
+  const normalizedTargetSessionId = targetSessionIdRaw == null ? null : String(targetSessionIdRaw)
 
   const updatedAt = Number.isFinite(Number(action.updatedAt)) ? Number(action.updatedAt) : Date.now()
   const syncStatus = action.syncStatus === "failed"
@@ -181,8 +187,11 @@ function normalizeQueuedEventAction(action) {
 
   return {
     ...action,
-    id: buildQueueItemId(action, action.participantId, updatedAt),
-    participantId: String(action.participantId),
+    id: buildQueueItemId(action, normalizedParticipantId, updatedAt),
+    participantId: normalizedParticipantId,
+    participant_id: normalizedParticipantId,
+    targetSessionId: normalizedTargetSessionId,
+    new_session_id: normalizedTargetSessionId,
     syncStatus,
     status: syncStatus,
     retryable: action.retryable !== false,
@@ -222,6 +231,8 @@ function dedupeEventQueue(actions) {
     const actionKey =
       normalized.type === "priority_update"
         ? `${normalized.type}:${normalized.participantId}`
+        : normalized.type === "move_participant_session" && normalized.idempotency_key
+          ? `${normalized.type}:${normalized.idempotency_key}`
         : `${normalized.type}:${normalized.participantId}:${normalized.id || normalized.updatedAt}`
     byKey.set(actionKey, normalized)
   }
@@ -510,9 +521,14 @@ function EventDetail() {
   const [scheduleMonthsInput, setScheduleMonthsInput] = useState(CHAPTER_SCHEDULE_DEFAULT.schedule_months.join(","))
   const [scheduleWeekdayInput, setScheduleWeekdayInput] = useState(String(CHAPTER_SCHEDULE_DEFAULT.schedule_weekday))
   const [scheduleWeekNumbersInput, setScheduleWeekNumbersInput] = useState(CHAPTER_SCHEDULE_DEFAULT.schedule_week_numbers.join(","))
+  const [moveInFlightByType, setMoveInFlightByType] = useState({
+    water: false,
+    beach: false,
+  })
   const queueSyncRef = useRef(false)
   const createToastTimerRef = useRef(null)
   const retriedCreateQueueIdsRef = useRef(new Set())
+  const recentlyMovedRef = useRef(new Map())
 
   const pendingQueueCount = queuedEventActions.filter((item) => item.syncStatus !== "failed").length
   const failedQueueCount = queuedEventActions.filter((item) => item.syncStatus === "failed").length
@@ -843,8 +859,12 @@ function EventDetail() {
         }
 
         try {
-          if (action.type === "session_move") {
-            await updateParticipantSession(action.participantId, action.targetSessionId)
+          if (action.type === "session_move" || action.type === "move_participant_session") {
+            const queuedSessionId = action.targetSessionId
+            if (!queuedSessionId) {
+              throw new Error("Queued session move is missing target session")
+            }
+            await updateParticipantSession(action.participantId, queuedSessionId)
             needsRefresh = true
             continue
           }
@@ -896,6 +916,13 @@ function EventDetail() {
           remaining.push(failedAction)
           if (action.type === "create_participant") {
             showCreateToast("Failed to sync participant", {
+              tone: "error",
+              retryQueueItemId: failedAction.id,
+              durationMs: 0,
+            })
+          }
+          if (action.type === "move_participant_session" || action.type === "session_move") {
+            showCreateToast("Move failed to sync. Tap to retry.", {
               tone: "error",
               retryQueueItemId: failedAction.id,
               durationMs: 0,
@@ -1168,6 +1195,396 @@ function EventDetail() {
     }
   }
 
+  const getSessionStaffingIndicators = (sessionId) => {
+    if (sessionId === "UNASSIGNED") return null
+    const sessionPeople = participants.filter((p) => p.session_id === sessionId)
+    const activeSessionPeople = sessionPeople.filter((p) => !p.removed_at)
+    const participantCount = activeSessionPeople.filter((p) => !isVolunteer(p)).length
+    const assistanceCount = activeSessionPeople.filter((p) => !isVolunteer(p) && Boolean(p.requires_assistance)).length
+    const waterCount = activeSessionPeople.filter((p) => isVolunteer(p) && (p.volunteer_type || "").toLowerCase() === "water").length
+    const beachCount = activeSessionPeople.filter((p) => isVolunteer(p) && (p.volunteer_type || "").toLowerCase() === "beach").length
+    const requiredWater = Math.ceil(participantCount / 3) + assistanceCount
+    const requiredBeach = Math.ceil(participantCount / 5)
+    return { participantCount, waterCount, beachCount, assistanceCount, requiredWater, requiredBeach }
+  }
+
+  const getSessionAssistanceHeat = (staffing) => {
+    const participantCount = Number(staffing?.participantCount || 0)
+    const assistanceCount = Number(staffing?.assistanceCount || 0)
+    const assistanceRatio = participantCount > 0 ? assistanceCount / participantCount : 0
+
+    const displayCount = assistanceCount > 5 ? "5+" : assistanceCount
+    const countSuffix = assistanceCount > 0 ? ` (${displayCount})` : ""
+
+    if (assistanceRatio >= 0.4) {
+      return {
+        emoji: "🔴",
+        label: `High Assistance${countSuffix}`,
+        className: "border-red-200 bg-red-50 text-red-700",
+      }
+    }
+
+    if (assistanceRatio >= 0.2) {
+      return {
+        emoji: "🟡",
+        label: `Moderate${countSuffix}`,
+        className: "border-amber-200 bg-amber-50 text-amber-700",
+      }
+    }
+
+    return {
+      emoji: "🟢",
+      label: "Low",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    }
+  }
+
+  const staffingIndicatorColor = (count, required) => {
+    if (required === 0 || count >= required) return "text-green-600"
+    if (count >= required - 1) return "text-yellow-600"
+    return "text-red-600"
+  }
+
+  const getSessionLabel = (sessionId) => {
+    if (sessionId === "UNASSIGNED") return "Waitlist / Unassigned"
+    if (sessionNameMap[sessionId]) return sessionNameMap[sessionId]
+    const index = sortedSessionIds.findIndex((id) => id === sessionId)
+    if (index >= 0) return `Session ${index + 1}`
+    return "Session"
+  }
+
+  const findSurplusSession = (targetSessionId, volunteerType) => {
+    const countKey = volunteerType === "water" ? "waterCount" : "beachCount"
+    const requiredKey = volunteerType === "water" ? "requiredWater" : "requiredBeach"
+    let donorSessionId = null
+    let smallestPositiveSurplus = Number.POSITIVE_INFINITY
+
+    for (const candidateSessionId of sortedSessionIds) {
+      if (candidateSessionId === "UNASSIGNED" || candidateSessionId === targetSessionId) continue
+      const staffing = getSessionStaffingIndicators(candidateSessionId)
+      if (!staffing) continue
+      const surplus = staffing[countKey] - staffing[requiredKey]
+      if (surplus > 0 && surplus < smallestPositiveSurplus) {
+        smallestPositiveSurplus = surplus
+        donorSessionId = candidateSessionId
+      }
+    }
+
+    if (donorSessionId === targetSessionId) return null
+    return donorSessionId
+  }
+
+  const cleanupRecentlyMoved = () => {
+    const now = Date.now()
+    for (const [participantId, timestamp] of recentlyMovedRef.current.entries()) {
+      if (now - Number(timestamp || 0) > RECENTLY_MOVED_TTL_MS) {
+        recentlyMovedRef.current.delete(participantId)
+      }
+    }
+  }
+
+  const isMoveQueuedForTarget = (participantId, targetSessionId) => {
+    const idempotencyKey = `${String(participantId)}:${String(targetSessionId)}`
+    return queuedEventActions.some((item) => (
+      item.syncStatus !== "failed"
+      && item.type === "move_participant_session"
+      && (
+        item.idempotency_key === idempotencyKey
+        || (
+          String(item.participantId) === String(participantId)
+          && String(item.targetSessionId || "") === String(targetSessionId)
+        )
+      )
+    ))
+  }
+
+  const scoreVolunteerForSession = (volunteer, targetSessionId, context) => {
+    let score = 0
+
+    if (Boolean(volunteer?.volunteer_is_versatile)) {
+      score += 2
+    }
+
+    if (Number(context?.targetAssistanceCount || 0) > 0) {
+      score += 2
+    }
+
+    if (Number(context?.donorSurplus || 0) > 1) {
+      score += 1
+    }
+
+    if (Number(context?.donorSurplus || 0) === 1) {
+      score -= 1
+    }
+
+    return score
+  }
+
+  const getMoveCandidates = (targetSessionId, volunteerType, limit = 1, options = { preview: true }) => {
+    const preview = options?.preview !== false
+    cleanupRecentlyMoved()
+
+    const donorSessionId = findSurplusSession(targetSessionId, volunteerType)
+    if (!donorSessionId) return []
+
+    const targetStaffing = getSessionStaffingIndicators(targetSessionId)
+    const donorStaffing = getSessionStaffingIndicators(donorSessionId)
+    const donorCount = volunteerType === "water"
+      ? Number(donorStaffing?.waterCount || 0)
+      : Number(donorStaffing?.beachCount || 0)
+    const donorRequired = volunteerType === "water"
+      ? Number(donorStaffing?.requiredWater || 0)
+      : Number(donorStaffing?.requiredBeach || 0)
+    const donorSurplus = donorCount - donorRequired
+    const scoringContext = {
+      volunteerType,
+      donorSessionId,
+      donorSurplus,
+      targetAssistanceCount: Number(targetStaffing?.assistanceCount || 0),
+    }
+
+    const donorSessionPeople = participants.filter((participant) => String(participant.session_id || "") === String(donorSessionId))
+    const scoredCandidates = donorSessionPeople
+      .filter((participant) => {
+        if (participant.removed_at) return false
+        if (recentlyMovedRef.current.has(String(participant.id))) return false
+        if (!isVolunteer(participant)) return false
+        if (normalizeVolunteerType(participant.volunteer_type) !== volunteerType) return false
+        if (isMoveQueuedForTarget(participant.id, targetSessionId)) return false
+        return true
+      })
+      .map((volunteer) => ({
+        volunteer,
+        score: scoreVolunteerForSession(volunteer, targetSessionId, scoringContext),
+      }))
+      .sort((left, right) => {
+        if (right.score !== left.score) return right.score - left.score
+
+        if (Boolean(right.volunteer.volunteer_is_versatile) !== Boolean(left.volunteer.volunteer_is_versatile)) {
+          return Number(Boolean(right.volunteer.volunteer_is_versatile)) - Number(Boolean(left.volunteer.volunteer_is_versatile))
+        }
+
+        const leftLast = String(left.volunteer.last_name || "")
+        const rightLast = String(right.volunteer.last_name || "")
+        const lastNameDiff = leftLast.localeCompare(rightLast)
+        if (lastNameDiff !== 0) return lastNameDiff
+
+        return String(left.volunteer.first_name || "").localeCompare(String(right.volunteer.first_name || ""))
+      })
+
+    const selected = []
+    const safeLimit = Math.max(0, Number(limit) || 0)
+
+    for (const entry of scoredCandidates) {
+      const candidate = entry.volunteer
+      if (selected.length >= safeLimit) break
+      if (!candidate?.id) continue
+
+      const participantId = String(candidate.id)
+      if (!preview) {
+        recentlyMovedRef.current.set(participantId, Date.now())
+      }
+
+      selected.push({
+        donorSessionId,
+        participantId,
+        idempotencyKey: `${participantId}:${String(targetSessionId)}`,
+        participant: candidate,
+      })
+    }
+
+    return selected
+  }
+
+  const getShortfallForType = (sessionId, volunteerType) => {
+    const staffing = getSessionStaffingIndicators(sessionId)
+    if (!staffing) return 0
+    return volunteerType === "water"
+      ? Math.max(0, staffing.requiredWater - staffing.waterCount)
+      : Math.max(0, staffing.requiredBeach - staffing.beachCount)
+  }
+
+  const getMaxMoveCountForType = (sessionId, volunteerType) => {
+    const shortfall = getShortfallForType(sessionId, volunteerType)
+    if (shortfall <= 0) return 0
+    const previewCandidates = getMoveCandidates(sessionId, volunteerType, 3, { preview: true })
+    return Math.max(0, Math.min(3, shortfall, previewCandidates.length))
+  }
+
+  const handleGuidedVolunteerMoveBatch = (targetSessionId, volunteerType, requestedCount = 1) => {
+    if (moveInFlightByType[volunteerType]) return
+
+    const maxMoveCount = getMaxMoveCountForType(targetSessionId, volunteerType)
+    if (maxMoveCount <= 0) return
+
+    const desiredMoves = Math.max(1, Math.min(maxMoveCount, Number(requestedCount) || 1))
+    let remainingShortfall = getShortfallForType(targetSessionId, volunteerType)
+    if (remainingShortfall <= 0) return
+
+    setMoveInFlightByType((prev) => ({ ...prev, [volunteerType]: true }))
+
+    let movedCount = 0
+    let endedByNoCandidate = false
+
+    for (let i = 0; i < desiredMoves; i += 1) {
+      cleanupRecentlyMoved()
+
+      if (remainingShortfall <= 0) {
+        break
+      }
+
+      const selectedMoves = getMoveCandidates(targetSessionId, volunteerType, 1, { preview: false })
+      const candidate = selectedMoves[0]
+      if (!candidate) {
+        endedByNoCandidate = true
+        break
+      }
+
+      movedCount += 1
+      remainingShortfall = Math.max(0, remainingShortfall - 1)
+
+      void handleMoveParticipant(candidate.participantId, targetSessionId, { smooth: true }).catch((err) => {
+        console.error("Guided volunteer move failed", err)
+        setDragError(`Unable to move ${volunteerType} volunteer right now`)
+      })
+    }
+
+    if (movedCount > 0) {
+      const roleLabel = volunteerType === "water" ? "Water" : "Beach"
+      const targetSessionLabel = getSessionLabel(targetSessionId)
+      if (movedCount === desiredMoves) {
+        showCreateToast(`Moved ${movedCount} ${roleLabel} volunteer${movedCount === 1 ? "" : "s"} to ${targetSessionLabel}`, {
+          tone: "success",
+        })
+      } else if (endedByNoCandidate) {
+        showCreateToast(`Moved ${movedCount} of ${desiredMoves} volunteers (no more available)`, {
+          tone: "info",
+        })
+      }
+    } else if (endedByNoCandidate) {
+      setDragError(`No ${volunteerType} volunteer available to move`)
+    }
+
+    window.setTimeout(() => {
+      setMoveInFlightByType((prev) => ({ ...prev, [volunteerType]: false }))
+    }, 300)
+  }
+
+    const formatPreviewVolunteerName = (participant) => {
+      const firstName = String(participant?.first_name || "").trim()
+      const lastName = String(participant?.last_name || "").trim()
+      const lastInitial = lastName ? `${lastName.charAt(0).toUpperCase()}.` : ""
+      return `${firstName}${lastInitial ? ` ${lastInitial}` : ""}`.trim()
+    }
+
+    const formatPreviewVolunteerList = (selectedCandidates) => {
+      const maxDisplay = 2
+      const visibleCandidates = selectedCandidates.slice(0, maxDisplay)
+      const remainingCount = Math.max(0, selectedCandidates.length - maxDisplay)
+
+      const visibleText = visibleCandidates
+      .map(({ participant }) => {
+        const name = formatPreviewVolunteerName(participant)
+        const tags = []
+        if (participant?.volunteer_is_versatile) tags.push("Versatile")
+        return tags.length > 0 ? `${name} (${tags.join(", ")})` : name
+      })
+      .join(", ")
+
+      if (remainingCount > 0) {
+        return `${visibleText} +${remainingCount}`
+      }
+
+      return visibleText
+    }
+
+    const buildPreviewReasonText = (selectedCandidates, targetSessionId, volunteerType) => {
+      const firstSelection = selectedCandidates?.[0]
+      const firstVolunteer = firstSelection?.participant
+      if (!firstVolunteer) return ""
+
+      const reasons = []
+
+      if (Boolean(firstVolunteer.volunteer_is_versatile)) {
+        reasons.push("this volunteer is versatile")
+      }
+
+      const targetStaffing = getSessionStaffingIndicators(targetSessionId)
+      if (Number(targetStaffing?.assistanceCount || 0) > 0) {
+        reasons.push("this session has participants needing assistance")
+      }
+
+      const donorSessionId = firstSelection?.donorSessionId
+      const donorStaffing = donorSessionId ? getSessionStaffingIndicators(donorSessionId) : null
+      if (donorStaffing) {
+        const donorCount = volunteerType === "water"
+          ? Number(donorStaffing.waterCount || 0)
+          : Number(donorStaffing.beachCount || 0)
+        const donorRequired = volunteerType === "water"
+          ? Number(donorStaffing.requiredWater || 0)
+          : Number(donorStaffing.requiredBeach || 0)
+        if (donorCount - donorRequired > 1) {
+          reasons.push("they are from a well-staffed session")
+        }
+      }
+
+      const topReasons = reasons.slice(0, 2)
+      if (!topReasons.length) return { tooltip: "", inline: "" }
+      const tooltip = `Selected because: ${topReasons.map((r) => `• ${r}`).join(" ")}`
+      const inline = `Selected because:\n${topReasons.map((r) => `• ${r}`).join("\n")}`
+      return { tooltip, inline }
+    }
+
+  const getSessionStaffingGuidance = (sessionId) => {
+    const staffing = getSessionStaffingIndicators(sessionId)
+    if (!staffing) return []
+
+    const suggestions = []
+    const waterShortfall = Math.max(0, staffing.requiredWater - staffing.waterCount)
+    const beachShortfall = Math.max(0, staffing.requiredBeach - staffing.beachCount)
+    const hasShortfall = waterShortfall > 0 || beachShortfall > 0
+    const donorSessions = new Set()
+
+    if (!hasShortfall) return suggestions
+
+    const needsParts = []
+
+    if (waterShortfall > 0) {
+      needsParts.push(`${waterShortfall} Water`)
+      const waterDonor = findSurplusSession(sessionId, "water")
+      if (waterDonor) {
+        donorSessions.add(waterDonor)
+      }
+    }
+
+    if (beachShortfall > 0) {
+      needsParts.push(`${beachShortfall} Beach`)
+      const beachDonor = findSurplusSession(sessionId, "beach")
+      if (beachDonor) {
+        donorSessions.add(beachDonor)
+      }
+    }
+
+    suggestions.push(`Needs ${needsParts.join(", ")} volunteer${needsParts.length > 1 ? "s" : ""}`)
+
+    if (donorSessions.size === 0) {
+      suggestions.push("No available volunteers to reassign")
+      return suggestions
+    }
+
+    if (donorSessions.size === 1) {
+      const [onlyDonor] = Array.from(donorSessions)
+      suggestions.push(`Consider moving volunteers from ${getSessionLabel(onlyDonor)}`)
+      return suggestions
+    }
+
+    Array.from(donorSessions).forEach((donorSessionId) => {
+      suggestions.push(`Consider moving volunteers from ${getSessionLabel(donorSessionId)}`)
+    })
+
+    return suggestions
+  }
+
   const toggleEventMode = () => {
     setEventMode((prev) => {
       const next = !prev
@@ -1177,23 +1594,38 @@ function EventDetail() {
   }
 
   // ✅ stable move logic extracted to a function
-  async function handleMoveParticipant(id, targetSessionId) {
-    updateParticipantsLocal(prev =>
-      prev.map(p =>
-        String(p.id) === String(id)
-          ? { ...p, session_id: targetSessionId, is_waitlisted: false }
-          : p
+  async function handleMoveParticipant(id, targetSessionId, options = {}) {
+    const { smooth = false } = options
+    const applyOptimisticMove = () => {
+      updateParticipantsLocal(prev =>
+        prev.map(p =>
+          String(p.id) === String(id)
+            ? { ...p, session_id: targetSessionId, is_waitlisted: false }
+            : p
+        )
       )
-    )
+    }
+
+    if (smooth) {
+      window.requestAnimationFrame(() => {
+        applyOptimisticMove()
+      })
+    } else {
+      applyOptimisticMove()
+    }
 
     try {
       await updateParticipantSession(id, targetSessionId)
     } catch (err) {
       if (isOfflineError(err)) {
+        const movePayload = {
+          participant_id: String(id),
+          new_session_id: String(targetSessionId),
+          idempotency_key: `${String(id)}:${String(targetSessionId)}`,
+        }
         const nextQueue = enqueueEventAction(eventId, {
-          type: "session_move",
-          participantId: id,
-          targetSessionId,
+          type: "move_participant_session",
+          ...movePayload,
         })
         persistQueuedEventActions(nextQueue)
         setDragError("Offline: session move saved locally and queued for sync.")
@@ -2065,6 +2497,56 @@ function EventDetail() {
         ✔ Start Event Check-In
       </button>
 
+      {(() => {
+        const realSessions = groupedParticipants.filter(({ sessionId }) => {
+          if (!sessionId || sessionId === "UNASSIGNED") return false
+          return true
+        })
+        const totalSessions = realSessions.length
+        let sessionsNeedingAttention = 0
+        let highAssistanceSessions = 0
+        let moderateAssistanceSessions = 0
+        for (const { sessionId } of realSessions) {
+          const staffing = getSessionStaffingIndicators(sessionId)
+          if (!staffing) continue
+          const waterShortfall = Math.max(0, staffing.requiredWater - staffing.waterCount)
+          const beachShortfall = Math.max(0, staffing.requiredBeach - staffing.beachCount)
+          if (waterShortfall > 0 || beachShortfall > 0) sessionsNeedingAttention++
+          const heat = getSessionAssistanceHeat(staffing)
+          if (heat?.label.startsWith("High")) highAssistanceSessions++
+          else if (heat?.label.startsWith("Moderate")) moderateAssistanceSessions++
+        }
+        const allGood = sessionsNeedingAttention === 0 && totalSessions > 0
+        return (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
+            <span className="font-medium text-gray-500">Staffing:</span>
+            {sessionsNeedingAttention > 0 && (
+              <span className="animate-pulse rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
+                ⚠️ {sessionsNeedingAttention} need{sessionsNeedingAttention === 1 ? "s" : ""} attention
+              </span>
+            )}
+            {highAssistanceSessions > 0 && (
+              <span className="rounded-md bg-red-100 px-2 py-0.5 text-red-800">
+                🔴 {highAssistanceSessions} high assistance
+              </span>
+            )}
+            {moderateAssistanceSessions > 0 && (
+              <span className="rounded-md bg-amber-100 px-2 py-0.5 text-amber-700">
+                🟡 {moderateAssistanceSessions} moderate
+              </span>
+            )}
+            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">
+              📊 {totalSessions} session{totalSessions === 1 ? "" : "s"}
+            </span>
+            {allGood && (
+              <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-emerald-700">
+                ✓ All sessions staffed
+              </span>
+            )}
+          </div>
+        )
+      })()}
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -2095,15 +2577,182 @@ function EventDetail() {
             const softStatus = getSessionSoftStatus(idx, group)
             const sessionLabel = sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : (sessionNameMap[sessionId] || `Session ${idx + 1}`)
             const sessionStatus = getSessionStatus(sessionId)
+            const staffing = getSessionStaffingIndicators(sessionId)
+            const assistanceHeat = staffing ? getSessionAssistanceHeat(staffing) : null
+            const staffingGuidance = staffing ? getSessionStaffingGuidance(sessionId) : []
+            const waterShortfall = staffing ? Math.max(0, staffing.requiredWater - staffing.waterCount) : 0
+            const beachShortfall = staffing ? Math.max(0, staffing.requiredBeach - staffing.beachCount) : 0
+            const waterMaxMoveCount = getMaxMoveCountForType(sessionId, "water")
+            const beachMaxMoveCount = getMaxMoveCountForType(sessionId, "beach")
+            const showWaterMoveButton = waterMaxMoveCount > 0
+            const showBeachMoveButton = beachMaxMoveCount > 0
+            const waterMoveCounts = showWaterMoveButton ? Array.from({ length: waterMaxMoveCount }, (_, index) => index + 1) : []
+            const beachMoveCounts = showBeachMoveButton ? Array.from({ length: beachMaxMoveCount }, (_, index) => index + 1) : []
+            const waterPreviewCandidates = showWaterMoveButton
+              ? getMoveCandidates(sessionId, "water", waterMaxMoveCount, { preview: true })
+              : []
+            const beachPreviewCandidates = showBeachMoveButton
+              ? getMoveCandidates(sessionId, "beach", beachMaxMoveCount, { preview: true })
+              : []
+            const waterPreviewReason = waterPreviewCandidates.length > 0
+              ? buildPreviewReasonText(waterPreviewCandidates, sessionId, "water")
+              : { tooltip: "", inline: "" }
+            const beachPreviewReason = beachPreviewCandidates.length > 0
+              ? buildPreviewReasonText(beachPreviewCandidates, sessionId, "beach")
+              : { tooltip: "", inline: "" }
+            const waterSuggestedCount = Math.min(waterShortfall, waterPreviewCandidates.length, 3)
+            const beachSuggestedCount = Math.min(beachShortfall, beachPreviewCandidates.length, 3)
+            const canSuggestWater = waterSuggestedCount >= 1 && !moveInFlightByType.water && waterShortfall > 0 && waterPreviewCandidates.length > 0
+            const canSuggestBeach = beachSuggestedCount >= 1 && !moveInFlightByType.beach && beachShortfall > 0 && beachPreviewCandidates.length > 0
+            const sessionIsBalanced = staffing != null
+              && waterShortfall === 0 && beachShortfall === 0
+              && (staffing.requiredWater > 0 || staffing.requiredBeach > 0)
             return (
               <DroppableSession key={sessionId} sessionId={sessionId}>
                 <div className="flex justify-between mb-2">
-                  <h3 className="font-semibold">{sessionLabel} {sessionStatus.emoji}</h3>
+                  <h3 className="flex items-center gap-2 font-semibold">
+                    <span>{sessionLabel} {sessionStatus.emoji}</span>
+                    {assistanceHeat && (
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${assistanceHeat.className}`}>
+                        <span>{assistanceHeat.emoji}</span>
+                        <span>{assistanceHeat.label}</span>
+                      </span>
+                    )}
+                  </h3>
                   <span className={sessionStatus.color}>{sessionStatus.participantCount} / 15</span>
                 </div>
                 <div className={`mb-3 text-xs font-medium ${softStatus.className}`}>
                   {softStatus.text}
                 </div>
+                {staffing && (
+                  <div className="mb-3 flex items-center gap-3 text-xs border-t border-gray-100 pt-2">
+                    <span className={`font-medium ${staffingIndicatorColor(staffing.waterCount, staffing.requiredWater)}`}>
+                      Water: {staffing.waterCount} / {staffing.requiredWater}
+                    </span>
+                    <span className={`font-medium ${staffingIndicatorColor(staffing.beachCount, staffing.requiredBeach)}`}>
+                      Beach: {staffing.beachCount} / {staffing.requiredBeach}
+                    </span>
+                    <span className="text-gray-500">
+                      Assistance: {staffing.assistanceCount}
+                    </span>
+                  </div>
+                )}
+                {sessionIsBalanced && (
+                  <div className="mb-2 text-[11px] text-emerald-600">✓ All set — staffing looks good</div>
+                )}
+                {staffingGuidance.length > 0 && (
+                  <div className="mb-3 space-y-1 text-xs text-amber-700">
+                    {staffingGuidance.map((suggestion, suggestionIndex) => (
+                      <div key={`${sessionId}-guidance-${suggestionIndex}`}>{suggestion}</div>
+                    ))}
+                    {waterShortfall > 0 && waterPreviewCandidates.length > 0 && (
+                      <div>
+                        <div
+                          className="inline-flex max-w-full items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700"
+                          title={waterPreviewReason.tooltip || undefined}
+                        >
+                          <span className="font-medium">Moving Water:</span>
+                          <span className="ml-1">{formatPreviewVolunteerList(waterPreviewCandidates)}</span>
+                        </div>
+                        {waterPreviewReason.inline && (
+                          <div className="mt-1 whitespace-pre-line text-[10px] text-gray-500">{waterPreviewReason.inline}</div>
+                        )}
+                      </div>
+                    )}
+                    {beachShortfall > 0 && beachPreviewCandidates.length > 0 && (
+                      <div>
+                        <div
+                          className="inline-flex max-w-full items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700"
+                          title={beachPreviewReason.tooltip || undefined}
+                        >
+                          <span className="font-medium">Moving Beach:</span>
+                          <span className="ml-1">{formatPreviewVolunteerList(beachPreviewCandidates)}</span>
+                        </div>
+                        {beachPreviewReason.inline && (
+                          <div className="mt-1 whitespace-pre-line text-[10px] text-gray-500">{beachPreviewReason.inline}</div>
+                        )}
+                      </div>
+                    )}
+                    {(canSuggestWater || canSuggestBeach || moveInFlightByType.water || moveInFlightByType.beach) && (waterSuggestedCount >= 1 || beachSuggestedCount >= 1) && (
+                      <div className="mt-2 space-y-1">
+                        <div className="flex flex-wrap gap-2">
+                          {waterSuggestedCount >= 1 && (
+                            <button
+                              key={`${sessionId}-water-suggest`}
+                              type="button"
+                              onClick={() => handleGuidedVolunteerMoveBatch(sessionId, "water", waterSuggestedCount)}
+                              disabled={!canSuggestWater}
+                              title={`Suggested: move ${waterSuggestedCount} Water volunteer${waterSuggestedCount === 1 ? "" : "s"} to this session`}
+                              aria-label={`Suggested: move ${waterSuggestedCount} Water volunteer${waterSuggestedCount === 1 ? "" : "s"} to this session`}
+                              className={`rounded border px-2.5 py-1 text-[11px] font-semibold transition-opacity ${
+                                !canSuggestWater
+                                  ? "border-gray-300 bg-gray-100 text-gray-500 cursor-not-allowed opacity-60"
+                                  : "border-sky-400 bg-sky-100 text-sky-900 hover:bg-sky-200"
+                              }`}
+                            >
+                              ★ Move {waterSuggestedCount} Water Volunteer{waterSuggestedCount === 1 ? "" : "s"}
+                            </button>
+                          )}
+                          {beachSuggestedCount >= 1 && (
+                            <button
+                              key={`${sessionId}-beach-suggest`}
+                              type="button"
+                              onClick={() => handleGuidedVolunteerMoveBatch(sessionId, "beach", beachSuggestedCount)}
+                              disabled={!canSuggestBeach}
+                              title={`Suggested: move ${beachSuggestedCount} Beach volunteer${beachSuggestedCount === 1 ? "" : "s"} to this session`}
+                              aria-label={`Suggested: move ${beachSuggestedCount} Beach volunteer${beachSuggestedCount === 1 ? "" : "s"} to this session`}
+                              className={`rounded border px-2.5 py-1 text-[11px] font-semibold transition-opacity ${
+                                !canSuggestBeach
+                                  ? "border-gray-300 bg-gray-100 text-gray-500 cursor-not-allowed opacity-60"
+                                  : "border-sky-400 bg-sky-100 text-sky-900 hover:bg-sky-200"
+                              }`}
+                            >
+                              ★ Move {beachSuggestedCount} Beach Volunteer{beachSuggestedCount === 1 ? "" : "s"}
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {waterSuggestedCount >= 1 && beachSuggestedCount >= 1
+                            ? `Based on shortage (Water: ${waterShortfall}, Beach: ${beachShortfall}) and available volunteers (${waterPreviewCandidates.length}W / ${beachPreviewCandidates.length}B)`
+                            : waterSuggestedCount >= 1
+                              ? `Based on shortage (${waterShortfall}) and available volunteers (${waterPreviewCandidates.length})`
+                              : `Based on shortage (${beachShortfall}) and available volunteers (${beachPreviewCandidates.length})`
+                          }
+                        </div>
+                      </div>
+                    )}
+                    {(showWaterMoveButton || showBeachMoveButton) && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {waterMoveCounts.map((count) => (
+                          <button
+                            key={`${sessionId}-water-move-${count}`}
+                            type="button"
+                            onClick={() => handleGuidedVolunteerMoveBatch(sessionId, "water", count)}
+                            disabled={moveInFlightByType.water}
+                            title={`Move ${count} Water volunteer${count === 1 ? "" : "s"} from suggested session`}
+                            aria-label={`Move ${count} Water volunteer${count === 1 ? "" : "s"} from suggested session`}
+                            className={`rounded border px-2 py-1 text-[11px] font-semibold ${moveInFlightByType.water ? "border-gray-300 bg-gray-100 text-gray-500 cursor-not-allowed" : "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"}`}
+                          >
+                            Move {count} Water Volunteer{count === 1 ? "" : "s"}
+                          </button>
+                        ))}
+                        {beachMoveCounts.map((count) => (
+                          <button
+                            key={`${sessionId}-beach-move-${count}`}
+                            type="button"
+                            onClick={() => handleGuidedVolunteerMoveBatch(sessionId, "beach", count)}
+                            disabled={moveInFlightByType.beach}
+                            title={`Move ${count} Beach volunteer${count === 1 ? "" : "s"} from suggested session`}
+                            aria-label={`Move ${count} Beach volunteer${count === 1 ? "" : "s"} from suggested session`}
+                            className={`rounded border px-2 py-1 text-[11px] font-semibold ${moveInFlightByType.beach ? "border-gray-300 bg-gray-100 text-gray-500 cursor-not-allowed" : "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"}`}
+                          >
+                            Move {count} Beach Volunteer{count === 1 ? "" : "s"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Render draggable participant cards for this session */}
                 <div className="space-y-2">
                   {group.map(p => (
