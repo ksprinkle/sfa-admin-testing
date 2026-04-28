@@ -43,9 +43,31 @@ Date: 2026-04-28
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
 Latest implementation commit: f40e6dc
-Current workspace status: clean after commit on April 28 session
+Current workspace status: uncommitted Check-In tab UX updates present (April 28 session)
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0 (local only; remote not configured)
+
+## Session Delta (Uncommitted - April 28, Check-In Routing UX)
+
+### Check-In Tab Event-Selection Guidance
+Status: Implemented in working tree (not yet committed)
+Files changed:
+- admin-app/src/components/BottomNav.jsx
+- admin-app/src/pages/Events.jsx
+
+Behavior summary:
+- Clarified Check-In tab behavior when no explicit event is selected:
+  - If currently on an event route, tab opens that event's check-in and remembers the event id.
+  - If exactly one published event exists, tab opens that event's check-in and remembers it.
+  - If multiple published events exist, tab prefers the remembered published event.
+  - If no valid single target can be resolved, tab routes to Events with `checkin_select=1` guidance state.
+- Added Events page guidance banner when `checkin_select=1` is present:
+  - "Select an event first, then open Check-In from that event."
+- No backend/API changes and no check-in business logic changes.
+
+Validation evidence:
+- Frontend diagnostics: pass (`get_errors` on BottomNav.jsx and Events.jsx)
+- Frontend build: pass (`npm run build` in `admin-app`)
 
 ## Session Delta (Uncommitted - April 28)
 

@@ -102,6 +102,7 @@ export default function Events() {
     date_to: "",
   })
   const statusFilter = (searchParams.get("status") || "all").toLowerCase()
+  const checkInSelectionRequired = searchParams.get("checkin_select") === "1"
   const typeFilter = normalizeEventTypeKey(searchParams.get("type")) || null
   const [selectedEventType, setSelectedEventType] = useState(
     () => normalizeEventTypeKey(typeFilter || window.localStorage.getItem(EVENT_TYPE_FILTER_KEY)) || "all"
@@ -427,6 +428,12 @@ export default function Events() {
 
   return (
   <div className="p-4 sm:p-6">
+
+    {checkInSelectionRequired && (
+      <div className="mb-4 rounded border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+        Select an event first, then open Check-In from that event.
+      </div>
+    )}
       
     <h1 className="text-2xl font-semibold mb-6">
       Events
@@ -444,7 +451,7 @@ export default function Events() {
       <BackButton fallbackTo="/dashboard" className="px-3 py-2" />
       <button
         onClick={() => navigate("/event-templates")}
-        className="w-full sm:w-auto bg-violet-600 text-white px-4 py-2.5 sm:py-2 rounded hover:bg-violet-700"
+        className="px-3 py-2 sm:py-1 bg-sky-100 text-sky-800 rounded hover:bg-sky-200 text-sm"
         title="Go to Event Templates"
       >
         Templates

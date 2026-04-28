@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { fetchEvents } from "../api/events"
 
-const CHECKIN_FALLBACK_PATH = "/events"
+const CHECKIN_FALLBACK_PATH = "/events?checkin_select=1"
+const LAST_CHECKIN_EVENT_KEY = "sfa.lastCheckInEventId"
 
 function CheckInTabIcon() {
   return (
@@ -24,6 +25,23 @@ function resolveEventIdFromPath(pathname) {
   return match ? match[1] : null
 }
 
+function getRememberedCheckInEventId() {
+  try {
+    return localStorage.getItem(LAST_CHECKIN_EVENT_KEY) || ""
+  } catch {
+    return ""
+  }
+}
+
+function rememberCheckInEventId(eventId) {
+  try {
+    if (!eventId) return
+    localStorage.setItem(LAST_CHECKIN_EVENT_KEY, String(eventId))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 function BottomNav() {
   const location = useLocation()
   const [checkInTarget, setCheckInTarget] = useState(CHECKIN_FALLBACK_PATH)
@@ -34,6 +52,7 @@ function BottomNav() {
     const computeCheckInTarget = async () => {
       const routeEventId = resolveEventIdFromPath(location.pathname)
       if (routeEventId) {
+        rememberCheckInEventId(routeEventId)
         setCheckInTarget(`/events/${routeEventId}/checkin`)
         return
       }
@@ -45,12 +64,23 @@ function BottomNav() {
         if (isCancelled) return
 
         if (liveEvents.length === 1) {
+          rememberCheckInEventId(liveEvents[0].id)
           setCheckInTarget(`/events/${liveEvents[0].id}/checkin`)
           return
         }
 
         if (liveEvents.length > 1) {
-          setCheckInTarget("/events?status=published")
+          const rememberedEventId = getRememberedCheckInEventId()
+          const rememberedLiveEvent = rememberedEventId
+            ? liveEvents.find((event) => String(event.id) === String(rememberedEventId))
+            : null
+
+          if (rememberedLiveEvent) {
+            setCheckInTarget(`/events/${rememberedLiveEvent.id}/checkin`)
+            return
+          }
+
+          setCheckInTarget("/events?status=published&checkin_select=1")
           return
         }
 
