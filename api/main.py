@@ -52,7 +52,7 @@ app.include_router(feedback_router, prefix="/api")
 # Force OpenAPI schema to rebuild on reload, otherwise it may not reflect changes in the code
 app.openapi_schema = None
 
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 def root():
