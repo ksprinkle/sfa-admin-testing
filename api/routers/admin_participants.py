@@ -1,18 +1,18 @@
-from api.models.participants import Participant
+from models.participants import Participant
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy.exc import IntegrityError
-from api.crud.participants import promote_from_waitlist, promote_specific_waitlisted_participant
-from api.crud.participants import create_participant as create_participant_record
-from api.db.session import get_db
-from api.dependencies import require_admin
-from api.models.events import Event
+from crud.participants import promote_from_waitlist, promote_specific_waitlisted_participant
+from crud.participants import create_participant as create_participant_record
+from db.session import get_db
+from dependencies import require_admin
+from models.events import Event
 from sqlalchemy.orm import joinedload
 from datetime import date, datetime
 from types import SimpleNamespace
-from api.schemas.participants import AdminParticipantListOut, ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate, ParticipantRemovalLogOut
-from api.ws_manager import manager
+from schemas.participants import AdminParticipantListOut, ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate, ParticipantRemovalLogOut
+from ws_manager import manager
 import json
 from sqlalchemy import case, func, false
 import logging
@@ -20,14 +20,14 @@ import csv
 import io
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from api.models.sessions import Session as EventSession
-from api.services.session_service import (
+from models.sessions import Session as EventSession
+from services.session_service import (
     DEFAULT_SESSION_CAPACITY,
     get_session_participant_count,
 )
 from backend.app.services.assignment_evaluator import evaluate_assignment
 from backend.app.services.session_recommender import recommend_sessions
-from api.models.participant_removal_log import ParticipantRemovalLog
+from models.participant_removal_log import ParticipantRemovalLog
 
 
 def _is_volunteer_role(value: str | None) -> bool:

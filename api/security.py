@@ -2,7 +2,7 @@ from fastapi import Header
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
-from api.config import settings
+from config import settings
 
 SECRET_KEY = settings.BACKEND_SECRET_KEY
 ALGORITHM = "HS256"

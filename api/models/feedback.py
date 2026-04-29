@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
-from api.db.base import Base
+from db.base import Base
 
 
 class Feedback(Base):
