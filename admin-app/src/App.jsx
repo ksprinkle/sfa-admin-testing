@@ -11,8 +11,10 @@ import CreateEvent from "./pages/CreateEvent"
 import EditEvent from "./pages/EditEvent"
 import CheckIn from "./pages/CheckIn"
 import FastAssign from "./pages/FastAssign"
+import FeedbackReview from "./pages/FeedbackReview"
 import EventTemplates from "./pages/EventTemplates"
 import { clearAuthSession, fetchMyProfile, getAuthChangedEventName, getStoredProfile, getStoredToken } from "./api/auth"
+import { getReleaseTag } from "./config/release"
 
 function getBuildFingerprint() {
   const envFingerprint = import.meta.env.VITE_BUILD_ID || import.meta.env.VITE_APP_VERSION
@@ -108,6 +110,8 @@ function App() {
         return "Participants"
       case "/event-templates":
         return "Event Templates"
+      case "/feedback":
+        return "Feedback"
       default:
         if (location.pathname.startsWith("/event-templates")) {
           return "Event Templates"
@@ -118,7 +122,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-warmbg pb-20">
-      {token && <TopBar title={getTitle()} profile={profile} onSignOut={handleSignOut} />}
+      {token && <TopBar title={getTitle()} profile={profile} onSignOut={handleSignOut} releaseTag={getReleaseTag()} />}
 
     <Routes>
       <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
@@ -140,6 +144,7 @@ function App() {
 
           <Route path="/participants" element={<Participants />} />
           <Route path="/event-templates" element={<EventTemplates />} />
+          <Route path="/feedback" element={<FeedbackReview />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       )}

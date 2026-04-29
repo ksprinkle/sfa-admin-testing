@@ -1,7 +1,7 @@
 import logo from "../assets/icon-192.png"
 import { useMemo, useState } from "react"
 
-function TopBar({ title, onMenuClick, profile, onSignOut }) {
+function TopBar({ title, onMenuClick, profile, onSignOut, releaseTag }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const profileName = profile?.email || "Signed-in user"
   const initials = useMemo(() => {
@@ -10,7 +10,7 @@ function TopBar({ title, onMenuClick, profile, onSignOut }) {
   }, [profile?.email])
 
   return (
-    <div className="bg-ocean-dark text-white h-14 flex items-center justify-between px-4 shadow-md">
+    <div className="bg-ocean-dark text-white min-h-14 flex items-center justify-between px-4 py-2 shadow-md">
       <button onClick={onMenuClick} className="text-xl">
         ☰
       </button>
@@ -21,7 +21,10 @@ function TopBar({ title, onMenuClick, profile, onSignOut }) {
           alt="Surfers For Autism"
           className="h-6 brightness-0 invert"
         />
-        <h1 className="font-semibold text-base">{title}</h1>
+        <div className="leading-tight">
+          <h1 className="font-semibold text-base">{title}</h1>
+          {releaseTag && <p className="text-[10px] text-white/75">{releaseTag}</p>}
+        </div>
       </div>
 
       <div className="relative">

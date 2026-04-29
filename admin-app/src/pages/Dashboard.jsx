@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { fetchEvents, fetchEventSummary } from "../api/events"
 import { useNavigate } from "react-router-dom";
+import { getReleaseTag } from "../config/release"
 
 function formatEventType(eventType) {
   if (!eventType) return "Unspecified"
@@ -377,6 +378,23 @@ useEffect(() => {
           ↻ Refresh
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => navigate("/feedback")}
+        className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-4 text-left shadow-sm transition hover:bg-indigo-100/70"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-indigo-900">Review Test Feedback</p>
+            <p className="mt-1 text-sm text-indigo-800">Follow the release loop before building anything new.</p>
+            <p className="mt-1 text-xs text-indigo-700">{getReleaseTag()}</p>
+          </div>
+          <span className="rounded-full border border-indigo-300 bg-white px-2 py-1 text-xs font-semibold text-indigo-700">
+            Open /feedback
+          </span>
+        </div>
+      </button>
 
       {/* Overall Event Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">

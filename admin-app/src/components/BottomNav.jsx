@@ -123,6 +123,7 @@ function BottomNav() {
         {navItem("/events", "Events", "📅")}
         {navItem(checkInTarget, "Check-In", <CheckInTabIcon />, checkInActive)}
         {navItem("/participants", "Participants", "👥")}
+        {navItem("/feedback", "Feedback", "🧪")}
     </div>
   )
 }
