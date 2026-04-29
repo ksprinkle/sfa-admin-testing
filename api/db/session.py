@@ -3,6 +3,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from config import settings
 
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+print("🔥 DATABASE_URL =", DATABASE_URL)
+
 DATABASE_URL = settings.DATABASE_URL
 
 # Render may provide postgres://...; SQLAlchemy expects postgresql://...

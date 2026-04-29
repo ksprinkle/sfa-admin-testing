@@ -6,9 +6,22 @@ from db.base import Base
 # Import models so SQLAlchemy registers them
 from db.session import SessionLocal
 
+# 🔥 import ALL models explicitly
+import models.events
+import models.event_templates
+import models.participants
+import models.participant_removal_log
+import models.users   # <-- THIS is critical
+import models.sessions
+import models.event_activity_log
+import models.feedback      # <-- Don't forget to import the Feedback model 
+# 👇 CREATE TABLES
+Base.metadata.create_all(bind=engine)
+
+print("✅ Tables created at startup")
+
+
 # Import routers
-
-
 from routers.events import router as events_router
 from routers.events import public_router as public_events_router
 from routers.auth import router as auth_router
