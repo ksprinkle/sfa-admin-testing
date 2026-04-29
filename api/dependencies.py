@@ -4,8 +4,8 @@ from jose import jwt
 from sqlalchemy.orm import Session
 
 from api.db.session import get_db
-from api.models.user import User
-from security import SECRET_KEY, ALGORITHM
+from api.models.users import User
+from api.security import SECRET_KEY, ALGORITHM
 
 
 # This MUST match your login endpoint

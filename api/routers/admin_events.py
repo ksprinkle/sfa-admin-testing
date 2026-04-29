@@ -7,12 +7,12 @@ from typing import List
 from pydantic import BaseModel
 from api.crud.participants import promote_from_waitlist
 from api.db.session import get_db
-from dependencies import require_admin
+from api.dependencies import require_admin
 from api.models.events import Event
 from api.models.sessions import Session as EventSession
 from api.models.event_templates import EventTemplate
-from schemas.event_templates import EventTemplateCreate, EventTemplateOut
-from schemas.events import AdminEventListOut, EventActionIn, EventActivityLogOut, EventOut, EventUpdate, EventCreate
+from api.schemas.event_templates import EventTemplateCreate, EventTemplateOut
+from api.schemas.events import AdminEventListOut, EventActionIn, EventActivityLogOut, EventOut, EventUpdate, EventCreate
 from api.crud.events import (
     create_event_activity_log,
     create_event as crud_create_event,
@@ -20,21 +20,21 @@ from api.crud.events import (
     auto_publish_and_open_participant_registration,
 )
 from sqlalchemy.orm import joinedload
-from schemas.participants import AdminParticipantListOut, ParticipantOut
-from utils.event_builder import build_admin_event
+from api.schemas.participants import AdminParticipantListOut, ParticipantOut
+from api.utils.event_builder import build_admin_event
 from api.models.participants import Participant
-from schemas.events import AdminEventSummary
+from api.schemas.events import AdminEventSummary
 from datetime import datetime
 import csv
 import io
 import logging
 from fastapi.responses import StreamingResponse
 from sqlalchemy import case, false, func
-from services.no_show_service import get_no_show_candidates, promote_no_show_slots
-from services.session_service import DEFAULT_SESSION_CAPACITY
+from api.services.no_show_service import get_no_show_candidates, promote_no_show_slots
+from api.services.session_service import DEFAULT_SESSION_CAPACITY
 from api.models.event_activity_log import EventActivityLog
 from api.models.participant_removal_log import ParticipantRemovalLog
-from services.session_projection import project_session_flow
+from api.services.session_projection import project_session_flow
 
 router = APIRouter(
     prefix="/admin/events",

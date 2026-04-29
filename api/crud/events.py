@@ -3,12 +3,12 @@ from datetime import date, datetime, timedelta
 from api.models.events import Event
 from api.models.event_activity_log import EventActivityLog
 from api.models.sessions import Session as EventSession
-from schemas.events import EventCreate
+from api.schemas.events import EventCreate
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
-from utils.slug import generate_unique_slug
+from api.utils.slug import generate_unique_slug
 from api.crud.participants import promote_from_waitlist
-from services.session_service import (
+from api.services.session_service import (
     DEFAULT_SESSION_CAPACITY,
     create_next_tour_session,
     is_tour_event,
@@ -117,7 +117,7 @@ from sqlalchemy.orm import Session
 from datetime import date
 from api.models.events import Event
 from sqlalchemy import func
-from schemas.events import EventUpdate
+from api.schemas.events import EventUpdate
 
 
 def update_event(db: Session, event: Event, event_in: EventUpdate):

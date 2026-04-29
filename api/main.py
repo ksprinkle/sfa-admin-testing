@@ -31,9 +31,9 @@ from api.routers.auth import router as auth_router
 from api.routers.admin_events import router as admin_events_router
 from api.routers.admin_event_templates import router as admin_event_templates_router
 from api.routers.admin_participants import router as admin_participants_router
-from ws_manager import router as ws_router
+from api.ws_manager import router as ws_router
 from api.routers.feedback import router as feedback_router
-from config import settings
+from api.config import settings
 
 app = FastAPI(redirect_slashes=False)
 

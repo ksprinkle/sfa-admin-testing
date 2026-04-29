@@ -6,13 +6,13 @@ from sqlalchemy.exc import IntegrityError
 from api.crud.participants import promote_from_waitlist, promote_specific_waitlisted_participant
 from api.crud.participants import create_participant as create_participant_record
 from api.db.session import get_db
-from dependencies import require_admin
+from api.dependencies import require_admin
 from api.models.events import Event
 from sqlalchemy.orm import joinedload
 from datetime import date, datetime
 from types import SimpleNamespace
-from schemas.participants import AdminParticipantListOut, ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate, ParticipantRemovalLogOut
-from ws_manager import manager
+from api.schemas.participants import AdminParticipantListOut, ParticipantAction, ParticipantCreate, ParticipantOut, ParticipantUpdate, SessionUpdate, ParticipantRemovalLogOut
+from api.ws_manager import manager
 import json
 from sqlalchemy import case, func, false
 import logging
@@ -21,12 +21,12 @@ import io
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from api.models.sessions import Session as EventSession
-from services.session_service import (
+from api.services.session_service import (
     DEFAULT_SESSION_CAPACITY,
     get_session_participant_count,
 )
-from services.assignment_evaluator import evaluate_assignment
-from services.session_recommender import recommend_sessions
+from api.services.assignment_evaluator import evaluate_assignment
+from api.services.session_recommender import recommend_sessions
 from api.models.participant_removal_log import ParticipantRemovalLog
 
 

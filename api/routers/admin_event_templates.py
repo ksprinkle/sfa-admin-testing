@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 
 from api.crud.events import create_event as crud_create_event
 from api.db.session import get_db
-from dependencies import require_admin
+from api.dependencies import require_admin
 from api.models.events import Event
 from api.models.event_templates import EventTemplate
-from schemas.event_templates import (
+from api.schemas.event_templates import (
     CreateEventFromTemplateIn,
     EventTemplateCreate,
     GenerateAnnualEventsFromTemplateIn,
@@ -19,9 +19,9 @@ from schemas.event_templates import (
     EventTemplateOut,
     EventTemplateUpdate,
 )
-from schemas.events import AdminEventListOut, EventCreate
-from utils.event_builder import build_admin_event
-from utils.schedule_rules import generate_dates_from_template
+from api.schemas.events import AdminEventListOut, EventCreate
+from api.utils.event_builder import build_admin_event
+from api.utils.schedule_rules import generate_dates_from_template
 
 
 router = APIRouter(

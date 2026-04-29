@@ -5,8 +5,8 @@ from sqlalchemy import func, case
 
 from api.models.participants import Participant
 from api.models.events import Event
-from schemas.participants import ParticipantCreate
-from services.session_service import get_next_available_session
+from api.schemas.participants import ParticipantCreate
+from api.services.session_service import get_next_available_session
 
 def create_participant(
     db: Session,

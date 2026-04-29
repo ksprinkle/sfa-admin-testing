@@ -1,7 +1,7 @@
 from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from config import settings
+from api.config import settings
 
 import os
 
