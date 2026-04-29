@@ -813,7 +813,7 @@ export default function Participants() {
   const refreshRef = useRef();
   const refreshRemovalLogRef = useRef();
 
-  // Utility: Refresh participants from API
+  // Utility: Refresh participants from 
   const refreshParticipants = useCallback(async () => {
     try {
       const data = await fetchAllParticipants();

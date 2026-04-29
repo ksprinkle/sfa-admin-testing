@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
-from api.models.events import Event
-from api.models.event_activity_log import EventActivityLog
-from api.models.sessions import Session as EventSession
+from .models.events import Event
+from .models.event_activity_log import EventActivityLog
+from .models.sessions import Session as EventSession
 from schemas.events import EventCreate
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
@@ -115,7 +115,7 @@ def create_event(db: Session, event_in: EventCreate):
 
 from sqlalchemy.orm import Session
 from datetime import date
-from api.models.events import Event
+from .models.events import Event
 from sqlalchemy import func
 from schemas.events import EventUpdate
 
@@ -284,8 +284,8 @@ def get_event_by_slug(db: Session, slug: str, is_admin: bool = False):
 
     return query.first()
 from sqlalchemy.orm import Session
-from api.models.events import Event
-from api.models.participants import Participant
+from .models.events import Event
+from .models.participants import Participant
 
 
 def promote_waitlist(db: Session, event: Event):

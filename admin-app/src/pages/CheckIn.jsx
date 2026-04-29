@@ -447,7 +447,7 @@ export default function CheckIn() {
     }
   }
 
-  // Utility: Refresh participants from API
+  // Utility: Refresh participants from 
   async function refreshParticipants(options = {}) {
     const { focusSearchInput = false, preserveScroll = false } = options
     const priorScrollTop = preserveScroll ? participantListRef.current?.scrollTop : null

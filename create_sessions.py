@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from api.db.session import SessionLocal
-from api.models.events import Event
-from api.models.sessions import Session as EventSession
+from .db.session import SessionLocal
+from .models.events import Event
+from .models.sessions import Session as EventSession
 
 db = SessionLocal()
 

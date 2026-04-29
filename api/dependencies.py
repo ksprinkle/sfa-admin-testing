@@ -3,8 +3,8 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from sqlalchemy.orm import Session
 
-from api.db.session import get_db
-from api.models.user import User
+from .db.session import get_db
+from .models.user import User
 from security import SECRET_KEY, ALGORITHM
 
 

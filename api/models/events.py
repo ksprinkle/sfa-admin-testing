@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy import Column, String, Date, Time, Boolean, Integer, Float, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from api.db.base import Base
+from .db.base import Base
 from sqlalchemy.orm import relationship
 from sqlalchemy import select, func
 from sqlalchemy.orm import column_property
@@ -59,7 +59,7 @@ class Event(Base):
 
     @property
     def surfer_count(self):
-        from api.models.participants import Participant
+        from .models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:
@@ -73,7 +73,7 @@ class Event(Base):
 
     @property
     def waitlist_count(self):
-        from api.models.participants import Participant
+        from .models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:
@@ -86,7 +86,7 @@ class Event(Base):
 
     @property
     def checked_in_count(self):
-        from api.models.participants import Participant
+        from .models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:
@@ -99,7 +99,7 @@ class Event(Base):
 
     @property
     def volunteer_count(self):
-        from api.models.participants import Participant
+        from .models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:

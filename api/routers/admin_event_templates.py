@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from crud.events import create_event as crud_create_event
-from api.db.session import get_db
+from .db.session import get_db
 from dependencies import require_admin
-from api.models.events import Event
-from api.models.event_templates import EventTemplate
+from .models.events import Event
+from .models.event_templates import EventTemplate
 from schemas.event_templates import (
     CreateEventFromTemplateIn,
     EventTemplateCreate,

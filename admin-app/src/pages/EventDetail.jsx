@@ -401,7 +401,7 @@ function EventDetail() {
   const volunteerRoleFilterRaw = (searchParams.get("volunteer_role") || "").trim().toLowerCase()
   const volunteerRoleFilter = volunteerTypeAliases[volunteerRoleFilterRaw] || volunteerRoleFilterRaw
 
-  // Utility: Refresh participants from API
+  // Utility: Refresh participants from 
   async function refreshParticipants() {
     try {
       const data = await fetchEventParticipants(eventId)
@@ -1223,7 +1223,7 @@ function EventDetail() {
   })
 
 
-  // Build a lookup from session UUID → session name, ordered by start_time/name from API
+  // Build a lookup from session UUID → session name, ordered by start_time/name from 
   const sessionOrder = (eventInfo?.sessions || []).map(s => s.id)
   const sessionNameMap = Object.fromEntries((eventInfo?.sessions || []).map(s => [s.id, s.name]))
 
