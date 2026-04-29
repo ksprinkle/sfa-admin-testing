@@ -34,7 +34,7 @@ from services.no_show_service import get_no_show_candidates, promote_no_show_slo
 from services.session_service import DEFAULT_SESSION_CAPACITY
 from models.event_activity_log import EventActivityLog
 from models.participant_removal_log import ParticipantRemovalLog
-from backend.app.services.session_projection import project_session_flow
+from services.session_projection import project_session_flow
 
 router = APIRouter(
     prefix="/admin/events",
