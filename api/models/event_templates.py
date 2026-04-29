@@ -4,7 +4,7 @@ from sqlalchemy import JSON, Column, Date, DateTime, Integer, String, Time, Bool
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
-from .db.base import Base
+from db.base import Base
 
 
 class EventTemplate(Base):

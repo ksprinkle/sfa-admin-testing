@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from .db.session import get_db
+from db.session import get_db
 from crud.events import get_upcoming_events
-from .models.events import Event
-from .models.participants import Participant as ParticipantModel
+from models.events import Event
+from models.participants import Participant as ParticipantModel
 from schemas.events import EventOut
 from fastapi import HTTPException
 from crud.events import get_event_by_slug

@@ -22,7 +22,7 @@ from crud.events import (
 from sqlalchemy.orm import joinedload
 from schemas.participants import AdminParticipantListOut, ParticipantOut
 from utils.event_builder import build_admin_event
-from .models.participants import Participant
+from models.participants import Participant
 from schemas.events import AdminEventSummary
 from datetime import datetime
 import csv
@@ -32,8 +32,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import case, false, func
 from services.no_show_service import get_no_show_candidates, promote_no_show_slots
 from services.session_service import DEFAULT_SESSION_CAPACITY
-from .models.event_activity_log import EventActivityLog
-from .models.participant_removal_log import ParticipantRemovalLog
+from models.event_activity_log import EventActivityLog
+from models.participant_removal_log import ParticipantRemovalLog
 from services.session_projection import project_session_flow
 
 router = APIRouter(

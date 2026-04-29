@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, DateTime
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 
-from .db.base import Base
+from db.base import Base
 
 
 class ParticipantRemovalLog(Base):
