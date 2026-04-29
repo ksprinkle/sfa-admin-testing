@@ -51,6 +51,11 @@ class AssignmentEvaluationIn(BaseModel):
     session_id: UUID
 
 
+class BatchAssignmentEvaluationIn(BaseModel):
+    participant_id: UUID
+    session_ids: list[UUID]
+
+
 def _base_active_participant_query(db: DBSession):
     return db.query(Participant).filter(Participant.removed_at.is_(None))
 
@@ -770,6 +775,31 @@ def evaluate_participant_assignment(
         raise HTTPException(status_code=404, detail="Session not found for participant event")
 
     return evaluate_assignment(participant, selected_session, session_stats)
+
+
+@router.post("/evaluate-multiple-assignments")
+def evaluate_multiple_participant_assignments(
+    payload: BatchAssignmentEvaluationIn,
+    db: DBSession = Depends(get_db),
+    _current_user = Depends(require_admin),
+):
+    participant = _base_active_participant_query(db).filter(Participant.id == payload.participant_id).first()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    session_stats = _derive_event_session_stats(db, participant.event_id)
+    stats_by_id = {str(s.session_id): s for s in session_stats}
+
+    results = {}
+    for session_id in payload.session_ids:
+        sid = str(session_id)
+        session = stats_by_id.get(sid)
+        if session is None:
+            results[sid] = {"status": "avoid", "messages": ["Session not found"]}
+        else:
+            results[sid] = evaluate_assignment(participant, session, session_stats)
+
+    return {"results": results}
 
 
 @router.get("/removal-log", response_model=list[ParticipantRemovalLogOut])

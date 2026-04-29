@@ -10,6 +10,7 @@ import EventDetail from "./pages/EventDetail"
 import CreateEvent from "./pages/CreateEvent"
 import EditEvent from "./pages/EditEvent"
 import CheckIn from "./pages/CheckIn"
+import FastAssign from "./pages/FastAssign"
 import EventTemplates from "./pages/EventTemplates"
 import { clearAuthSession, fetchMyProfile, getAuthChangedEventName, getStoredProfile, getStoredToken } from "./api/auth"
 
@@ -133,6 +134,7 @@ function App() {
             <Route path="new" element={<CreateEvent />} />
             <Route path=":eventId" element={<EventDetail />} />
             <Route path=":eventId/checkin" element={<CheckIn />} />
+            <Route path=":eventId/fast-assign" element={<FastAssign />} />
             <Route path=":eventId/edit" element={<EditEvent />} />
           </Route>
 

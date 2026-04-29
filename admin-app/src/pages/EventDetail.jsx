@@ -419,7 +419,9 @@ function EventDetail() {
         setSessionStatsById(nextStats)
 
         try {
+          const requestId = ++projectionRequestIdRef.current
           const projection = await getSessionProjection(eventId, 10)
+          if (requestId !== projectionRequestIdRef.current) return
           // Build per-session flags from projection result
           // willBeFull: session appears in projections within the next 3 steps
           // atRisk:     session name appears in a warning string
@@ -584,6 +586,7 @@ function EventDetail() {
   const hoverGuidanceDebounceRef = useRef(null)
   const hoverGuidanceRequestSeqRef = useRef(0)
   const hoverGuidanceCacheRef = useRef(new Map())
+  const projectionRequestIdRef = useRef(0)
 
   const pendingQueueCount = queuedEventActions.filter((item) => item.syncStatus !== "failed").length
   const failedQueueCount = queuedEventActions.filter((item) => item.syncStatus === "failed").length
@@ -3028,6 +3031,13 @@ function EventDetail() {
         className={`w-full bg-green-600 text-white rounded-xl font-semibold ${eventMode ? "py-6 text-2xl" : "py-4"}`}
       >
         ✔ Start Event Check-In
+      </button>
+
+      <button
+        onClick={() => navigate(`/events/${eventId}/fast-assign`)}
+        className={`w-full bg-indigo-600 text-white rounded-xl font-semibold ${eventMode ? "py-5 text-xl" : "py-3 text-sm"}`}
+      >
+        ⚡ Fast Assign
       </button>
 
       {(() => {

@@ -381,6 +381,24 @@ export async function evaluateAssignment(participantId, sessionId) {
   return res.json()
 }
 
+export async function evaluateMultipleAssignments(participantId, sessionIds) {
+  const res = await apiFetch("/api/admin/participants/evaluate-multiple-assignments", {
+    method: "POST",
+    body: JSON.stringify({
+      participant_id: participantId,
+      session_ids: sessionIds,
+    }),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to evaluate assignments")
+  }
+
+  const data = await res.json()
+  return data.results ?? {}
+}
+
 export async function updateParticipantPriority(participantId, priority) {
   // Send priority as query param to match FastAPI signature
   const res = await apiFetch(
@@ -535,4 +553,26 @@ export async function getSessionProjection(eventId, limit = 10) {
   }
 
   return res.json()
+}
+
+export async function getNextUnassignedParticipant(eventId) {
+  const participants = await fetchEventParticipants(eventId)
+  const list = Array.isArray(participants) ? participants : []
+
+  const unassigned = list.filter(
+    (p) =>
+      p.session_id == null &&
+      p.is_waitlisted === false &&
+      p.role !== "volunteer" &&
+      !p.is_removed
+  )
+
+  unassigned.sort((a, b) => {
+    const pa = a.priority ?? 99
+    const pb = b.priority ?? 99
+    if (pa !== pb) return pa - pb
+    return (a.created_at || "") < (b.created_at || "") ? -1 : 1
+  })
+
+  return unassigned[0] ?? null
 }
