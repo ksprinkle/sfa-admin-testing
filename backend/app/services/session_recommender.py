@@ -19,7 +19,7 @@ def recommend_sessions(participant, sessions):
         fill_ratio = current_count / capacity
         capacity_score = (1 - fill_ratio) * 50
         score += capacity_score
-        reasons.append("Helps balance session capacity")
+        reasons.append("Capacity: helps balance session load")
 
         # --- Assistance balancing ---
         assistance_count = int(getattr(session, "assistance_count", 0) or 0)
@@ -27,11 +27,11 @@ def recommend_sessions(participant, sessions):
         if bool(getattr(participant, "requires_assistance", False)):
             if assistance_count < target_assistance:
                 score += 25
-                reasons.append("Supports assistance needs")
+                reasons.append("Assistance: supports participant needs")
         else:
             if assistance_count > target_assistance:
                 score += 10
-                reasons.append("Helps balance assistance support")
+                reasons.append("Assistance: supports participant needs")
 
         # --- Minor / Adult balancing ---
         minor_count = int(getattr(session, "minor_count", 0) or 0)
@@ -39,11 +39,11 @@ def recommend_sessions(participant, sessions):
         if bool(getattr(participant, "is_minor", False)):
             if minor_count < target_minors:
                 score += 20
-                reasons.append("Improves age group balance")
+                reasons.append("Age: improves group balance")
         else:
             if minor_count > target_minors:
                 score += 10
-                reasons.append("Improves age group balance")
+                reasons.append("Age: improves group balance")
 
         # --- Soft spread to prevent stacking ---
         score += random.uniform(0, 5)

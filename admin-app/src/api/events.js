@@ -364,6 +364,23 @@ export async function fetchRecommendedSessions(participantId) {
   return []
 }
 
+export async function evaluateAssignment(participantId, sessionId) {
+  const res = await apiFetch("/api/admin/participants/evaluate-assignment", {
+    method: "POST",
+    body: JSON.stringify({
+      participant_id: participantId,
+      session_id: sessionId,
+    }),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to evaluate assignment")
+  }
+
+  return res.json()
+}
+
 export async function updateParticipantPriority(participantId, priority) {
   // Send priority as query param to match FastAPI signature
   const res = await apiFetch(

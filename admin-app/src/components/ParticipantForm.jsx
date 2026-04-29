@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { fetchEventSessionStats, fetchRecommendedSessions } from "../api/events"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { evaluateAssignment, fetchEventSessionStats, fetchRecommendedSessions } from "../api/events"
 import SessionIndicators from "./SessionIndicators"
 import SessionLoadBar from "./SessionLoadBar"
 
@@ -182,9 +182,12 @@ export default function ParticipantForm({
   const [volunteerAdditionalTypes, setVolunteerAdditionalTypes] = useState([])
   const [volunteerIsVersatile, setVolunteerIsVersatile] = useState(false)
   const [recommendations, setRecommendations] = useState([])
+  const [assignmentGuidance, setAssignmentGuidance] = useState(null)
+  const [assignmentGuidanceLoading, setAssignmentGuidanceLoading] = useState(false)
   const [sessionStatsById, setSessionStatsById] = useState({})
   const [expandedReasons, setExpandedReasons] = useState({})
   const [formError, setFormError] = useState("")
+  const evaluationCacheRef = useRef(new Map())
 
   useEffect(() => {
     if (!isOpen) return
@@ -214,9 +217,12 @@ export default function ParticipantForm({
     )
     setVolunteerIsVersatile(Boolean(isEditMode && initialRole === "volunteer" ? initialData?.volunteer_is_versatile : false))
     setRecommendations([])
+    setAssignmentGuidance(null)
+    setAssignmentGuidanceLoading(false)
     setSessionStatsById({})
     setExpandedReasons({})
     setFormError("")
+    evaluationCacheRef.current = new Map()
   }, [isOpen, defaultEventId, initialData])
 
   useEffect(() => {
@@ -243,7 +249,26 @@ export default function ParticipantForm({
       try {
         const nextRecommendations = await fetchRecommendedSessions(initialData.id)
         if (!cancelled) {
-          setRecommendations(Array.isArray(nextRecommendations) ? nextRecommendations : [])
+          const normalizedRecommendations = Array.isArray(nextRecommendations) ? nextRecommendations : []
+          setRecommendations(normalizedRecommendations)
+
+          const topRecommendations = normalizedRecommendations
+            .slice(0, 2)
+            .map((recommendation) => String(recommendation?.session_id || ""))
+            .filter(Boolean)
+
+          topRecommendations.forEach((recommendedSessionId) => {
+            const cacheKey = `${String(initialData.id)}:${recommendedSessionId}`
+            if (evaluationCacheRef.current.has(cacheKey)) return
+
+            evaluateAssignment(initialData.id, recommendedSessionId)
+              .then((guidance) => {
+                evaluationCacheRef.current.set(cacheKey, guidance || null)
+              })
+              .catch(() => {
+                // Ignore preload failures so the normal selection flow still works.
+              })
+          })
         }
       } catch {
         if (!cancelled) {
@@ -293,6 +318,49 @@ export default function ParticipantForm({
       cancelled = true
     }
   }, [eventId, initialData?.id, isOpen, role, sessionId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadAssignmentGuidance() {
+      if (!isOpen || !initialData?.id || !sessionId || role === "volunteer") {
+        setAssignmentGuidance(null)
+        setAssignmentGuidanceLoading(false)
+        return
+      }
+
+      const cacheKey = `${String(initialData.id)}:${String(sessionId)}`
+      const cachedGuidance = evaluationCacheRef.current.get(cacheKey)
+      if (cachedGuidance !== undefined) {
+        setAssignmentGuidance(cachedGuidance)
+        setAssignmentGuidanceLoading(false)
+        return
+      }
+
+      setAssignmentGuidanceLoading(true)
+      try {
+        const guidance = await evaluateAssignment(initialData.id, sessionId)
+        if (!cancelled) {
+          evaluationCacheRef.current.set(cacheKey, guidance || null)
+          setAssignmentGuidance(guidance || null)
+        }
+      } catch {
+        if (!cancelled) {
+          setAssignmentGuidance(null)
+        }
+      } finally {
+        if (!cancelled) {
+          setAssignmentGuidanceLoading(false)
+        }
+      }
+    }
+
+    loadAssignmentGuidance()
+
+    return () => {
+      cancelled = true
+    }
+  }, [initialData?.id, isOpen, role, sessionId])
 
   const sessionOptions = useMemo(() => {
     return (Array.isArray(sessions) ? sessions : []).map((session, index) => {
@@ -377,6 +445,12 @@ export default function ParticipantForm({
     if (!nextSessionId) return
     setSessionId(nextSessionId)
     setRecommendations([])
+  }
+
+  const handleQuickAssignSuggested = () => {
+    const suggestedSessionId = String(assignmentGuidance?.suggested_alternative_session_id || "")
+    if (!suggestedSessionId) return
+    setSessionId(suggestedSessionId)
   }
 
   const toggleReasons = (recommendedSessionId) => {
@@ -602,6 +676,55 @@ export default function ParticipantForm({
               ))}
             </select>
           </label>
+
+          {assignmentGuidanceLoading && sessionId && (
+            <div className="sm:col-span-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              Checking assignment guidance...
+            </div>
+          )}
+
+          {!assignmentGuidanceLoading && assignmentGuidance && sessionId && (
+            <div
+              className={`sm:col-span-2 rounded border px-3 py-2 text-sm ${
+                assignmentGuidance.status === "good"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : assignmentGuidance.status === "avoid"
+                    ? "border-red-200 bg-red-50 text-red-700"
+                    : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              {assignmentGuidance.status === "good" && (
+                <p className="font-medium">Good choice</p>
+              )}
+
+              {assignmentGuidance.status === "warn" && (
+                <p className="font-medium">Heads up before you assign</p>
+              )}
+
+              {assignmentGuidance.status === "avoid" && (
+                <p className="font-medium">Assignment discouraged</p>
+              )}
+
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {(Array.isArray(assignmentGuidance.messages) ? assignmentGuidance.messages : []).map((message, index) => (
+                  <li key={index}>{message}</li>
+                ))}
+              </ul>
+
+              {assignmentGuidance.suggested_alternative_session_id && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide">Better option available</span>
+                  <button
+                    type="button"
+                    onClick={handleQuickAssignSuggested}
+                    className="rounded border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-800 hover:bg-sky-100"
+                  >
+                    Use {sessionNameById[String(assignmentGuidance.suggested_alternative_session_id)] || `Session ${assignmentGuidance.suggested_alternative_session_id}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {!sessionId && recommendations?.length > 0 && (
             <div className="sm:col-span-2 rounded-lg border border-sky-200 bg-sky-50 p-3">

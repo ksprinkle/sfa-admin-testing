@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchEventSessionStats, fetchRecommendedSessions } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchEventSessionStats, fetchRecommendedSessions, evaluateAssignment } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
@@ -528,6 +528,7 @@ function EventDetail() {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [bulkAssignLoading, setBulkAssignLoading] = useState(false)
   const [bulkAssignMessage, setBulkAssignMessage] = useState("")
+  const [bulkAssignSmartMode, setBulkAssignSmartMode] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingParticipant, setEditingParticipant] = useState(null)
   const [sessionStatsById, setSessionStatsById] = useState({})
@@ -542,10 +543,15 @@ function EventDetail() {
     water: false,
     beach: false,
   })
+  const [hoverGuidanceBySession, setHoverGuidanceBySession] = useState({})
+  const [hoverGuidanceLoadingSessionId, setHoverGuidanceLoadingSessionId] = useState("")
   const queueSyncRef = useRef(false)
   const createToastTimerRef = useRef(null)
   const retriedCreateQueueIdsRef = useRef(new Set())
   const recentlyMovedRef = useRef(new Map())
+  const hoverGuidanceDebounceRef = useRef(null)
+  const hoverGuidanceRequestSeqRef = useRef(0)
+  const hoverGuidanceCacheRef = useRef(new Map())
 
   const pendingQueueCount = queuedEventActions.filter((item) => item.syncStatus !== "failed").length
   const failedQueueCount = queuedEventActions.filter((item) => item.syncStatus === "failed").length
@@ -604,8 +610,76 @@ function EventDetail() {
       if (createToastTimerRef.current) {
         window.clearTimeout(createToastTimerRef.current)
       }
+      if (hoverGuidanceDebounceRef.current) {
+        window.clearTimeout(hoverGuidanceDebounceRef.current)
+      }
     }
   }, [])
+
+  const clearHoverGuidance = () => {
+    if (hoverGuidanceDebounceRef.current) {
+      window.clearTimeout(hoverGuidanceDebounceRef.current)
+      hoverGuidanceDebounceRef.current = null
+    }
+    hoverGuidanceRequestSeqRef.current += 1
+    setHoverGuidanceBySession({})
+    setHoverGuidanceLoadingSessionId("")
+  }
+
+  const scheduleHoverGuidanceEvaluation = (participantId, targetSessionId) => {
+    if (!participantId || !targetSessionId) {
+      clearHoverGuidance()
+      return
+    }
+
+    const cacheKey = `${String(participantId)}:${String(targetSessionId)}`
+
+    if (hoverGuidanceDebounceRef.current) {
+      window.clearTimeout(hoverGuidanceDebounceRef.current)
+      hoverGuidanceDebounceRef.current = null
+    }
+
+    const cached = hoverGuidanceCacheRef.current.get(cacheKey)
+    if (cached) {
+      const currentSessionId = Object.keys(hoverGuidanceBySession)[0] || ""
+      const currentGuidance = hoverGuidanceBySession[currentSessionId]
+      const isAlreadyShowingCachedResult = (
+        String(currentSessionId) === String(targetSessionId)
+        && currentGuidance === cached
+        && String(hoverGuidanceLoadingSessionId || "") !== String(targetSessionId)
+      )
+
+      if (isAlreadyShowingCachedResult) {
+        return
+      }
+
+      setHoverGuidanceBySession({ [String(targetSessionId)]: cached })
+      setHoverGuidanceLoadingSessionId("")
+      return
+    }
+
+    setHoverGuidanceLoadingSessionId(String(targetSessionId))
+
+    hoverGuidanceDebounceRef.current = window.setTimeout(async () => {
+      const requestSeq = hoverGuidanceRequestSeqRef.current + 1
+      hoverGuidanceRequestSeqRef.current = requestSeq
+
+      try {
+        const guidance = await evaluateAssignment(participantId, targetSessionId)
+        if (requestSeq !== hoverGuidanceRequestSeqRef.current) return
+
+        hoverGuidanceCacheRef.current.set(cacheKey, guidance)
+        setHoverGuidanceBySession({ [String(targetSessionId)]: guidance })
+      } catch {
+        if (requestSeq !== hoverGuidanceRequestSeqRef.current) return
+        setHoverGuidanceBySession({})
+      } finally {
+        if (requestSeq === hoverGuidanceRequestSeqRef.current) {
+          setHoverGuidanceLoadingSessionId("")
+        }
+      }
+    }, 180)
+  }
 
   const retryRecoverableQueueActions = () => {
     queuedEventActions
@@ -1126,18 +1200,27 @@ function EventDetail() {
     )
   ).sort((left, right) => String(left).localeCompare(String(right)))
 
-  const hasUnassignedParticipants = sortedParticipants.some((p) => !p.session_id)
+  const isBoardUnassignedParticipant = (participant) => !participant?.session_id && !participant?.is_waitlisted
+  const isBoardWaitlistedParticipant = (participant) => !participant?.session_id && Boolean(participant?.is_waitlisted)
 
-  // Always show configured sessions, then unknown session ids, then waitlist/unassigned when present.
+  const hasUnassignedParticipants = sortedParticipants.some(isBoardUnassignedParticipant)
+  const hasWaitlistedParticipants = sortedParticipants.some(isBoardWaitlistedParticipant)
+
+  // Always show configured sessions, then unknown session ids, then holding buckets.
   const sortedSessionIds = [
     ...sessionOrder,
     ...unknownSessionIds,
     ...(hasUnassignedParticipants ? ["UNASSIGNED"] : []),
+    ...(hasWaitlistedParticipants ? ["WAITLISTED"] : []),
   ]
 
   const groupedParticipants = sortedSessionIds.map((sessionId) => ({
     sessionId,
-    participants: sortedParticipants.filter((p) => (p.session_id || "UNASSIGNED") === sessionId),
+    participants: sortedParticipants.filter((participant) => {
+      if (sessionId === "UNASSIGNED") return isBoardUnassignedParticipant(participant)
+      if (sessionId === "WAITLISTED") return isBoardWaitlistedParticipant(participant)
+      return participant?.session_id === sessionId
+    }),
   }))
 
   const isVolunteer = (participant) => (participant?.role || "").toLowerCase().trim() === "volunteer"
@@ -1158,6 +1241,20 @@ function EventDetail() {
   }
 
   const getSessionStatus = (sessionId) => {
+    if (sessionId === "UNASSIGNED") {
+      const participantCount = sortedParticipants.filter(
+        (participant) => isBoardUnassignedParticipant(participant) && !isVolunteer(participant)
+      ).length
+      return { status: "Needs assignment", emoji: '🟦', color: 'text-sky-600', participantCount, volunteerCount: 0 }
+    }
+
+    if (sessionId === "WAITLISTED") {
+      const participantCount = sortedParticipants.filter(
+        (participant) => isBoardWaitlistedParticipant(participant) && !isVolunteer(participant)
+      ).length
+      return { status: "Waitlisted", emoji: '🟨', color: 'text-amber-600', participantCount, volunteerCount: 0 }
+    }
+
     const participantCount = sortedParticipants.filter(
       p => p.session_id === sessionId && !isVolunteer(p)
     ).length
@@ -1189,7 +1286,7 @@ function EventDetail() {
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
   }
 
-  const getSessionSoftStatus = (sessionIndex, group) => {
+  const getSessionSoftStatus = (sessionId, sessionIndex, group) => {
     if (participantFilter === "waitlisted") {
       return {
         text: "Showing waitlisted participants for manual review",
@@ -1232,6 +1329,20 @@ function EventDetail() {
       }
     }
 
+    if (sessionId === "UNASSIGNED") {
+      return {
+        text: "Ready for session assignment",
+        className: "text-sky-700",
+      }
+    }
+
+    if (sessionId === "WAITLISTED") {
+      return {
+        text: "Held back from auto-assign until manually promoted",
+        className: "text-amber-700",
+      }
+    }
+
     if (eventStartAt) {
       const sessionStartMs = eventStartAt.getTime() + (sessionIndex * 60 * 60 * 1000)
       const remainingMs = sessionStartMs - nowMs
@@ -1259,7 +1370,7 @@ function EventDetail() {
   }
 
   const getSessionStaffingIndicators = (sessionId) => {
-    if (sessionId === "UNASSIGNED") return null
+    if (sessionId === "UNASSIGNED" || sessionId === "WAITLISTED") return null
     const sessionPeople = participants.filter((p) => p.session_id === sessionId)
     const activeSessionPeople = sessionPeople.filter((p) => !p.removed_at)
     const participantCount = activeSessionPeople.filter((p) => !isVolunteer(p)).length
@@ -1309,7 +1420,8 @@ function EventDetail() {
   }
 
   const getSessionLabel = (sessionId) => {
-    if (sessionId === "UNASSIGNED") return "Waitlist / Unassigned"
+    if (sessionId === "UNASSIGNED") return "Unassigned"
+    if (sessionId === "WAITLISTED") return "Waitlisted"
     if (sessionNameMap[sessionId]) return sessionNameMap[sessionId]
     const index = sortedSessionIds.findIndex((id) => id === sessionId)
     if (index >= 0) return `Session ${index + 1}`
@@ -1334,8 +1446,8 @@ function EventDetail() {
     if (capacity > 0 && fillRatio > 0.9) {
       return {
         cardClass: "border-red-300 bg-red-50/70",
-        badgeClass: "border-red-200 bg-red-50 text-red-700",
-        badgeLabel: "Nearly full",
+        badgeClass: "",
+        badgeLabel: "",
       }
     }
 
@@ -1361,7 +1473,7 @@ function EventDetail() {
     let smallestPositiveSurplus = Number.POSITIVE_INFINITY
 
     for (const candidateSessionId of sortedSessionIds) {
-      if (candidateSessionId === "UNASSIGNED" || candidateSessionId === targetSessionId) continue
+      if (candidateSessionId === "UNASSIGNED" || candidateSessionId === "WAITLISTED" || candidateSessionId === targetSessionId) continue
       const staffing = getSessionStaffingIndicators(candidateSessionId)
       if (!staffing) continue
       const surplus = staffing[countKey] - staffing[requiredKey]
@@ -1763,7 +1875,57 @@ function EventDetail() {
     let assignedCount = 0
     let skippedCount = 0
     let failedCount = 0
+    let avoidedCount = 0
+    let warningCount = 0
+    const warningNames = []
+    let nearlyFullIssueCount = 0
+    let assistanceImbalanceRiskCount = 0
+    let betterAlternativeUsedCount = 0
     const queuedAssignmentsBySession = new Map()
+
+    const evaluateSmartTarget = async (participantId, preferredSessionId) => {
+      const initial = await evaluateAssignment(participantId, preferredSessionId)
+
+      if (initial?.status === "warn") {
+        warningCount += 1
+      }
+
+      if (initial?.status !== "avoid") {
+        return {
+          targetSessionId: preferredSessionId,
+          status: initial?.status || "good",
+          guidance: initial,
+        }
+      }
+
+      const suggestedSessionId = String(initial?.suggested_alternative_session_id || "")
+      if (!suggestedSessionId) {
+        return {
+          targetSessionId: "",
+          status: "avoid",
+          guidance: initial,
+        }
+      }
+
+      const alternate = await evaluateAssignment(participantId, suggestedSessionId)
+      if (alternate?.status === "avoid") {
+        return {
+          targetSessionId: "",
+          status: "avoid",
+          guidance: alternate,
+        }
+      }
+
+      if (alternate?.status === "warn") {
+        warningCount += 1
+      }
+
+      return {
+        targetSessionId: suggestedSessionId,
+        status: alternate?.status || "good",
+        guidance: alternate,
+      }
+    }
 
     try {
       for (const participant of unassigned) {
@@ -1776,7 +1938,57 @@ function EventDetail() {
           }
 
           const best = data[0]
-          const targetSessionId = String(best?.session_id || "")
+          let targetSessionId = String(best?.session_id || "")
+
+          if (!targetSessionId) {
+            skippedCount += 1
+            continue
+          }
+
+          if (bulkAssignSmartMode) {
+            try {
+              const smartChoice = await evaluateSmartTarget(participant.id, targetSessionId)
+
+              if (!smartChoice.targetSessionId || smartChoice.status === "avoid") {
+                avoidedCount += 1
+                skippedCount += 1
+                continue
+              }
+
+              if (smartChoice.status === "warn") {
+                const participantName = `${participant.first_name || "Participant"} ${participant.last_name || ""}`.trim()
+                warningNames.push(participantName)
+
+                const warningMessages = Array.isArray(smartChoice.guidance?.messages)
+                  ? smartChoice.guidance.messages.map((message) => String(message || "").toLowerCase())
+                  : []
+                const warningText = warningMessages.join(" ")
+
+                if (warningText.includes("nearly full") || warningText.includes("capacity") || warningText.includes("full")) {
+                  nearlyFullIssueCount += 1
+                }
+
+                if (warningText.includes("assistance") || warningText.includes("imbalance") || warningText.includes("balance")) {
+                  assistanceImbalanceRiskCount += 1
+                }
+
+                console.warn("Bulk assign warning", {
+                  participant_id: participant.id,
+                  participant_name: participantName,
+                  session_id: smartChoice.targetSessionId,
+                  messages: smartChoice.guidance?.messages || [],
+                })
+              }
+
+              if (String(smartChoice.targetSessionId || "") !== String(best?.session_id || "")) {
+                betterAlternativeUsedCount += 1
+              }
+
+              targetSessionId = String(smartChoice.targetSessionId || "")
+            } catch {
+              // If smart guidance fails, keep best recommendation so bulk assign still runs.
+            }
+          }
 
           if (!targetSessionId) {
             skippedCount += 1
@@ -1802,9 +2014,37 @@ function EventDetail() {
       }
 
       await refreshParticipants()
-      setBulkAssignMessage(
-        `Auto-assign complete: ${assignedCount} assigned, ${skippedCount} skipped, ${failedCount} failed.`
-      )
+      if (!bulkAssignSmartMode) {
+        setBulkAssignMessage(
+          [
+            "Bulk assignment complete:",
+            `- ${assignedCount} participants assigned`,
+            `- ${skippedCount} skipped`,
+            `- ${failedCount} failed`,
+          ].join("\n")
+        )
+      } else {
+        const warningPreview = warningNames.slice(0, 3).join(", ")
+        const warningLine = warningCount > 0
+          ? `- ${warningCount} had warnings (capacity or balance)${warningPreview ? `: ${warningPreview}${warningNames.length > 3 ? ", ..." : ""}` : ""}`
+          : "- 0 had warnings (capacity or balance)"
+
+        const summaryLines = [
+          "Bulk assignment complete:",
+          `- ${assignedCount} participants assigned`,
+          `- ${skippedCount} skipped (no safe session)`,
+          `- ${avoidedCount} avoided high-risk session${avoidedCount === 1 ? "" : "s"}`,
+          warningLine,
+          `- ${failedCount} failed`,
+          "",
+          "Top issues:",
+          `- Nearly full sessions: ${nearlyFullIssueCount}`,
+          `- Assistance imbalance risk: ${assistanceImbalanceRiskCount}`,
+          `- Better alternative used: ${betterAlternativeUsedCount}`,
+        ]
+
+        setBulkAssignMessage(summaryLines.join("\n"))
+      }
     } finally {
       setBulkAssignLoading(false)
     }
@@ -1904,12 +2144,41 @@ function EventDetail() {
   function handleDragStart(event) {
     setActiveId(String(event.active.id))
     setDragError(null)
+    clearHoverGuidance()
+  }
+
+  function handleDragMove(event) {
+    if (event.delta) setActiveTransform(event.delta)
+
+    const activeParticipantId = String(event?.active?.id || "")
+    const overId = String(event?.over?.id || "")
+
+    if (!activeParticipantId || !overId.startsWith("session-")) {
+      clearHoverGuidance()
+      return
+    }
+
+    const targetSessionId = overId.replace("session-", "")
+    const activeParticipant = participants.find((participant) => String(participant.id) === activeParticipantId)
+
+    if (!activeParticipant) {
+      clearHoverGuidance()
+      return
+    }
+
+    if (isVolunteer(activeParticipant) || String(activeParticipant.session_id || "") === String(targetSessionId || "")) {
+      clearHoverGuidance()
+      return
+    }
+
+    scheduleHoverGuidanceEvaluation(activeParticipantId, targetSessionId)
   }
 
   // ✅ stable drag end logic with proper multi-select handling
   async function handleDragEnd(event) {
     const { active, over } = event
     setActiveId(null)
+    clearHoverGuidance()
 
     if (!over) return
 
@@ -1955,12 +2224,45 @@ function EventDetail() {
     const { setNodeRef } = useDroppable({
       id: `session-${sessionId}`,
     })
+    const guidance = hoverGuidanceBySession[String(sessionId || "")]
+    const isGuidanceLoading = String(hoverGuidanceLoadingSessionId || "") === String(sessionId || "")
+
+    const guidanceClass = guidance?.status === "good"
+      ? "ring-2 ring-emerald-300 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]"
+      : guidance?.status === "warn"
+        ? "border-2 border-amber-400"
+        : guidance?.status === "avoid"
+          ? "border-2 border-red-500"
+          : ""
+
+    const guidanceText = guidance?.status === "good"
+      ? "Good fit"
+      : guidance?.status === "warn"
+        ? "May cause imbalance"
+        : guidance?.status === "avoid"
+          ? "Not recommended"
+          : ""
+
+    const guidanceTextClass = guidance?.status === "good"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : guidance?.status === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : guidance?.status === "avoid"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : ""
 
     return (
       <div
         ref={setNodeRef}
-        className={`bg-white rounded-xl border p-4 min-h-[120px] ${isSessionFull(sessionId) ? 'border-red-500 bg-red-100' : ''} ${className}`.trim()}
+        className={`relative bg-white rounded-xl border p-4 min-h-[120px] ${isSessionFull(sessionId) ? 'border-red-500 bg-red-100' : ''} ${guidanceClass} ${className}`.trim()}
       >
+        {(guidanceText || isGuidanceLoading) && (
+          <div className="pointer-events-none absolute right-2 top-2 z-10">
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${isGuidanceLoading ? "border-slate-200 bg-slate-50 text-slate-600" : guidanceTextClass}`}>
+              {isGuidanceLoading ? "Checking..." : guidanceText}
+            </span>
+          </div>
+        )}
         {isSessionFull(sessionId) && (
           <div className="text-red-500 font-bold text-center mb-2">FULL</div>
         )}
@@ -2390,6 +2692,15 @@ function EventDetail() {
           >
             {bulkAssignLoading ? "Auto-Assigning..." : "Auto-Assign Unassigned"}
           </button>
+          <label className="inline-flex items-center gap-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+            <input
+              type="checkbox"
+              checked={bulkAssignSmartMode}
+              onChange={(e) => setBulkAssignSmartMode(Boolean(e.target.checked))}
+              disabled={bulkAssignLoading}
+            />
+            Smart Mode (respects warnings)
+          </label>
           <button
             type="button"
             onClick={handleDuplicateEvent}
@@ -2427,7 +2738,7 @@ function EventDetail() {
             <p className="text-xs text-emerald-700">{saveTemplateMessage}</p>
           )}
           {bulkAssignMessage && (
-            <p className="text-xs text-slate-700">{bulkAssignMessage}</p>
+            <p className="whitespace-pre-line text-xs text-slate-700">{bulkAssignMessage}</p>
           )}
         </div>
       </div>
@@ -2686,7 +2997,7 @@ function EventDetail() {
 
       {(() => {
         const realSessions = groupedParticipants.filter(({ sessionId }) => {
-          if (!sessionId || sessionId === "UNASSIGNED") return false
+          if (!sessionId || sessionId === "UNASSIGNED" || sessionId === "WAITLISTED") return false
           return true
         })
         const totalSessions = realSessions.length
@@ -2738,14 +3049,15 @@ function EventDetail() {
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
-        onDragMove={(event) => {
-          if (event.delta) setActiveTransform(event.delta)
-        }}
+        onDragMove={handleDragMove}
         onDragEnd={(event) => {
           setActiveTransform(null)
           handleDragEnd(event)
         }}
-        onDragCancel={() => setActiveTransform(null)}
+        onDragCancel={() => {
+          setActiveTransform(null)
+          clearHoverGuidance()
+        }}
       >
 
         {/* Debug: log groupedParticipants structure */}
@@ -2761,8 +3073,9 @@ function EventDetail() {
           {groupedParticipants.map((groupData, idx) => {
             const sessionId = groupData.sessionId
             const group = groupData.participants
-            const softStatus = getSessionSoftStatus(idx, group)
-            const sessionLabel = sessionId === "UNASSIGNED" ? "Waitlist / Unassigned" : (sessionNameMap[sessionId] || `Session ${idx + 1}`)
+            const isHoldingBucket = sessionId === "UNASSIGNED" || sessionId === "WAITLISTED"
+            const softStatus = getSessionSoftStatus(sessionId, idx, group)
+            const sessionLabel = getSessionLabel(sessionId)
             const sessionStatus = getSessionStatus(sessionId)
             const sessionStats = sessionStatsById[String(sessionId || "")]
             const availableSpots = Number(
@@ -2770,10 +3083,12 @@ function EventDetail() {
                 Number(sessionStats?.capacity || 0) - Number(sessionStats?.current_count || 0)
               )
             )
-            const availabilityBadge = Number.isFinite(availableSpots)
+            const availabilityBadge = !isHoldingBucket && Number.isFinite(availableSpots)
               ? (availableSpots === 0 ? "Full" : availableSpots <= 2 ? "Nearly Full" : "")
               : ""
-            const sessionVisualState = getSessionVisualState(sessionId)
+            const sessionVisualState = isHoldingBucket
+              ? { cardClass: "", badgeClass: "", badgeLabel: "" }
+              : getSessionVisualState(sessionId)
             const staffing = getSessionStaffingIndicators(sessionId)
             const assistanceHeat = staffing ? getSessionAssistanceHeat(staffing) : null
             const staffingGuidance = staffing ? getSessionStaffingGuidance(sessionId) : []
@@ -2808,7 +3123,7 @@ function EventDetail() {
               <DroppableSession key={sessionId} sessionId={sessionId} className={sessionVisualState.cardClass}>
                 <div className="flex justify-between mb-2">
                   <h3 className="flex items-center gap-2 font-semibold">
-                    <span>{sessionLabel} {sessionStatus.emoji}</span>
+                    <span>{sessionLabel}</span>
                     {availabilityBadge && (
                       <span
                         className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${availabilityBadge === "Full" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}
@@ -2828,7 +3143,7 @@ function EventDetail() {
                       </span>
                     )}
                   </h3>
-                  <span className={sessionStatus.color}>{sessionStatus.participantCount} / 15</span>
+                  <span className={sessionStatus.color}>{isHoldingBucket ? sessionStatus.participantCount : `${sessionStatus.participantCount} / 15`}</span>
                 </div>
                 <div className={`mb-3 text-xs font-medium ${softStatus.className}`}>
                   {softStatus.text}
