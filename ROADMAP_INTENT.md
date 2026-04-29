@@ -111,8 +111,8 @@ After implementation, update PROJECT_SYNC_BRIEF.md with commit-backed outcomes.
 
 Approved for Build
 
- ITEM-001
- ITEM-002
+✔ ITEM-001
+✔ ITEM-002
  ITEM-003
 7) Anti-Drift Checklist
 
