@@ -1,23 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.session import engine
-from api.db.base import Base
+from db.base import Base
 
 # Import models so SQLAlchemy registers them
-from api.models import events, event_templates, participants, participant_removal_log, feedback
+from db.session import SessionLocal
 
 # Import routers
 
 
-from api.routers.events import router as events_router
-from api.routers.events import public_router as public_events_router
-from api.routers.auth import router as auth_router
-from api.routers.admin_events import router as admin_events_router
-from api.routers.admin_event_templates import router as admin_event_templates_router
-from api.routers.admin_participants import router as admin_participants_router
-from api.ws_manager import router as ws_router
-from api.routers.feedback import router as feedback_router
-from api.config import settings
+from routers.events import router as events_router
+from routers.events import public_router as public_events_router
+from routers.auth import router as auth_router
+from routers.admin_events import router as admin_events_router
+from routers.admin_event_templates import router as admin_event_templates_router
+from routers.admin_participants import router as admin_participants_router
+from ws_manager import router as ws_router
+from routers.feedback import router as feedback_router
+from config import settings
 
 app = FastAPI(redirect_slashes=False)
 
