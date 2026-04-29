@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchEventSessionStats, fetchRecommendedSessions, evaluateAssignment } from "../api/events"
+import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchEventSessionStats, fetchRecommendedSessions, evaluateAssignment, getSessionProjection } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
@@ -417,6 +417,36 @@ function EventDetail() {
           ]).filter(([sessionStatsId]) => sessionStatsId)
         )
         setSessionStatsById(nextStats)
+
+        try {
+          const projection = await getSessionProjection(eventId, 10)
+          // Build per-session flags from projection result
+          // willBeFull: session appears in projections within the next 3 steps
+          // atRisk:     session name appears in a warning string
+          const nextProjection = {}
+          const projections = Array.isArray(projection?.projections) ? projection.projections : []
+          const warnings = Array.isArray(projection?.warnings) ? projection.warnings : []
+          const fillingSoonThreshold = Math.min(3, projections.length)
+
+          projections.forEach(({ step, assigned_session_id }) => {
+            const sid = String(assigned_session_id || "")
+            if (!sid) return
+            if (!nextProjection[sid]) nextProjection[sid] = { willBeFull: false, atRisk: false }
+            if (step <= fillingSoonThreshold) nextProjection[sid].willBeFull = true
+          })
+
+          warnings.forEach((w) => {
+            const sid = String(w?.session_id || "")
+            if (!sid) return
+            if (!nextProjection[sid]) nextProjection[sid] = { willBeFull: false, atRisk: false }
+            nextProjection[sid].atRisk = true
+          })
+
+          setProjectionBySession(nextProjection)
+          setProjectionResult(projection)
+        } catch {
+          // Projection is non-critical; silently skip on failure.
+        }
       } catch {
         // Keep existing stats if session stats refresh fails.
       }
@@ -545,6 +575,8 @@ function EventDetail() {
   })
   const [hoverGuidanceBySession, setHoverGuidanceBySession] = useState({})
   const [hoverGuidanceLoadingSessionId, setHoverGuidanceLoadingSessionId] = useState("")
+  const [projectionBySession, setProjectionBySession] = useState({})
+  const [projectionResult, setProjectionResult] = useState(null)
   const queueSyncRef = useRef(false)
   const createToastTimerRef = useRef(null)
   const retriedCreateQueueIdsRef = useRef(new Set())
@@ -2047,6 +2079,7 @@ function EventDetail() {
       }
     } finally {
       setBulkAssignLoading(false)
+      refreshParticipants()
     }
   }
 
@@ -2846,6 +2879,7 @@ function EventDetail() {
         lockEvent={true}
         title="Add Participant"
         submitLabel="Add Participant"
+        projectionBySession={projectionBySession}
       />
 
       <ParticipantForm
@@ -2863,6 +2897,7 @@ function EventDetail() {
         lockEvent={true}
         title="Edit Participant"
         submitLabel="Save Changes"
+        projectionBySession={projectionBySession}
       />
 
       {eventInfo && (
@@ -3045,6 +3080,68 @@ function EventDetail() {
         )
       })()}
 
+      {(() => {
+        if (!projectionResult) return null
+        const projections = Array.isArray(projectionResult.projections) ? projectionResult.projections : []
+        const warnings = Array.isArray(projectionResult.warnings) ? projectionResult.warnings : []
+        const finalState = Array.isArray(projectionResult.final_state) ? projectionResult.final_state : []
+        if (projections.length === 0 && warnings.length === 0) return null
+
+        // Count session appearances in first 3 steps
+        const countBySession = {}
+        projections.slice(0, 3).forEach(({ assigned_session_id }) => {
+          const sid = String(assigned_session_id || "")
+          if (sid) countBySession[sid] = (countBySession[sid] || 0) + 1
+        })
+        const topSid = Object.entries(countBySession).sort((a, b) => b[1] - a[1])[0]?.[0]
+        const topSession = topSid ? finalState.find((s) => String(s.session_id) === topSid) : null
+        const topName = topSession?.name || (topSid ? getSessionLabel(topSid) : null)
+        const topCount = topSid ? countBySession[topSid] : 0
+
+        // Sessions to avoid: full in final_state or have a structured warning
+        const avoidSessions = finalState
+          .filter((s) => {
+            const sid = String(s.session_id || "")
+            const available = (s.capacity || 0) - (s.current_count || 0)
+            const hasWarning = warnings.some((w) => String(w?.session_id || "") === sid)
+            return available <= 0 || hasWarning
+          })
+          .slice(0, 2)
+
+        const suggestions = []
+        if (topName && topCount > 0) {
+          suggestions.push({
+            type: "go",
+            text: `Next best: ${topName} (${topCount === 1 ? "1 upcoming" : `${topCount} upcoming`})`,
+          })
+        }
+        avoidSessions.forEach((s) => {
+          const sid = String(s.session_id || "")
+          const available = (s.capacity || 0) - (s.current_count || 0)
+          const sessionWarning = warnings.find((w) => String(w?.session_id || "") === sid)
+          const reason = available <= 0 ? "full" : (sessionWarning?.message || "at risk")
+          const name = s.name || getSessionLabel(sid)
+          suggestions.push({ type: "avoid", text: `Avoid ${name} — ${reason}` })
+        })
+
+        const shown = suggestions.slice(0, 3)
+        if (shown.length === 0) return null
+
+        return (
+          <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-blue-500">Next Best Actions</p>
+            <ul className="space-y-1">
+              {shown.map((s, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-blue-900">
+                  <span className="mt-0.5 shrink-0">{s.type === "go" ? "→" : "✕"}</span>
+                  <span>{s.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })()}
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -3119,6 +3216,7 @@ function EventDetail() {
             const sessionIsBalanced = staffing != null
               && waterShortfall === 0 && beachShortfall === 0
               && (staffing.requiredWater > 0 || staffing.requiredBeach > 0)
+            const projFlags = !isHoldingBucket ? (projectionBySession[String(sessionId || "")] || null) : null
             return (
               <DroppableSession key={sessionId} sessionId={sessionId} className={sessionVisualState.cardClass}>
                 <div className="flex justify-between mb-2">
@@ -3140,6 +3238,22 @@ function EventDetail() {
                       <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${assistanceHeat.className}`}>
                         <span>{assistanceHeat.emoji}</span>
                         <span>{assistanceHeat.label}</span>
+                      </span>
+                    )}
+                    {projFlags?.willBeFull && !availabilityBadge && (
+                      <span
+                        title="Projected to fill within the next 3 assignments"
+                        className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700"
+                      >
+                        ↑ Filling soon
+                      </span>
+                    )}
+                    {projFlags?.atRisk && (
+                      <span
+                        title="Projection warnings detected for this session"
+                        className="inline-flex items-center rounded-full border border-yellow-200 bg-yellow-50 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700"
+                      >
+                        ⚠ At risk
                       </span>
                     )}
                   </h3>

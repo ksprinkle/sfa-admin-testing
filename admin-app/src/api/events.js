@@ -523,3 +523,16 @@ export async function exportEventRemovalLogCsv(filters = {}) {
 
   return { blob, filename }
 }
+
+export async function getSessionProjection(eventId, limit = 10) {
+  const res = await apiFetch(
+    `/api/admin/events/${eventId}/session-projection?limit=${limit}`
+  )
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to fetch session projection")
+  }
+
+  return res.json()
+}

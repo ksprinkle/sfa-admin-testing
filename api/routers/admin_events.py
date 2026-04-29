@@ -34,6 +34,7 @@ from api.services.no_show_service import get_no_show_candidates, promote_no_show
 from api.services.session_service import DEFAULT_SESSION_CAPACITY
 from api.models.event_activity_log import EventActivityLog
 from api.models.participant_removal_log import ParticipantRemovalLog
+from backend.app.services.session_projection import project_session_flow
 
 router = APIRouter(
     prefix="/admin/events",
@@ -571,6 +572,121 @@ def get_event_session_stats(
         )
 
     return {"sessions": session_stats}
+
+
+@router.get("/{event_id}/session-projection")
+def get_session_projection(
+    event_id: UUID,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # --- Build session stats (same logic as /session-stats) ---
+    sessions = (
+        db.query(EventSession)
+        .filter(EventSession.event_id == event_id)
+        .order_by(EventSession.start_time.asc(), EventSession.name.asc())
+        .all()
+    )
+
+    session_ids = [s.id for s in sessions]
+
+    counts_by_session: dict[str, dict[str, int]] = {}
+    if session_ids:
+        count_rows = (
+            db.query(
+                Participant.session_id.label("session_id"),
+                func.count(Participant.id).label("current_count"),
+                func.sum(case((Participant.requires_assistance.is_(True), 1), else_=0)).label("assistance_count"),
+                func.sum(case((Participant.is_minor.is_(True), 1), else_=0)).label("minor_count"),
+            )
+            .filter(
+                Participant.event_id == event_id,
+                Participant.removed_at.is_(None),
+                Participant.session_id.in_(session_ids),
+                func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+            )
+            .group_by(Participant.session_id)
+            .all()
+        )
+        counts_by_session = {
+            str(row.session_id): {
+                "current_count": int(row.current_count or 0),
+                "assistance_count": int(row.assistance_count or 0),
+                "minor_count": int(row.minor_count or 0),
+            }
+            for row in count_rows
+        }
+
+    totals_row = (
+        db.query(
+            func.count(Participant.id).label("total_count"),
+            func.sum(case((Participant.requires_assistance.is_(True), 1), else_=0)).label("total_assistance"),
+            func.sum(case((Participant.is_minor.is_(True), 1), else_=0)).label("total_minors"),
+        )
+        .filter(
+            Participant.event_id == event_id,
+            Participant.removed_at.is_(None),
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+        )
+        .first()
+    )
+
+    total_count = int(getattr(totals_row, "total_count", 0) or 0)
+    total_assistance = int(getattr(totals_row, "total_assistance", 0) or 0)
+    total_minors = int(getattr(totals_row, "total_minors", 0) or 0)
+
+    assistance_ratio = (total_assistance / total_count) if total_count > 0 else 0.0
+    minor_ratio = (total_minors / total_count) if total_count > 0 else 0.0
+
+    session_stats = []
+    for s in sessions:
+        capacity = int(s.capacity or DEFAULT_SESSION_CAPACITY)
+        session_counts = counts_by_session.get(str(s.id), {})
+        current_count = int(session_counts.get("current_count", 0))
+        assistance_count = int(session_counts.get("assistance_count", 0))
+        minor_count = int(session_counts.get("minor_count", 0))
+        session_stats.append({
+            "session_id": s.id,
+            "name": s.name or str(s.id),
+            "capacity": capacity,
+            "current_count": current_count,
+            "available_spots": max(capacity - current_count, 0),
+            "assistance_count": assistance_count,
+            "target_assistance": int(round(capacity * assistance_ratio)),
+            "minor_count": minor_count,
+            "target_minors": int(round(capacity * minor_ratio)),
+        })
+
+    # --- Load unassigned (non-waitlisted, non-volunteer) participants in priority order ---
+    unassigned = (
+        db.query(Participant)
+        .filter(
+            Participant.event_id == event_id,
+            Participant.removed_at.is_(None),
+            Participant.session_id.is_(None),
+            Participant.is_waitlisted.is_(False),
+            func.lower(func.trim(func.coalesce(Participant.role, ""))) != "volunteer",
+        )
+        .order_by(Participant.priority.asc(), Participant.created_at.asc())
+        .all()
+    )
+
+    participants = [
+        {
+            "id": str(p.id),
+            "requires_assistance": bool(p.requires_assistance),
+            "is_minor": bool(p.is_minor),
+        }
+        for p in unassigned
+    ]
+
+    return project_session_flow(participants, session_stats, limit=limit)
+
 
 # 🔹 List all events (admin view)
 @router.get("/", response_model=List[AdminEventListOut])

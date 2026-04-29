@@ -167,6 +167,7 @@ export default function ParticipantForm({
   lockEvent = false,
   title = "Add Participant",
   submitLabel = "Add Participant",
+  projectionBySession = {},
 }) {
   const [eventId, setEventId] = useState(defaultEventId || "")
   const [firstName, setFirstName] = useState("")
@@ -735,6 +736,7 @@ export default function ParticipantForm({
                   const sessionStats = sessionStatsById[String(rec.session_id)]
                   const reasonsExpanded = Boolean(expandedReasons[String(rec.session_id)])
                   const isTopRecommendation = index === 0
+                  const projFlags = projectionBySession[String(rec.session_id)] || null
                   const availableSpots = Number(
                     sessionStats?.available_spots ?? (
                       Number(sessionStats?.capacity || 0) - Number(sessionStats?.current_count || 0)
@@ -760,6 +762,9 @@ export default function ParticipantForm({
                               >
                                 {sessionAvailabilityBadge}
                               </span>
+                            )}
+                            {!sessionAvailabilityBadge && projFlags?.willBeFull && (
+                              <span className="ml-2 text-[10px] text-orange-500">Filling quickly</span>
                             )}
                           </div>
                           {isTopRecommendation && (
