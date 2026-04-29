@@ -25,7 +25,7 @@ from services.session_service import (
     DEFAULT_SESSION_CAPACITY,
     get_session_participant_count,
 )
-from backend.app.services.assignment_evaluator import evaluate_assignment
+from services.assignment_evaluator import evaluate_assignment
 from backend.app.services.session_recommender import recommend_sessions
 from models.participant_removal_log import ParticipantRemovalLog
 
