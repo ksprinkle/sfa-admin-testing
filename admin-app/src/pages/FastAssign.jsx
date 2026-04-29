@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom"
 import {
   fetchAdminEvent,
   fetchEventParticipants,
+  fetchEventSessionStats,
   fetchRecommendedSessions,
   updateParticipantSession,
   evaluateMultipleAssignments,
@@ -167,12 +168,14 @@ export default function FastAssign() {
   const [queue, setQueue] = useState([])       // unassigned participants, sorted
   const [totalCount, setTotalCount] = useState(0) // initial queue size for progress bar
   const [eventInfo, setEventInfo] = useState(null)
+  const [allSessions, setAllSessions] = useState([])
   const [recommendations, setRecommendations] = useState([])
   // evalBySession: Map<sessionId, "good"|"warn"|"avoid"> — populated after recs load
   const [evalBySession, setEvalBySession] = useState({})
   const [recsLoading, setRecsLoading] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [flash, setFlash] = useState(null)     // { name, sessionName } | null
+  const [failureFlash, setFailureFlash] = useState("")
   const [undoVisible, setUndoVisible] = useState(false)
   const [error, setError] = useState("")
   const [loadError, setLoadError] = useState("")
@@ -181,15 +184,20 @@ export default function FastAssign() {
   const recRequestIdRef = useRef(0)
   const preloadedRecsRef = useRef(new Map())
   const preloadingRecsRef = useRef(new Map())
+  const allSessionsRef = useRef([])
+  const assignmentGenerationRef = useRef(0)
   const lastAssignmentRef = useRef(null)
   const undoTimerRef = useRef(null)
+  const lastKeyTimeRef = useRef(0)
 
   const current = queue[0] ?? null
   const hasRecommendations = recommendations.length > 0
+  const displayedSessions = hasRecommendations ? recommendations : allSessions
+  const noRecommendationsFallback = !recsLoading && !hasRecommendations && allSessions.length > 0
   const showConstrainedBanner =
     !recsLoading &&
-    hasRecommendations &&
-    recommendations.every((rec) => {
+    displayedSessions.length > 0 &&
+    displayedSessions.every((rec) => {
       const sid = String(rec.session_id ?? rec.id ?? "")
       const status = evalBySession[sid] ?? null
       const filled = Number(rec.current_count ?? 0)
@@ -202,7 +210,8 @@ export default function FastAssign() {
   async function fetchRecommendationBundle(participantId) {
     const recs = await fetchRecommendedSessions(participantId)
     const list = Array.isArray(recs) ? recs : []
-    const sessionIds = list
+    const sessionsForEvaluation = list.length > 0 ? list : allSessionsRef.current
+    const sessionIds = sessionsForEvaluation
       .map((rec) => String(rec.session_id ?? rec.id ?? ""))
       .filter(Boolean)
 
@@ -215,6 +224,11 @@ export default function FastAssign() {
     }
 
     return { recommendations: list, evalBySession: statuses }
+  }
+
+  function setSinglePrefetchBundle(participantId, bundle) {
+    const key = String(participantId)
+    preloadedRecsRef.current = new Map([[key, bundle]])
   }
 
   function getOrFetchRecommendationBundle(participantId) {
@@ -230,7 +244,7 @@ export default function FastAssign() {
 
     const promise = fetchRecommendationBundle(participantId)
       .then((bundle) => {
-        preloadedRecsRef.current.set(key, bundle)
+        setSinglePrefetchBundle(key, bundle)
         return bundle
       })
       .finally(() => {
@@ -275,11 +289,15 @@ export default function FastAssign() {
   useEffect(() => {
     let cancelled = false
 
+    preloadedRecsRef.current = new Map()
+    preloadingRecsRef.current = new Map()
+
     async function load() {
       try {
-        const [eventData, participantData] = await Promise.all([
+        const [eventData, participantData, statsPayload] = await Promise.all([
           fetchAdminEvent(eventId),
           fetchEventParticipants(eventId),
+          fetchEventSessionStats(eventId),
         ])
         if (cancelled) return
 
@@ -287,8 +305,11 @@ export default function FastAssign() {
         const unassigned = sortByPriority(
           (Array.isArray(participantData) ? participantData : []).filter(isUnassignedParticipant)
         )
+        const sessions = Array.isArray(statsPayload?.sessions) ? statsPayload.sessions : []
         setQueue(unassigned)
         setTotalCount(unassigned.length)
+        setAllSessions(sessions)
+        allSessionsRef.current = sessions
       } catch {
         if (!cancelled) setLoadError("Could not load participants. Check connection and try again.")
       }
@@ -344,6 +365,7 @@ export default function FastAssign() {
     if (!current || assigning) return
     setAssigning(true)
     setError("")
+    setFailureFlash("")
     preloadRecommendations(queue[1] ?? null)
 
     const participantName = `${current.first_name} ${current.last_name}`
@@ -353,7 +375,9 @@ export default function FastAssign() {
 
     try {
       await updateParticipantSession(current.id, sessionId)
+      assignmentGenerationRef.current += 1
       startUndoWindow({
+        generation: assignmentGenerationRef.current,
         participant: current,
         sessionId,
         sessionName,
@@ -362,6 +386,8 @@ export default function FastAssign() {
       setFlash({ name: participantName, sessionName })
       setTimeout(() => setFlash(null), FLASH_DURATION_MS)
     } catch {
+      setFailureFlash("Assignment failed")
+      setTimeout(() => setFailureFlash(""), FLASH_DURATION_MS)
       setError("Assignment failed. Try again.")
     } finally {
       setAssigning(false)
@@ -401,6 +427,7 @@ export default function FastAssign() {
   async function handleUndoLast() {
     const last = lastAssignmentRef.current
     if (!last || assigning) return
+    if (last.generation !== assignmentGenerationRef.current) return
 
     setAssigning(true)
     setError("")
@@ -425,13 +452,18 @@ export default function FastAssign() {
   // ------------------------------------------------------------------
   useEffect(() => {
     function onKeyDown(e) {
+      const now = Date.now()
+      if (now - lastKeyTimeRef.current < 250) return
+      lastKeyTimeRef.current = now
+
       // Ignore when focus is inside an input/textarea/select
       const tag = document.activeElement?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
-      if (!current || assigning || recsLoading || recommendations.length === 0) return
+      const actionableSessions = recommendations.length > 0 ? recommendations : allSessions
+      if (!current || assigning || recsLoading || actionableSessions.length === 0) return
 
       if (e.key === "Enter") {
-        const best = recommendations[0]
+        const best = actionableSessions[0]
         if (best) handleAssign(best.session_id ?? best.id)
         return
       }
@@ -448,14 +480,14 @@ export default function FastAssign() {
 
       const index = parseInt(e.key, 10)
       if (Number.isFinite(index) && index >= 1 && index <= 9) {
-        const rec = recommendations[index - 1]
+        const rec = actionableSessions[index - 1]
         if (rec) handleAssign(rec.session_id ?? rec.id)
       }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [current, assigning, recsLoading, recommendations, handleWaitlist])
+  }, [current, assigning, recsLoading, recommendations, allSessions, handleWaitlist])
 
   // ------------------------------------------------------------------
   // Render
@@ -522,6 +554,12 @@ export default function FastAssign() {
           </div>
         )}
 
+        {failureFlash && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-700 animate-pulse">
+            {failureFlash}
+          </div>
+        )}
+
         {undoVisible && lastAssignmentRef.current && (
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900 flex items-center justify-between gap-3">
             <span className="truncate">
@@ -563,12 +601,18 @@ export default function FastAssign() {
                 <p className="text-center text-sm text-gray-400 py-4">Loading sessions…</p>
               )}
 
-              {!recsLoading && recommendations.length === 0 && !error && (
+              {!recsLoading && recommendations.length === 0 && allSessions.length === 0 && !error && (
                 <p className="text-center text-sm text-gray-400 py-4">No session recommendations available.</p>
               )}
 
               {error && (
                 <p className="text-center text-sm text-red-500 py-2">{error}</p>
+              )}
+
+              {noRecommendationsFallback && !error && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
+                  No clear recommendation — choose best available
+                </div>
               )}
 
               {showConstrainedBanner && !error && (
@@ -578,7 +622,7 @@ export default function FastAssign() {
               )}
 
               {!recsLoading &&
-                recommendations.map((rec, index) => {
+                displayedSessions.map((rec, index) => {
                   const sid = String(rec.session_id ?? rec.id ?? "")
                   const keyHint = index === 0 ? "↵" : index < 9 ? String(index + 1) : null
                   return (
@@ -586,7 +630,7 @@ export default function FastAssign() {
                       key={sid}
                       session={rec}
                       evalStatus={evalBySession[sid] ?? null}
-                      isBest={index === 0}
+                      isBest={hasRecommendations && index === 0}
                       keyHint={keyHint}
                       onAssign={handleAssign}
                       loading={assigning}

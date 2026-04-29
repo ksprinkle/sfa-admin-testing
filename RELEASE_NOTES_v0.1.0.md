@@ -89,3 +89,40 @@ Commit: be77f16
   - Event Detail Map button now honors manual map URLs before using generated coordinate/location fallbacks.
 
 Note: These maintenance updates are being accumulated into local maintenance commits after v0.1.0.
+
+## Fast Assign Mode Delivery (v0.19) - 2026-04-28
+
+Tag: v0.19-fast-assign-mode
+Base Commit: 6b2b6d6
+
+### Highlights
+
+- Added a dedicated Fast Assign mode optimized for live event-day throughput.
+- Reused existing recommendation and assignment-evaluation engines to preserve decision quality.
+- Introduced touch-first and keyboard-first workflows for rapid participant assignment.
+
+### User-Facing Improvements
+
+- New route: /events/:eventId/fast-assign.
+- Large session action buttons with Good/Caution/Avoid visual guidance and capacity context.
+- Best-option emphasis (ring + star) when a recommendation exists.
+- Secondary operator actions: Skip and Waitlist.
+- Progress indicator with stable denominator and subtle top progress bar.
+- Undo Last assignment with a 5-second window.
+
+### Hardening Updates
+
+- Batch evaluation endpoint and frontend usage reduce N assignment-evaluation requests to 1 request per participant.
+- Race-condition guards for recommendation/evaluation fetches prevent stale UI overwrite.
+- Next-participant prefetch added to reduce transition latency between participants.
+- Prefetch cache hygiene added (cleared on event change, one participant ahead cached).
+- Keyboard debounce guard prevents accidental duplicate key-repeat submissions.
+- Assignment failure recovery now shows a red failure flash while preserving current participant and queue position.
+- No-recommendations fallback now shows all sessions, removes best-option bias, and displays operator guidance.
+- Constrained-options banner added when all visible sessions are avoid/full/nearly-full.
+
+### Validation Summary
+
+- Assignment loop remains non-blocking and rapid under keyboard-heavy use.
+- Undo guard uses assignment generation tracking to avoid stale undo collisions.
+- Guidance remains visible during constrained and recommendation-sparse scenarios.

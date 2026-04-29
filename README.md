@@ -40,6 +40,21 @@ The application is built as a **Progressive Web App (PWA)** so it can run on **p
 
 ## Recent Updates (April 2026)
 
+- Fast Assign mode hardening updates (April 28, 2026):
+      - Added Fast Assign event-day workflow at /events/:eventId/fast-assign for one-tap or one-key assignment.
+      - Added keyboard shortcuts for speed:
+            - Enter assigns best visible option.
+            - 1-9 assigns the matching visible session button.
+            - S skips current participant.
+            - W moves current participant to waitlist.
+      - Added recommendation/evaluation batching to reduce per-participant API fan-out and avoid load spikes.
+      - Added next-participant recommendation prefetch with cache hygiene (single-entry cache, cleared per event).
+      - Added constrained-options warning when all visible options are avoid/full/nearly-full.
+      - Added no-recommendations fallback: show all sessions, evaluate them, and remove best-highlight bias.
+      - Added Undo Last assignment (5-second window) with generation guard for rapid-input safety.
+      - Added assignment failure recovery banner and keyboard debounce guard to prevent duplicate key-repeat submissions.
+      - Reduced success flash duration to 700ms to improve throughput while preserving confirmation feedback.
+
 - Event Templates and Tour calendar workflow updates (April 27, 2026):
       - Event Templates date picker now uses month/day/year dropdowns with inline calendar selection.
       - Tour templates now derive default event date from matching historical events with safer fallback matching.
