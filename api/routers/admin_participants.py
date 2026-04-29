@@ -26,7 +26,7 @@ from services.session_service import (
     get_session_participant_count,
 )
 from services.assignment_evaluator import evaluate_assignment
-from backend.app.services.session_recommender import recommend_sessions
+from services.session_recommender import recommend_sessions
 from models.participant_removal_log import ParticipantRemovalLog
 
 
