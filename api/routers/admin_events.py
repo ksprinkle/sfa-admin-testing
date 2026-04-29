@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 from crud.participants import promote_from_waitlist
-from db.session import get_db
+from api.db.session import get_db
 from dependencies import require_admin
-from models.events import Event
-from models.sessions import Session as EventSession
-from models.event_templates import EventTemplate
+from api.models.events import Event
+from api.models.sessions import Session as EventSession
+from api.models.event_templates import EventTemplate
 from schemas.event_templates import EventTemplateCreate, EventTemplateOut
 from schemas.events import AdminEventListOut, EventActionIn, EventActivityLogOut, EventOut, EventUpdate, EventCreate
 from crud.events import (
@@ -22,7 +22,7 @@ from crud.events import (
 from sqlalchemy.orm import joinedload
 from schemas.participants import AdminParticipantListOut, ParticipantOut
 from utils.event_builder import build_admin_event
-from models.participants import Participant
+from api.models.participants import Participant
 from schemas.events import AdminEventSummary
 from datetime import datetime
 import csv
@@ -32,8 +32,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import case, false, func
 from services.no_show_service import get_no_show_candidates, promote_no_show_slots
 from services.session_service import DEFAULT_SESSION_CAPACITY
-from models.event_activity_log import EventActivityLog
-from models.participant_removal_log import ParticipantRemovalLog
+from api.models.event_activity_log import EventActivityLog
+from api.models.participant_removal_log import ParticipantRemovalLog
 from services.session_projection import project_session_flow
 
 router = APIRouter(

@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from models.events import Event
-from models.participants import Participant
-from models.sessions import Session as EventSession
-from models.participant_removal_log import ParticipantRemovalLog
+from api.models.events import Event
+from api.models.participants import Participant
+from api.models.sessions import Session as EventSession
+from api.models.participant_removal_log import ParticipantRemovalLog
 
 
 def get_no_show_candidates(db: Session, event_id):
