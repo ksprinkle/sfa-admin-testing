@@ -1,20 +1,23 @@
+import sys
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from db.session import engine
-from db.base import Base
+from api.db.session import engine
+from api.db.base import Base
 
 # Import models so SQLAlchemy registers them
-from db.session import SessionLocal
+from api.db.session import SessionLocal
 
 # 🔥 import ALL models explicitly
-import models.events
-import models.event_templates
-import models.participants
-import models.participant_removal_log
-import models.users   # <-- THIS is critical
-import models.sessions
-import models.event_activity_log
-import models.feedback      # <-- Don't forget to import the Feedback model 
+import api.models.events
+import api.models.event_templates
+import api.models.participants
+import api.models.participant_removal_log
+import api.models.users   # <-- THIS is critical
+import api.models.sessions
+import api.models.event_activity_log
+import api.models.feedback      # <-- Don't forget to import the Feedback model 
 # 👇 CREATE TABLES
 Base.metadata.create_all(bind=engine)
 
@@ -22,14 +25,14 @@ print("✅ Tables created at startup")
 
 
 # Import routers
-from routers.events import router as events_router
-from routers.events import public_router as public_events_router
-from routers.auth import router as auth_router
-from routers.admin_events import router as admin_events_router
-from routers.admin_event_templates import router as admin_event_templates_router
-from routers.admin_participants import router as admin_participants_router
+from api.routers.events import router as events_router
+from api.routers.events import public_router as public_events_router
+from api.routers.auth import router as auth_router
+from api.routers.admin_events import router as admin_events_router
+from api.routers.admin_event_templates import router as admin_event_templates_router
+from api.routers.admin_participants import router as admin_participants_router
 from ws_manager import router as ws_router
-from routers.feedback import router as feedback_router
+from api.routers.feedback import router as feedback_router
 from config import settings
 
 app = FastAPI(redirect_slashes=False)

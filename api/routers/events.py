@@ -1,24 +1,24 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from db.session import get_db
-from crud.events import get_upcoming_events
-from models.events import Event
-from models.participants import Participant as ParticipantModel
+from api.db.session import get_db
+from api.crud.events import get_upcoming_events
+from api.models.events import Event
+from api.models.participants import Participant as ParticipantModel
 from schemas.events import EventOut
 from fastapi import HTTPException
-from crud.events import get_event_by_slug
+from api.crud.events import get_event_by_slug
 from schemas.events import EventCreate
-from crud.events import create_event
+from api.crud.events import create_event
 from datetime import date, timedelta
 from typing import Optional
 from datetime import date
 from typing import Optional
 from schemas.events import EventUpdate
-from crud.events import update_event
+from api.crud.events import update_event
 from schemas.participants import ParticipantCreate, ParticipantOut, VolunteerSignup, PublicEventRegister
-from crud.participants import create_participant
-from crud.participants import get_confirmed_participant_count
-from crud.participants import get_participants_for_event
+from api.crud.participants import create_participant
+from api.crud.participants import get_confirmed_participant_count
+from api.crud.participants import get_participants_for_event
 from schemas.events import EventOut, EventListOut
 from dependencies import get_current_user, require_admin
 from utils.event_counts import (

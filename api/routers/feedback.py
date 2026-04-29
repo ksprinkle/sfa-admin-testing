@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import Any, Optional
 
 from dependencies import get_db
-from models.feedback import Feedback
+from api.models.feedback import Feedback
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 

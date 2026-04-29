@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from models.events import Event
-from models.participants import Participant
-from models.sessions import Session as EventSession
-from models.participant_removal_log import ParticipantRemovalLog
+from api.models.events import Event
+from api.models.participants import Participant
+from api.models.sessions import Session as EventSession
+from api.models.participant_removal_log import ParticipantRemovalLog
 
 
 def get_no_show_candidates(db: Session, event_id):
@@ -63,7 +63,7 @@ def promote_no_show_slots(db: Session, event_id):
     event = db.query(Event).filter(Event.id == event_id).first()
     promoted = []
     for ns in no_shows:
-        from crud.participants import promote_from_waitlist
+        from api.crud.participants import promote_from_waitlist
         stage = "post_checkin" if ns.checked_in else ("waitlist" if ns.is_waitlisted else ("waiver_verified" if ns.waiver_verified else "registered"))
         timestamp = datetime.utcnow()
         ns.removed_at = timestamp

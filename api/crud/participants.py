@@ -3,8 +3,8 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from sqlalchemy import func, case
 
-from models.participants import Participant
-from models.events import Event
+from api.models.participants import Participant
+from api.models.events import Event
 from schemas.participants import ParticipantCreate
 from services.session_service import get_next_available_session
 

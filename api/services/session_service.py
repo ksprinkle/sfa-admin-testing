@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
-from models.events import Event
-from models.participants import Participant
-from models.sessions import Session
+from api.models.events import Event
+from api.models.participants import Participant
+from api.models.sessions import Session
 
 DEFAULT_SESSION_CAPACITY = 15
 TOUR_SESSION_MINUTES = 20
