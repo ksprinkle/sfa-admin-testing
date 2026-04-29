@@ -14,7 +14,7 @@ sys.path.insert(0, project_dir)
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-from .db.session import DATABASE_URL
+from db.session import DATABASE_URL
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # Interpret the config file for Python logging.
@@ -27,7 +27,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 
-from .db.base import Base
+from db.base import Base
 import models
 
 target_metadata = Base.metadata

@@ -1,7 +1,7 @@
-from .db.session import SessionLocal
-from .models.events import Event
-from .models.participants import Participant
-from .models.sessions import Session as EventSession
+from db.session import SessionLocal
+from models.events import Event
+from models.participants import Participant
+from models.sessions import Session as EventSession
 
 db = SessionLocal()
 

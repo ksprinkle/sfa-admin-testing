@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 from crud.participants import promote_from_waitlist
-from .db.session import get_db
+from db.session import get_db
 from dependencies import require_admin
-from .models.events import Event
-from .models.sessions import Session as EventSession
-from .models.event_templates import EventTemplate
+from models.events import Event
+from models.sessions import Session as EventSession
+from models.event_templates import EventTemplate
 from schemas.event_templates import EventTemplateCreate, EventTemplateOut
 from schemas.events import AdminEventListOut, EventActionIn, EventActivityLogOut, EventOut, EventUpdate, EventCreate
 from crud.events import (

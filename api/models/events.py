@@ -59,7 +59,7 @@ class Event(Base):
 
     @property
     def surfer_count(self):
-        from .models.participants import Participant
+        from models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:
@@ -73,7 +73,7 @@ class Event(Base):
 
     @property
     def waitlist_count(self):
-        from .models.participants import Participant
+        from models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:
@@ -86,7 +86,7 @@ class Event(Base):
 
     @property
     def checked_in_count(self):
-        from .models.participants import Participant
+        from models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:
@@ -99,7 +99,7 @@ class Event(Base):
 
     @property
     def volunteer_count(self):
-        from .models.participants import Participant
+        from models.participants import Participant
         from sqlalchemy.orm import object_session
         session = object_session(self)
         if session is None:

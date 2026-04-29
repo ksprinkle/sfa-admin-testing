@@ -115,7 +115,7 @@ def create_event(db: Session, event_in: EventCreate):
 
 from sqlalchemy.orm import Session
 from datetime import date
-from .models.events import Event
+from models.events import Event
 from sqlalchemy import func
 from schemas.events import EventUpdate
 
@@ -284,8 +284,8 @@ def get_event_by_slug(db: Session, slug: str, is_admin: bool = False):
 
     return query.first()
 from sqlalchemy.orm import Session
-from .models.events import Event
-from .models.participants import Participant
+from models.events import Event
+from models.participants import Participant
 
 
 def promote_waitlist(db: Session, event: Event):
