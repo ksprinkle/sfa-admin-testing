@@ -26,27 +26,27 @@ from db.session import SessionLocal
 from models.users import User
 from security import get_password_hash
 
-def seed_admin():
-    db = SessionLocal()
+# def seed_admin():
+#     db = SessionLocal()
 
-    existing = db.query(User).filter(User.email == "admin@example.com").first()
+#     existing = db.query(User).filter(User.email == "admin@example.com").first()
 
-    if not existing:
-        user = User(
-            email="admin@example.com",
-            hashed_password=get_password_hash("password123"),
-            role="admin",
-            is_active=True
-        )
-        db.add(user)
-        db.commit()
-        print("✅ Admin user created")
-    else:
-        print("ℹ️ Admin already exists")
+#     if not existing:
+#         user = User(
+#             email="admin@example.com",
+#             hashed_password=get_password_hash("password123"),
+#             role="admin",
+#             is_active=True
+#         )
+#         db.add(user)
+#         db.commit()
+#         print("✅ Admin user created")
+#     else:
+#         print("ℹ️ Admin already exists")
 
-    db.close()
+#     db.close()
 
-#seed_admin()
+# #seed_admin()
 
 from db.session import SessionLocal
 from models.users import User
