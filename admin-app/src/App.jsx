@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Routes, Route, useLocation, Navigate } from "react-router-dom"
-import TopBar from "./components/TopBar"
 import BottomNav from "./components/BottomNav"
+import AppLayout from "./components/AppLayout"
 import Dashboard from "./pages/Dashboard"
 import Events from "./pages/Events"
 import Participants from "./pages/Participants"
@@ -121,43 +121,41 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-warmbg pb-20">
-      {token && <TopBar title={getTitle()} profile={profile} onSignOut={handleSignOut} releaseTag={getReleaseTag()} />}
+    <AppLayout
+      title={getTitle()}
+      releaseTag={token ? getReleaseTag() : undefined}
+      profile={token ? profile : null}
+      onSignOut={handleSignOut}
+      buildFingerprint={token ? buildFingerprint : undefined}
+      showHeader={Boolean(token)}
+      footer={token ? <BottomNav /> : null}
+    >
+      <Routes>
+        <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
 
-    <Routes>
-      <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
+        {!token ? (
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        ) : (
+          <>
+            <Route path="/" element={<Dashboard />} />
 
-      {!token ? (
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      ) : (
-        <>
-          <Route path="/" element={<Dashboard />} />
+            <Route path="/events">
+              <Route index element={<Events />} />
+              <Route path="new" element={<CreateEvent />} />
+              <Route path=":eventId" element={<EventDetail />} />
+              <Route path=":eventId/checkin" element={<CheckIn />} />
+              <Route path=":eventId/fast-assign" element={<FastAssign />} />
+              <Route path=":eventId/edit" element={<EditEvent />} />
+            </Route>
 
-          <Route path="/events">
-            <Route index element={<Events />} />
-            <Route path="new" element={<CreateEvent />} />
-            <Route path=":eventId" element={<EventDetail />} />
-            <Route path=":eventId/checkin" element={<CheckIn />} />
-            <Route path=":eventId/fast-assign" element={<FastAssign />} />
-            <Route path=":eventId/edit" element={<EditEvent />} />
-          </Route>
-
-          <Route path="/participants" element={<Participants />} />
-          <Route path="/event-templates" element={<EventTemplates />} />
-          <Route path="/feedback" element={<FeedbackReview />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </>
-      )}
-    </Routes>
-
-      {token && (
-        <div className="fixed bottom-16 right-2 z-40 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur">
-          Build {buildFingerprint}
-        </div>
-      )}
-
-      {token && <BottomNav />}
-    </div>
+            <Route path="/participants" element={<Participants />} />
+            <Route path="/event-templates" element={<EventTemplates />} />
+            <Route path="/feedback" element={<FeedbackReview />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        )}
+      </Routes>
+    </AppLayout>
   )
 }
 

@@ -9,6 +9,8 @@ import {
   evaluateMultipleAssignments,
   moveParticipantToWaitlist,
 } from "../api/events"
+import Card from "../components/Card"
+import Button from "../components/Button"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,8 +58,8 @@ function ParticipantCard({ participant, queueLen }) {
   const priorityLabel = priority === 1 ? "High" : priority === 2 ? "Medium" : priority === 3 ? "Low" : null
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+    <Card>
+      <p className="text-xs font-semibold uppercase tracking-widest text-secondary">
         Next up {queueLen > 1 ? `· ${queueLen} remaining` : "· last one"}
       </p>
       <h2 className="mt-1 text-3xl font-bold text-gray-900 leading-tight">
@@ -73,25 +75,25 @@ function ParticipantCard({ participant, queueLen }) {
           />
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 
 // status: "good" | "warn" | "avoid" | null (null = not yet evaluated / full)
 const STATUS_STYLES = {
   good: {
-    button: "bg-green-600 hover:bg-green-700 active:bg-green-800 text-white",
-    sub: "text-green-200",
+    button: "bg-[var(--color-success)] hover:brightness-95 active:brightness-90 text-white",
+    sub: "text-white/85",
     label: "Good",
   },
   warn: {
-    button: "bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white",
-    sub: "text-amber-100",
+    button: "bg-[var(--color-warning)] hover:brightness-95 active:brightness-90 text-white",
+    sub: "text-white/85",
     label: "Caution",
   },
   avoid: {
-    button: "bg-red-500 hover:bg-red-600 active:bg-red-700 text-white",
-    sub: "text-red-100",
+    button: "bg-[var(--color-danger)] hover:brightness-95 active:brightness-90 text-white",
+    sub: "text-white/85",
     label: "Avoid",
   },
   full: {
@@ -496,98 +498,85 @@ export default function FastAssign() {
 
   if (loadError) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6 text-center">
-        <div>
+      <div className="mx-auto w-full max-w-[1100px] p-4">
+        <Card className="text-center">
           <p className="text-red-600 font-medium mb-4">{loadError}</p>
-          <button
-            onClick={() => navigate(-1)}
-            className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
-          >
+          <Button variant="neutral" onClick={() => navigate(-1)}>
             ← Back
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
-      {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
-        <button
-          onClick={() => navigate(`/events/${eventId}`)}
-          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
-          aria-label="Back to event"
-        >
-          ←
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs text-gray-500">{eventTitle}</p>
-          <p className="text-sm font-semibold text-gray-900">Fast Assign</p>
+    <div className="mx-auto w-full max-w-[1100px] space-y-4 px-4 py-5">
+      <Card>
+        <div className="flex items-center gap-3">
+          <Button variant="neutral" onClick={() => navigate(`/events/${eventId}`)} className="px-2.5 py-1.5" aria-label="Back to event">
+            ←
+          </Button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs text-[var(--text-secondary)]">{eventTitle}</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">Fast Assign</p>
+          </div>
+          <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+            {queue.length} remaining
+          </span>
         </div>
-        <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
-          {queue.length} remaining
-        </span>
-      </div>
 
-      {/* Progress bar */}
-      {totalCount > 0 && (
-        <div className="h-1 w-full bg-gray-100">
-          <div
-            className="h-1 bg-indigo-500 transition-all duration-300"
-            style={{ width: `${Math.round(((totalCount - queue.length) / totalCount) * 100)}%` }}
-          />
-        </div>
-      )}
+        {totalCount > 0 && (
+          <div className="mt-3 h-1 w-full overflow-hidden rounded bg-gray-100">
+            <div
+              className="h-1 bg-indigo-500 transition-all duration-300"
+              style={{ width: `${Math.round(((totalCount - queue.length) / totalCount) * 100)}%` }}
+            />
+          </div>
+        )}
+      </Card>
 
-      {/* Body */}
-      <div className="flex-1 px-4 py-5 space-y-4 max-w-lg mx-auto w-full">
+      <div className="mx-auto w-full max-w-2xl space-y-4">
 
         {/* Flash confirmation */}
         {flash && (
-          <div className={`rounded-xl px-4 py-3 text-center font-medium text-sm animate-pulse border ${
+          <Card className={`text-center font-medium text-sm animate-pulse border ${
             flash.sessionName === "Waitlist"
               ? "bg-amber-50 border-amber-200 text-amber-800"
               : "bg-green-50 border-green-200 text-green-800"
           }`}>
             ✓ {flash.name} → {flash.sessionName}
-          </div>
+          </Card>
         )}
 
         {failureFlash && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-700 animate-pulse">
+          <Card className="border border-red-200 bg-red-50 text-center text-sm font-medium text-red-700 animate-pulse">
             {failureFlash}
-          </div>
+          </Card>
         )}
 
         {undoVisible && lastAssignmentRef.current && (
-          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900 flex items-center justify-between gap-3">
+          <Card className="border border-indigo-200 bg-indigo-50 text-sm text-indigo-900">
+            <div className="flex items-center justify-between gap-3">
             <span className="truncate">
               Assigned {lastAssignmentRef.current.participant.first_name} {lastAssignmentRef.current.participant.last_name} → {lastAssignmentRef.current.sessionName}
             </span>
-            <button
-              onClick={handleUndoLast}
-              disabled={assigning}
-              className="shrink-0 rounded-md border border-indigo-300 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
-            >
+            <Button variant="neutral" onClick={handleUndoLast} disabled={assigning} className="shrink-0 px-2.5 py-1 text-xs">
               Undo
-            </button>
-          </div>
+            </Button>
+            </div>
+          </Card>
         )}
 
         {/* Done state */}
         {!current && !flash && (
-          <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+          <Card className="flex flex-col items-center justify-center gap-4 py-16 text-center">
             <span className="text-5xl">🏄</span>
             <p className="text-xl font-bold text-gray-800">All caught up!</p>
-            <p className="text-sm text-gray-500">No unassigned participants remaining.</p>
-            <button
-              onClick={() => navigate(`/events/${eventId}`)}
-              className="mt-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
-            >
+            <p className="text-sm text-secondary">No unassigned participants remaining.</p>
+            <Button variant="primary" onClick={() => navigate(`/events/${eventId}`)} className="mt-2 px-6 py-3 text-sm font-semibold">
               Back to event board
-            </button>
-          </div>
+            </Button>
+          </Card>
         )}
 
         {/* Active participant card */}
@@ -596,13 +585,14 @@ export default function FastAssign() {
             <ParticipantCard participant={current} queueLen={queue.length} />
 
             {/* Session buttons */}
-            <div className="space-y-2.5">
+            <Card header={<Card.Header>Sessions</Card.Header>}>
+              <div className="space-y-2.5">
               {recsLoading && (
-                <p className="text-center text-sm text-gray-400 py-4">Loading sessions…</p>
+                <p className="text-center text-sm text-secondary py-4">Loading sessions…</p>
               )}
 
               {!recsLoading && recommendations.length === 0 && allSessions.length === 0 && !error && (
-                <p className="text-center text-sm text-gray-400 py-4">No session recommendations available.</p>
+                <p className="text-center text-sm text-secondary py-4">No session recommendations available.</p>
               )}
 
               {error && (
@@ -637,27 +627,32 @@ export default function FastAssign() {
                     />
                   )
                 })}
-            </div>
+              </div>
+            </Card>
 
             {/* Secondary actions: Skip + Waitlist */}
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
-              <button
+            <Card>
+              <div className="grid grid-cols-2 gap-2.5">
+              <Button
+                variant="neutral"
                 onClick={handleSkip}
                 disabled={assigning || queue.length <= 1}
-                className="rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center gap-1.5"
+                className="py-2.5 text-sm font-medium flex items-center justify-center gap-1.5"
               >
                 <span>Skip</span>
                 <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-400">S</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="warning"
                 onClick={handleWaitlist}
                 disabled={assigning}
-                className="rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-40 flex items-center justify-center gap-1.5"
+                className="py-2.5 text-sm font-medium flex items-center justify-center gap-1.5"
               >
                 <span>Waitlist</span>
-                <span className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-xs text-amber-500">W</span>
-              </button>
-            </div>
+                <span className="rounded bg-white/20 px-1.5 py-0.5 font-mono text-xs text-white/90">W</span>
+              </Button>
+              </div>
+            </Card>
           </>
         )}
       </div>

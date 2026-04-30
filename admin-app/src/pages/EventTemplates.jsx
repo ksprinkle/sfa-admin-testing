@@ -352,7 +352,7 @@ function getDayCellClass(status, eventType) {
   if (status === "existing") {
     return `bg-gray-400 text-white hover:bg-gray-500 hover:scale-105 ${typeAccent}`
   }
-  return "bg-gray-100 text-gray-500"
+  return "bg-gray-100 text-secondary"
 }
 
 function EventDetailsPanel({ selectedDate, status, onClose, eventType, sessionInfo }) {
@@ -381,7 +381,7 @@ function EventDetailsPanel({ selectedDate, status, onClose, eventType, sessionIn
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Event Date</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-secondary">Event Date</p>
             <h5 className="mt-1 text-base font-semibold text-gray-900">{formatDisplayDate(selectedDate)}</h5>
           </div>
           <button
@@ -395,20 +395,20 @@ function EventDetailsPanel({ selectedDate, status, onClose, eventType, sessionIn
 
         <div className="mt-4 space-y-3">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Status</p>
-            <p className="mt-1 text-sm font-medium text-gray-800">{statusLabel}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-secondary">Status</p>
+            <p className="mt-1 text-sm font-medium text-secondary">{statusLabel}</p>
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Event Type</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-secondary">Event Type</p>
             <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${isTour ? "bg-violet-100 text-violet-800" : "bg-sky-100 text-sky-800"}`}>
               {isTour ? "Tour" : "Chapter"}
             </span>
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Session Info</p>
-            <p className="mt-1 text-sm text-gray-800">{sessionLabel}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-secondary">Session Info</p>
+            <p className="mt-1 text-sm text-secondary">{sessionLabel}</p>
           </div>
         </div>
       </aside>
@@ -430,7 +430,7 @@ function MonthGrid({ year, month, statusMap, onDateClick, selectedDate, eventTyp
     <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <h5 className="text-base font-bold text-gray-900">{monthLabel}</h5>
 
-      <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-medium uppercase tracking-wide text-gray-500">
+      <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-medium uppercase tracking-wide text-secondary">
         {CALENDAR_WEEKDAY_LABELS.map((label) => (
           <div key={label} className="py-1">{label}</div>
         ))}
@@ -725,7 +725,7 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
 
   return (
     <div className="space-y-3">
-      <div className="text-xs text-gray-600">
+      <div className="text-xs text-secondary">
         {months.length === 0
           ? "No dates generated"
           : months.length === 1
@@ -734,7 +734,7 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
       </div>
 
       {derivedTemplateDate && (
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-secondary">
           Last event:{" "}
           {new Date(derivedTemplateDate + "T00:00:00").toLocaleDateString(undefined, {
             weekday: "long",
@@ -748,7 +748,7 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
         <div className="text-xs text-blue-500">Suggested: same weekday pattern</div>
       )}
 
-      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-700">
+      <div className="flex flex-wrap items-center gap-4 text-xs text-secondary">
         <div className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-sm bg-green-500" />
           <span>New</span>
@@ -1130,7 +1130,7 @@ function EventTemplates() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Event Templates</h1>
-          <p className="text-sm text-gray-600">Reusable blueprints for quickly creating draft events.</p>
+          <p className="text-sm text-secondary">Reusable blueprints for quickly creating draft events.</p>
         </div>
         <BackButton fallbackTo="/events" className="px-3 py-2" />
       </div>
@@ -1199,7 +1199,7 @@ function EventTemplates() {
               required
             />
             <div className="grid grid-cols-2 gap-3">
-              <label className="text-sm text-gray-700">
+              <label className="text-sm text-secondary">
                 <span className="mb-1 block">Default start</span>
                 <input
                   type="time"
@@ -1209,7 +1209,7 @@ function EventTemplates() {
                   required
                 />
               </label>
-              <label className="text-sm text-gray-700">
+              <label className="text-sm text-secondary">
                 <span className="mb-1 block">Default end</span>
                 <input
                   type="time"
@@ -1241,8 +1241,8 @@ function EventTemplates() {
               />
             </div>
             <div className="rounded border border-gray-200 bg-gray-50 p-3">
-              <p className="text-sm font-medium text-gray-800">Schedule Rule</p>
-              <p className="mt-1 text-xs text-gray-600">Use comma-separated values for months and week numbers.</p>
+              <p className="text-sm font-medium text-secondary">Schedule Rule</p>
+              <p className="mt-1 text-xs text-secondary">Use comma-separated values for months and week numbers.</p>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   value={form.schedule_rule_type}
@@ -1279,7 +1279,7 @@ function EventTemplates() {
             </div>
 
             <div className="rounded border border-gray-200 bg-gray-50 p-3">
-              <p className="text-sm font-medium text-gray-800">Location Details</p>
+              <p className="text-sm font-medium text-secondary">Location Details</p>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   value={form.city}
@@ -1320,7 +1320,7 @@ function EventTemplates() {
             </div>
 
             <div className="rounded border border-gray-200 bg-gray-50 p-3">
-              <p className="text-sm font-medium text-gray-800">Beach & Event Details</p>
+              <p className="text-sm font-medium text-secondary">Beach & Event Details</p>
               <div className="mt-3 space-y-3">
                 <label className="flex items-center gap-2">
                   <input
@@ -1329,7 +1329,7 @@ function EventTemplates() {
                     onChange={(e) => handleFieldChange("beach_accessibility", e.target.checked)}
                     className="rounded border-gray-300"
                   />
-                  <span className="text-sm text-gray-700">Beach Accessible</span>
+                  <span className="text-sm text-secondary">Beach Accessible</span>
                 </label>
                 <textarea
                   value={form.beach_access_notes}
@@ -1356,7 +1356,7 @@ function EventTemplates() {
             </div>
 
             <div className="rounded border border-gray-200 bg-gray-50 p-3">
-              <p className="text-sm font-medium text-gray-800">Resources & Media</p>
+              <p className="text-sm font-medium text-secondary">Resources & Media</p>
               <div className="mt-3 space-y-3">
                 <input
                   value={form.featured_image}
@@ -1388,7 +1388,7 @@ function EventTemplates() {
             </div>
 
             <div className="rounded border border-gray-200 bg-gray-50 p-3">
-              <p className="text-sm font-medium text-gray-800">Internal Notes</p>
+              <p className="text-sm font-medium text-secondary">Internal Notes</p>
               <textarea
                 value={form.internal_notes}
                 onChange={(e) => handleFieldChange("internal_notes", e.target.value)}
@@ -1411,13 +1411,13 @@ function EventTemplates() {
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-gray-900">Templates</h2>
-            <span className="text-sm text-gray-500">{templates.length} total</span>
+            <span className="text-sm text-secondary">{templates.length} total</span>
           </div>
 
           {loading ? (
-            <div className="mt-4 text-sm text-gray-600">Loading templates...</div>
+            <div className="mt-4 text-sm text-secondary">Loading templates...</div>
           ) : templates.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600">
+            <div className="mt-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-secondary">
               No templates yet.
             </div>
           ) : (
@@ -1475,8 +1475,8 @@ function EventTemplates() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="space-y-1">
                         <h3 className="text-base font-semibold text-gray-900">{template.name}</h3>
-                        <p className="text-sm text-gray-600">{template.location}</p>
-                        <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+                        <p className="text-sm text-secondary">{template.location}</p>
+                        <div className="flex flex-wrap gap-2 text-xs text-secondary">
                           <span className="rounded-full bg-white px-2 py-1">Type: {template.event_type}</span>
                           <span className="rounded-full bg-white px-2 py-1">Capacity: {template.capacity}</span>
                           <span className="rounded-full bg-white px-2 py-1">Time: {template.default_start_time.slice(0, 5)} - {template.default_end_time.slice(0, 5)}</span>
@@ -1508,7 +1508,7 @@ function EventTemplates() {
 
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
-                        <p className="mb-1.5 text-xs font-medium text-slate-500">
+                        <p className="mb-1.5 text-xs font-medium text-secondary">
                           Event Date
                           {(() => {
                             const refDate = seedDate
@@ -1518,7 +1518,7 @@ function EventTemplates() {
                             const weekday = d.toLocaleString("en-US", { weekday: "long" })
                             const label = d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })
                             return (
-                              <span className="ml-1 font-normal text-slate-400">— last event: {weekday}, {label}</span>
+                              <span className="ml-1 font-normal text-secondary">— last event: {weekday}, {label}</span>
                             )
                           })()}
                         </p>
@@ -1556,7 +1556,7 @@ function EventTemplates() {
                             ))}
                           </select>
                         </div>
-                        <p className="mt-1.5 text-xs text-slate-500">
+                        <p className="mt-1.5 text-xs text-secondary">
                           {(() => {
                             const d = new Date(selectedDate + "T00:00:00")
                             if (Number.isNaN(d.getTime())) return null
@@ -1587,14 +1587,14 @@ function EventTemplates() {
                     {isDatePickerOpen && (
                       <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-xs font-medium text-slate-700">
+                          <p className="text-xs font-medium text-secondary">
                             Available dates for {selectedDateParts.year}
                           </p>
-                          <p className="text-xs text-slate-500">Click a highlighted day to set Create Event date</p>
+                          <p className="text-xs text-secondary">Click a highlighted day to set Create Event date</p>
                         </div>
 
                         {isDatePickerLoading ? (
-                          <div className="text-sm text-slate-600">Loading calendar dates...</div>
+                          <div className="text-sm text-secondary">Loading calendar dates...</div>
                         ) : (
                           <CalendarPreview
                             previewDates={datePickerPreviewDates}
@@ -1675,7 +1675,7 @@ function EventTemplates() {
                       <div className="mt-4 rounded-lg border border-slate-300 bg-white p-3">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <h4 className="text-sm font-semibold text-slate-900">{preview.year} Events Preview</h4>
-                          <div className="text-xs text-slate-600">New: {previewNewCount} | Existing: {previewExistingCount}</div>
+                          <div className="text-xs text-secondary">New: {previewNewCount} | Existing: {previewExistingCount}</div>
                         </div>
 
                         <div className="mt-3 max-h-[34rem] overflow-auto rounded border border-slate-200 p-2">

@@ -36,9 +36,9 @@ function getEventTypeTone(eventType) {
 
   return {
     cardClass: "border border-gray-200 bg-white",
-    labelClass: "text-gray-500",
+    labelClass: "text-secondary",
     valueClass: "text-ocean",
-    pillClass: "border-gray-300 bg-gray-100 text-gray-700",
+    pillClass: "border-gray-300 bg-gray-100 text-secondary",
   }
 }
 
@@ -432,7 +432,7 @@ useEffect(() => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-gray-800">Events by Type</h2>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-secondary">
               Quick count of configured event types across the current event list.
             </p>
           </div>
@@ -481,10 +481,10 @@ useEffect(() => {
         />
       )}
 
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-secondary">
         {event.title} • {event.start_date}
       </p>
-      <p className="text-xs font-medium text-gray-500">
+      <p className="text-xs font-medium text-secondary">
         Event Type: {formatEventType(event.event_type)}
       </p>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
@@ -494,7 +494,7 @@ useEffect(() => {
         <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800">
           Waitlist: {waitlisted}
         </span>
-        <span className="rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-gray-700">
+        <span className="rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-secondary">
           Participants: {eventParticipantsTotal}
         </span>
       </div>
@@ -519,7 +519,7 @@ useEffect(() => {
                   />
                 )}
                 <p className="text-sm font-semibold text-gray-800">{liveEvent.title}</p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-secondary">
                   {liveEvent.start_date}
                   <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 ${tone.pillClass}`}>
                     {formatEventType(liveEvent.event_type)}
@@ -598,9 +598,9 @@ useEffect(() => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-gray-800">Volunteer Breakdown</h2>
-            <p className="text-xs text-gray-500">Group and role totals for this event</p>
+            <p className="text-xs text-secondary">Group and role totals for this event</p>
           </div>
-          <span className="text-xs font-medium text-gray-500">{filteredBreakdown.volunteers} total • {filteredBreakdown.versatile} flexible</span>
+          <span className="text-xs font-medium text-secondary">{filteredBreakdown.volunteers} total • {filteredBreakdown.versatile} flexible</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -625,7 +625,7 @@ useEffect(() => {
         </div>
 
         <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Groups</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-secondary">Groups</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
             {[
               { key: "beach", label: "Beach Group", color: "text-sky-700", bg: "bg-sky-50" },
@@ -645,9 +645,9 @@ useEffect(() => {
                   }
                 }}
               >
-                <p className="text-xs text-gray-500 mb-1">{label}</p>
+                <p className="text-xs text-secondary mb-1">{label}</p>
                 <p className={`text-2xl font-semibold ${color}`}>{filteredBreakdown.groupCounts[key] ?? 0}</p>
-                <p className="mt-1 text-[11px] text-gray-600">Flexible: {filteredBreakdown.flexibleGroupCounts[key] ?? 0}</p>
+                <p className="mt-1 text-[11px] text-secondary">Flexible: {filteredBreakdown.flexibleGroupCounts[key] ?? 0}</p>
               </div>
             ))}
           </div>
@@ -655,8 +655,8 @@ useEffect(() => {
 
         <div className="space-y-2">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Volunteer Roles</p>
-            <p className="text-[11px] text-gray-500">Counts reflect selected role pills only. Flexible totals are shown separately.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-secondary">Volunteer Roles</p>
+            <p className="text-[11px] text-secondary">Counts reflect selected role pills only. Flexible totals are shown separately.</p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {volunteerRoleCards.map(({ key, label, color, bg }) => (
@@ -674,7 +674,7 @@ useEffect(() => {
                 }
               }}
             >
-              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className="text-xs text-secondary mb-1">{label}</p>
               <p className={`text-2xl font-semibold ${color}`}>{filteredBreakdown.roleCounts[key] ?? 0}</p>
             </div>
           ))}
@@ -684,7 +684,7 @@ useEffect(() => {
 
 
       <div className="bg-white rounded-xl shadow p-4 space-y-3">
-        <p className="text-sm font-medium text-gray-700">
+        <p className="text-sm font-medium text-secondary">
           Participant Capacity
         </p>
         {participantCapacity ? (
@@ -695,17 +695,17 @@ useEffect(() => {
                 style={{ width: `${percentFull}%` }}
               />
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-secondary">
               {registered} of {participantCapacity} spots filled
             </p>
           </>
         ) : (
-          <p className="text-xs text-gray-500">No participant capacity set for this event.</p>
+          <p className="text-xs text-secondary">No participant capacity set for this event.</p>
         )}
       </div>
 
       <div className="bg-white rounded-xl shadow p-4 space-y-3">
-        <p className="text-sm font-medium text-gray-700">
+        <p className="text-sm font-medium text-secondary">
           Check-In Progress
         </p>
 
@@ -716,7 +716,7 @@ useEffect(() => {
           />
         </div>
 
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-secondary">
           {checkedIn} of {registered} registered participants checked in
         </p>
       </div>
@@ -746,7 +746,7 @@ useEffect(() => {
       </div>
 
       {hasMultipleLiveEvents && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-secondary">
           Main summary cards are showing the first live event. When multiple live events overlap, use the event-specific buttons above.
         </p>
       )}
@@ -755,7 +755,7 @@ useEffect(() => {
   )
 }
 
-function StatCard({ label, value, color, onClick, title, cardClass = "", labelColor = "text-gray-500" }) {
+function StatCard({ label, value, color, onClick, title, cardClass = "", labelColor = "text-secondary" }) {
   const clickable = typeof onClick === "function"
 
   return (

@@ -20,7 +20,12 @@ const gitShortHash = getGitShortHash()
 const buildId = `v${appVersion}-${gitShortHash}`
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // Use repo subpath for static GitHub Pages builds, keep localhost behavior unchanged.
+  base: command === 'build' ? '/sfa-admin-testing/' : '/',
+  build: {
+    outDir: 'docs',
+  },
   plugins: [react()],
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
@@ -31,4 +36,4 @@ export default defineConfig({
       '/api': 'http://localhost:8000',
     },
   },
-})
+}))

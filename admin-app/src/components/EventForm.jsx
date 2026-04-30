@@ -220,14 +220,14 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Core Details</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-secondary">
             Basic event identity, timing, and publishing status.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Event Title</span>
+            <span className="text-sm font-medium text-secondary">Event Title</span>
             <input
               name="title"
               placeholder="Event Title"
@@ -239,7 +239,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Event Type</span>
+            <span className="text-sm font-medium text-secondary">Event Type</span>
             <input
               name="event_type"
               placeholder="beach_day"
@@ -251,7 +251,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Status</span>
+            <span className="text-sm font-medium text-secondary">Status</span>
             <select
               name="status"
               value={form.status ?? "draft"}
@@ -265,7 +265,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Timezone</span>
+            <span className="text-sm font-medium text-secondary">Timezone</span>
             <input
               name="timezone"
               placeholder="America/New_York"
@@ -280,14 +280,14 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Schedule</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-secondary">
             Use the event schedule to control visibility, check-in timing, and session planning.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Start Date</span>
+            <span className="text-sm font-medium text-secondary">Start Date</span>
             <input
               type="date"
               name="start_date"
@@ -299,7 +299,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">End Date</span>
+            <span className="text-sm font-medium text-secondary">End Date</span>
             <input
               type="date"
               name="end_date"
@@ -310,7 +310,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Start Time</span>
+            <span className="text-sm font-medium text-secondary">Start Time</span>
             <input
               type="time"
               name="start_time"
@@ -321,7 +321,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">End Time</span>
+            <span className="text-sm font-medium text-secondary">End Time</span>
             <input
               type="time"
               name="end_time"
@@ -336,14 +336,14 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Location</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-secondary">
             Capture where the event happens and whether the beach setup is accessible.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1 md:col-span-2">
-            <span className="text-sm font-medium text-gray-700">Venue</span>
+            <span className="text-sm font-medium text-secondary">Venue</span>
             <input
               name="venue"
               placeholder="Event venue or beach access point"
@@ -354,7 +354,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">City</span>
+            <span className="text-sm font-medium text-secondary">City</span>
             <input
               name="city"
               placeholder="City"
@@ -365,7 +365,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">State</span>
+            <span className="text-sm font-medium text-secondary">State</span>
             <input
               name="state"
               placeholder="State"
@@ -376,7 +376,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Latitude</span>
+            <span className="text-sm font-medium text-secondary">Latitude</span>
             <input
               type="number"
               name="latitude"
@@ -389,7 +389,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Longitude</span>
+            <span className="text-sm font-medium text-secondary">Longitude</span>
             <input
               type="number"
               name="longitude"
@@ -412,14 +412,14 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           />
           <span>
             Beach accessibility confirmed
-            <span className="block text-xs text-gray-600">
+            <span className="block text-xs text-secondary">
               Mark this on when the location setup supports accessible beach operations.
             </span>
           </span>
         </label>
 
         <label className="space-y-1 block">
-          <span className="text-sm font-medium text-gray-700">Beach Access Notes</span>
+          <span className="text-sm font-medium text-secondary">Beach Access Notes</span>
           <textarea
             name="beach_access_notes"
             placeholder="Wheelchair access, boardwalk details, matting, ramp access, volunteer load-in notes"
@@ -434,14 +434,14 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Travel and Logistics</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-secondary">
             Store the operational details needed for maps, directions, parking, lodging, and external conditions.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1 md:col-span-2">
-            <span className="text-sm font-medium text-gray-700">Directions</span>
+            <span className="text-sm font-medium text-secondary">Directions</span>
             <textarea
               name="directions"
               placeholder="Gate instructions, landmark-based directions, or arrival notes"
@@ -453,7 +453,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Parking Information</span>
+            <span className="text-sm font-medium text-secondary">Parking Information</span>
             <textarea
               name="parking_info"
               placeholder="Parking lots, fees, shuttle details, ADA parking guidance"
@@ -465,7 +465,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Lodging Information</span>
+            <span className="text-sm font-medium text-secondary">Lodging Information</span>
             <textarea
               name="lodging_info"
               placeholder="Recommended hotels, room block details, nearby lodging notes"
@@ -477,7 +477,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Map URL</span>
+            <span className="text-sm font-medium text-secondary">Map URL</span>
             <input
               type="url"
               name="map_url"
@@ -489,7 +489,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Weather Report URL</span>
+            <span className="text-sm font-medium text-secondary">Weather Report URL</span>
             <input
               type="url"
               name="weather_report_url"
@@ -501,7 +501,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Surf Report URL</span>
+            <span className="text-sm font-medium text-secondary">Surf Report URL</span>
             <input
               type="url"
               name="surf_report_url"
@@ -517,34 +517,34 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Capacity and Operations</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-secondary">
             Set event limits and operational settings used by check-in and registration.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Participant Capacity</span>
+            <span className="text-sm font-medium text-secondary">Participant Capacity</span>
             <CapacitySpinner
               name="participant_capacity"
               value={form.participant_capacity ?? ""}
               onChange={handleCapacityChange}
             />
-            <p className="text-xs text-gray-400">Use − below 0 to set Unlimited</p>
+            <p className="text-xs text-secondary">Use − below 0 to set Unlimited</p>
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Volunteer Capacity</span>
+            <span className="text-sm font-medium text-secondary">Volunteer Capacity</span>
             <CapacitySpinner
               name="volunteer_capacity"
               value={form.volunteer_capacity ?? ""}
               onChange={handleCapacityChange}
             />
-            <p className="text-xs text-gray-400">Use − below 0 to set Unlimited</p>
+            <p className="text-xs text-secondary">Use − below 0 to set Unlimited</p>
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">No-Show Timeout (minutes)</span>
+            <span className="text-sm font-medium text-secondary">No-Show Timeout (minutes)</span>
             <input
               type="number"
               name="no_show_minutes"
@@ -557,7 +557,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
           </label>
 
           <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Featured Image URL</span>
+            <span className="text-sm font-medium text-secondary">Featured Image URL</span>
             <input
               name="featured_image"
               placeholder="https://..."
@@ -572,7 +572,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Registration Controls</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-secondary">
             These settings control which signup paths are visible immediately. Automatic publish rules still apply later.
           </p>
         </div>
@@ -621,7 +621,7 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
             />
             <span>
               Website schedule published
-              <span className="block text-xs text-gray-600">
+              <span className="block text-xs text-secondary">
                 When enabled, volunteer and exhibitor registration automatically open.
               </span>
             </span>
@@ -632,13 +632,13 @@ function EventForm({ initialData = {}, onSubmit, onCancel }) {
       <section className="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Internal Notes</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-secondary">
             Admin-only notes for setup planning, contingency details, vendor coordination, or weather backup plans.
           </p>
         </div>
 
         <label className="space-y-1 block">
-          <span className="text-sm font-medium text-gray-700">Internal Admin Notes</span>
+          <span className="text-sm font-medium text-secondary">Internal Admin Notes</span>
           <textarea
             name="internal_notes"
             placeholder="Weather contingency, volunteer briefing notes, parking staff contact, surf conditions plan"

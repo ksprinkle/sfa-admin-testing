@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy": "npm run build && node -e \"const fs=require('fs');fs.closeSync(fs.openSync('docs/.nojekyll','w'));fs.copyFileSync('docs/index.html','docs/404.html');console.log('docs prepared for GitHub Pages');\"",
     "lint": "eslint .",
     "preview": "vite preview"
   },

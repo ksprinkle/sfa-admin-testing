@@ -5,6 +5,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchEventSessionStats, fetchRecommendedSessions, evaluateAssignment, getSessionProjection } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
 import BackButton from "../components/BackButton"
+import Button from "../components/Button"
+import Card from "../components/Card"
 import SyncStateIndicator from "../components/SyncStateIndicator"
 import ParticipantForm from "../components/ParticipantForm"
 
@@ -523,8 +525,8 @@ function EventDetail() {
 
   // Priority legend kept consistent with Participants page.
   const PriorityLegend = () => (
-      <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
-        <span className="font-semibold uppercase tracking-wide text-gray-500">Priority legend</span>
+      <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-secondary">
+        <span className="font-semibold uppercase tracking-wide text-secondary">Priority legend</span>
         {PRIORITY_LEVELS.map((level) => (
           <span key={level.value} className="inline-flex items-center gap-2">
             <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white">
@@ -2294,7 +2296,7 @@ function EventDetail() {
       >
         {(guidanceText || isGuidanceLoading) && (
           <div className="pointer-events-none absolute right-2 top-2 z-10">
-            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${isGuidanceLoading ? "border-slate-200 bg-slate-50 text-slate-600" : guidanceTextClass}`}>
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${isGuidanceLoading ? "border-slate-200 bg-slate-50 text-secondary" : guidanceTextClass}`}>
               {isGuidanceLoading ? "Checking..." : guidanceText}
             </span>
           </div>
@@ -2406,7 +2408,7 @@ function EventDetail() {
           <SyncStateIndicator state={queueStateByParticipant[String(p.id)] || "synced"} />
           <span>{p.first_name} {p.last_name}</span>
         </button>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-secondary">
           {p.email}
         </div>
         {p.requires_assistance && (
@@ -2440,7 +2442,7 @@ function EventDetail() {
               </button>
             )}
             {syncItem.error && (
-              <span className="text-gray-500">({syncItem.error})</span>
+              <span className="text-secondary">({syncItem.error})</span>
             )}
           </div>
         )}
@@ -2494,7 +2496,7 @@ function EventDetail() {
   const participantFormEventType = normalizeParticipantFormEventType(eventInfo?.event_type)
 
   return (
-    <div className="relative p-6 space-y-6" onClick={() => setSelectedIds([])}>
+    <div className="relative mx-auto w-full max-w-[1300px] p-6 space-y-6" onClick={() => setSelectedIds([])}>
 
       {/* Drag error notification at top of page */}
       {dragError && (
@@ -2593,9 +2595,10 @@ function EventDetail() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 overflow-x-auto text-[11px] text-gray-500 sm:text-xs">
+      <Card className="p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 overflow-x-auto text-[11px] text-secondary sm:text-xs">
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
@@ -2612,7 +2615,7 @@ function EventDetail() {
               Events
             </button>
             <span>/</span>
-            <span className="font-medium text-gray-700">Event Participants</span>
+            <span className="font-medium text-secondary">Event Participants</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold">Event Participants</h1>
@@ -2623,13 +2626,13 @@ function EventDetail() {
             )}
           </div>
           {eventInfo?.title && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-secondary">
               {eventInfo.title}
               {eventInfo.start_date ? ` • ${eventInfo.start_date}` : ""}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-secondary">
               Viewing: {activeFilterLabel}
             </span>
             {(participantFilter !== "all" || activeVolunteerRoleFilter) && (
@@ -2683,52 +2686,57 @@ function EventDetail() {
               </div>
             )}
           </div>
-        </div>
+          </div>
 
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
           <BackButton fallbackTo="/events" />
-          <button
+          <Button
             type="button"
             onClick={() => navigate("/events")}
+            variant="neutral"
             className="px-3 py-2 sm:py-1 rounded border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
             title="Go back to Events list"
           >
             Events List
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={toggleEventMode}
-            className={`px-3 py-2 sm:py-1 rounded text-sm font-semibold ${eventMode ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"}`}
+            variant={eventMode ? "success" : "neutral"}
+            className={`px-3 py-2 sm:py-1 rounded text-sm font-semibold ${!eventMode ? "bg-gray-200 text-gray-700 hover:bg-gray-300" : ""}`}
             title="Toggle simplified event-day UI"
           >
             Event Mode {eventMode ? "ON" : "OFF"}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => { refreshParticipants(); refreshNoShows(); }}
+            variant="neutral"
             className="px-3 py-2 sm:py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
             title="Refresh participants"
           >
             ↻ Refresh
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => setCreateModalOpen(true)}
-            className="px-3 py-2 sm:py-1 rounded bg-emerald-600 text-sm text-white hover:bg-emerald-700"
+            variant="success"
+            className="px-3 py-2 sm:py-1 rounded text-sm"
             title="Add participant"
           >
             Add Participant
-          </button>
+          </Button>
           {/* Add a button to auto-assign all unassigned participants */}
-          <button
+          <Button
             type="button"
             onClick={handleAutoAssignUnassignedParticipants}
             disabled={bulkAssignLoading}
-            className={`px-3 py-2 sm:py-1 rounded text-sm ${bulkAssignLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-indigo-100 text-indigo-800 hover:bg-indigo-200"}`}
+            variant="primary"
+            className={`px-3 py-2 sm:py-1 rounded text-sm ${bulkAssignLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
             title="Auto-assign unassigned participants using recommendations"
           >
             {bulkAssignLoading ? "Auto-Assigning..." : "Auto-Assign Unassigned"}
-          </button>
-          <label className="inline-flex items-center gap-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+          </Button>
+          <label className="inline-flex items-center gap-2 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs text-secondary">
             <input
               type="checkbox"
               checked={bulkAssignSmartMode}
@@ -2737,56 +2745,60 @@ function EventDetail() {
             />
             Smart Mode (respects warnings)
           </label>
-          <button
+          <Button
             type="button"
             onClick={handleDuplicateEvent}
             disabled={duplicateLoading}
-            className={`px-3 py-2 sm:py-1 rounded text-sm ${duplicateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-100 text-sky-800 hover:bg-sky-200"}`}
+            variant="primary"
+            className={`px-3 py-2 sm:py-1 rounded text-sm ${duplicateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-600 text-white hover:bg-sky-700"}`}
             title="Create a new draft event with the same configuration"
           >
             {duplicateLoading ? "Duplicating..." : "Duplicate Event"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleOpenSaveTemplateModal}
             disabled={saveTemplateLoading}
-            className={`px-3 py-2 sm:py-1 rounded text-sm ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-100 text-sky-800 hover:bg-sky-200"}`}
+            variant="primary"
+            className={`px-3 py-2 sm:py-1 rounded text-sm ${saveTemplateLoading ? "bg-slate-300 text-slate-600 cursor-not-allowed" : "bg-sky-600 text-white hover:bg-sky-700"}`}
             title="Create an event template from this event"
           >
             {saveTemplateLoading ? "Saving Template..." : "Save as Template"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => navigate("/event-templates")}
-            className="px-3 py-2 sm:py-1 bg-sky-100 text-sky-800 rounded hover:bg-sky-200 text-sm"
+            variant="primary"
+            className="px-3 py-2 sm:py-1 text-sm"
             title="Go to Event Templates"
           >
             Templates
-          </button>
+          </Button>
+            </div>
+            {duplicateError && (
+              <p className="text-xs text-red-600">{duplicateError}</p>
+            )}
+            {saveTemplateError && (
+              <p className="text-xs text-red-600">{saveTemplateError}</p>
+            )}
+            {saveTemplateMessage && (
+              <p className="text-xs text-emerald-700">{saveTemplateMessage}</p>
+            )}
+            {bulkAssignMessage && (
+              <p className="whitespace-pre-line text-xs text-secondary">{bulkAssignMessage}</p>
+            )}
           </div>
-          {duplicateError && (
-            <p className="text-xs text-red-600">{duplicateError}</p>
-          )}
-          {saveTemplateError && (
-            <p className="text-xs text-red-600">{saveTemplateError}</p>
-          )}
-          {saveTemplateMessage && (
-            <p className="text-xs text-emerald-700">{saveTemplateMessage}</p>
-          )}
-          {bulkAssignMessage && (
-            <p className="whitespace-pre-line text-xs text-slate-700">{bulkAssignMessage}</p>
-          )}
         </div>
-      </div>
+      </Card>
 
       {saveTemplateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-xl bg-white p-4 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">Save as Template</h3>
-            <p className="mt-1 text-sm text-slate-600">Create template from this event?</p>
+            <p className="mt-1 text-sm text-secondary">Create template from this event?</p>
 
             <div className="mt-4 space-y-3">
-              <label className="block text-sm text-slate-700">
+              <label className="block text-sm text-secondary">
                 <span className="mb-1 block font-medium">Template Name</span>
                 <input
                   type="text"
@@ -2797,7 +2809,7 @@ function EventDetail() {
                 />
               </label>
 
-              <label className="flex items-start gap-2 text-sm text-slate-700">
+              <label className="flex items-start gap-2 text-sm text-secondary">
                 <input
                   type="checkbox"
                   checked={useChapterSchedule}
@@ -2810,7 +2822,7 @@ function EventDetail() {
               {!useChapterSchedule && (
                 <div className="rounded border border-slate-200 bg-slate-50 p-3">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="text-sm text-slate-700">
+                    <label className="text-sm text-secondary">
                       <span className="mb-1 block">Months</span>
                       <input
                         type="text"
@@ -2821,7 +2833,7 @@ function EventDetail() {
                       />
                     </label>
 
-                    <label className="text-sm text-slate-700">
+                    <label className="text-sm text-secondary">
                       <span className="mb-1 block">Weekday</span>
                       <select
                         value={scheduleWeekdayInput}
@@ -2834,7 +2846,7 @@ function EventDetail() {
                       </select>
                     </label>
 
-                    <label className="text-sm text-slate-700 sm:col-span-2">
+                    <label className="text-sm text-secondary sm:col-span-2">
                       <span className="mb-1 block">Weeks</span>
                       <input
                         type="text"
@@ -2904,17 +2916,17 @@ function EventDetail() {
       />
 
       {eventInfo && (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <Card className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold text-slate-900">Event Logistics</h2>
-              <p className="text-sm text-slate-600">{buildLocationSummary(eventInfo)}</p>
+              <Card.Header className="text-lg">Event Logistics</Card.Header>
+              <p className="text-sm text-secondary">{buildLocationSummary(eventInfo)}</p>
               <div className="flex flex-wrap gap-2 text-xs font-medium">
                 <span className={`rounded-full px-3 py-1 ${eventInfo.location?.beach_accessibility ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}>
                   {eventInfo.location?.beach_accessibility ? "Beach access confirmed" : "Beach access needs review"}
                 </span>
                 {eventInfo.start_time && (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-secondary">
                     Starts at {String(eventInfo.start_time).slice(0, 5)}
                   </span>
                 )}
@@ -2976,69 +2988,84 @@ function EventDetail() {
             {eventInfo.directions && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <h3 className="text-sm font-semibold text-slate-900">Directions</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.directions}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-secondary">{eventInfo.directions}</p>
               </div>
             )}
             {eventInfo.parking_info && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <h3 className="text-sm font-semibold text-slate-900">Parking</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.parking_info}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-secondary">{eventInfo.parking_info}</p>
               </div>
             )}
             {eventInfo.lodging_info && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <h3 className="text-sm font-semibold text-slate-900">Lodging</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.lodging_info}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-secondary">{eventInfo.lodging_info}</p>
               </div>
             )}
             {eventInfo.beach_access_notes && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2 xl:col-span-1">
                 <h3 className="text-sm font-semibold text-slate-900">Beach Access Notes</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.beach_access_notes}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-secondary">{eventInfo.beach_access_notes}</p>
               </div>
             )}
             {eventInfo.internal_notes && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 md:col-span-2 xl:col-span-2">
                 <h3 className="text-sm font-semibold text-slate-900">Internal Notes</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{eventInfo.internal_notes}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-secondary">{eventInfo.internal_notes}</p>
               </div>
             )}
           </div>
-        </section>
+        </Card>
       )}
 
       {!eventMode && <PriorityLegend />}
 
       {!eventMode && (
-        <div className="mb-4 flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
+        <Card className="mb-0 p-4">
+          <div className="mb-2">
+            <Card.Header>No-Show Management</Card.Header>
+          </div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-6">
           <div className="flex items-center gap-2">
             <span className="font-semibold">No-Show Candidates:</span>
             <span className="text-red-600 font-bold">{noShows.length}</span>
           </div>
-          <button
+          <Button
             onClick={handlePromoteNoShows}
             disabled={promoteLoading || noShows.length === 0}
-            className={`px-4 py-2 rounded text-white ${promoteLoading || noShows.length === 0 ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
+            variant="danger"
+            className={`${promoteLoading || noShows.length === 0 ? 'bg-gray-400' : ''}`}
           >
             {promoteLoading ? 'Promoting...' : 'Promote Waitlist to Fill No-Shows'}
-          </button>
+          </Button>
           {noShowError && <span className="text-red-500 text-sm">{noShowError}</span>}
-        </div>
+          </div>
+        </Card>
       )}
 
-      <button
-        onClick={() => navigate(`/events/${eventId}/checkin`)}
-        className={`w-full bg-green-600 text-white rounded-xl font-semibold ${eventMode ? "py-6 text-2xl" : "py-4"}`}
-      >
-        ✔ Start Event Check-In
-      </button>
+      <Card className="p-4">
+        <div className="mb-3">
+          <Card.Header>Event-Day Actions</Card.Header>
+        </div>
+        <div className="space-y-3">
+          <Button
+            onClick={() => navigate(`/events/${eventId}/checkin`)}
+            variant="success"
+            className={`w-full rounded-xl font-semibold ${eventMode ? "py-6 text-2xl" : "py-4"}`}
+          >
+            ✔ Start Event Check-In
+          </Button>
 
-      <button
-        onClick={() => navigate(`/events/${eventId}/fast-assign`)}
-        className={`w-full bg-indigo-600 text-white rounded-xl font-semibold ${eventMode ? "py-5 text-xl" : "py-3 text-sm"}`}
-      >
-        ⚡ Fast Assign
-      </button>
+          <Button
+            onClick={() => navigate(`/events/${eventId}/fast-assign`)}
+            variant="primary"
+            className={`w-full rounded-xl font-semibold ${eventMode ? "py-5 text-xl" : "py-3 text-sm"}`}
+          >
+            ⚡ Fast Assign
+          </Button>
+        </div>
+      </Card>
 
       {(() => {
         const realSessions = groupedParticipants.filter(({ sessionId }) => {
@@ -3061,8 +3088,12 @@ function EventDetail() {
         }
         const allGood = sessionsNeedingAttention === 0 && totalSessions > 0
         return (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
-            <span className="font-medium text-gray-500">Staffing:</span>
+          <Card className="p-3">
+            <div className="mb-2">
+              <Card.Header>Staffing Overview</Card.Header>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-medium text-secondary">Staffing:</span>
             {sessionsNeedingAttention > 0 && (
               <span className="animate-pulse rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
                 ⚠️ {sessionsNeedingAttention} need{sessionsNeedingAttention === 1 ? "s" : ""} attention
@@ -3078,7 +3109,7 @@ function EventDetail() {
                 🟡 {moderateAssistanceSessions} moderate
               </span>
             )}
-            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-gray-700">
+            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-secondary">
               📊 {totalSessions} session{totalSessions === 1 ? "" : "s"}
             </span>
             {allGood && (
@@ -3086,7 +3117,8 @@ function EventDetail() {
                 ✓ All sessions staffed
               </span>
             )}
-          </div>
+            </div>
+          </Card>
         )
       })()}
 
@@ -3138,7 +3170,7 @@ function EventDetail() {
         if (shown.length === 0) return null
 
         return (
-          <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+          <Card className="border border-blue-100 bg-blue-50 px-4 py-3">
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-blue-500">Next Best Actions</p>
             <ul className="space-y-1">
               {shown.map((s, i) => (
@@ -3148,10 +3180,11 @@ function EventDetail() {
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         )
       })()}
 
+      <Card className="p-5">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -3171,7 +3204,7 @@ function EventDetail() {
 
 
         {sortedParticipants.length === 0 && (
-          <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-secondary">
             No participants match the selected filter.
           </div>
         )}
@@ -3280,7 +3313,7 @@ function EventDetail() {
                     <span className={`font-medium ${staffingIndicatorColor(staffing.beachCount, staffing.requiredBeach)}`}>
                       Beach: {staffing.beachCount} / {staffing.requiredBeach}
                     </span>
-                    <span className="text-gray-500">
+                    <span className="text-secondary">
                       Assistance: {staffing.assistanceCount}
                     </span>
                   </div>
@@ -3296,28 +3329,28 @@ function EventDetail() {
                     {waterShortfall > 0 && waterPreviewCandidates.length > 0 && (
                       <div>
                         <div
-                          className="inline-flex max-w-full items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700"
+                          className="inline-flex max-w-full items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] text-secondary"
                           title={waterPreviewReason.tooltip || undefined}
                         >
                           <span className="font-medium">Moving Water:</span>
                           <span className="ml-1">{formatPreviewVolunteerList(waterPreviewCandidates)}</span>
                         </div>
                         {waterPreviewReason.inline && (
-                          <div className="mt-1 whitespace-pre-line text-[10px] text-gray-500">{waterPreviewReason.inline}</div>
+                          <div className="mt-1 whitespace-pre-line text-[10px] text-secondary">{waterPreviewReason.inline}</div>
                         )}
                       </div>
                     )}
                     {beachShortfall > 0 && beachPreviewCandidates.length > 0 && (
                       <div>
                         <div
-                          className="inline-flex max-w-full items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700"
+                          className="inline-flex max-w-full items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] text-secondary"
                           title={beachPreviewReason.tooltip || undefined}
                         >
                           <span className="font-medium">Moving Beach:</span>
                           <span className="ml-1">{formatPreviewVolunteerList(beachPreviewCandidates)}</span>
                         </div>
                         {beachPreviewReason.inline && (
-                          <div className="mt-1 whitespace-pre-line text-[10px] text-gray-500">{beachPreviewReason.inline}</div>
+                          <div className="mt-1 whitespace-pre-line text-[10px] text-secondary">{beachPreviewReason.inline}</div>
                         )}
                       </div>
                     )}
@@ -3359,7 +3392,7 @@ function EventDetail() {
                             </button>
                           )}
                         </div>
-                        <div className="text-[10px] text-gray-400">
+                        <div className="text-[10px] text-secondary">
                           {waterSuggestedCount >= 1 && beachSuggestedCount >= 1
                             ? `Based on shortage (Water: ${waterShortfall}, Beach: ${beachShortfall}) and available volunteers (${waterPreviewCandidates.length}W / ${beachPreviewCandidates.length}B)`
                             : waterSuggestedCount >= 1
@@ -3435,7 +3468,7 @@ function EventDetail() {
                       <div className="font-medium">
                         {p.first_name} {p.last_name}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-secondary">
                         {p.email}
                       </div>
                     </div>
@@ -3465,6 +3498,7 @@ function EventDetail() {
         </DragOverlay>
 
       </DndContext>
+      </Card>
 
       {dragError && (
         <div className="mt-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">

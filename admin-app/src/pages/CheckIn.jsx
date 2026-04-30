@@ -30,8 +30,8 @@ function getPriorityLevel(priority) {
 
 function PriorityLegend() {
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
-      <span className="font-semibold uppercase tracking-wide text-gray-500">Priority legend</span>
+    <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-secondary">
+      <span className="font-semibold uppercase tracking-wide text-secondary">Priority legend</span>
       {PRIORITY_LEVELS.map((level) => (
         <span key={level.value} className="inline-flex items-center gap-2">
           <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white">
@@ -852,7 +852,7 @@ export default function CheckIn() {
             {sessionOverview.map((session) => (
               <div key={String(session.sessionId)} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                 <div className="text-sm font-semibold text-gray-800">{session.label}</div>
-                <div className="text-xs text-gray-600">{session.participantCount} / {session.capacity}</div>
+                <div className="text-xs text-secondary">{session.participantCount} / {session.capacity}</div>
               </div>
             ))}
           </div>
@@ -907,12 +907,12 @@ export default function CheckIn() {
         >
           Deselect All
         </button>
-        <span className="text-sm text-gray-600 self-center">
+        <span className="text-sm text-secondary self-center">
           {selectedCount} selected ({checkableSelected} can be checked in)
         </span>
         {!eventMode && (
-          <div className="ml-auto flex flex-wrap items-center gap-3 text-[11px] text-gray-600">
-            <span className="font-semibold uppercase tracking-wide text-gray-500">Legend</span>
+          <div className="ml-auto flex flex-wrap items-center gap-3 text-[11px] text-secondary">
+            <span className="font-semibold uppercase tracking-wide text-secondary">Legend</span>
             <span className="inline-flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-green-500" />
               Verified
@@ -929,7 +929,7 @@ export default function CheckIn() {
               <span className="h-2 w-2 rounded-full bg-gray-500" />
               Confirmed
             </span>
-            <span className="text-gray-500">Tip: click a status badge to update it.</span>
+            <span className="text-secondary">Tip: click a status badge to update it.</span>
           </div>
         )}
       </div>
@@ -938,7 +938,7 @@ export default function CheckIn() {
         {!eventMode && (
           <div className="sticky top-0 z-20 flex justify-end pr-4 bg-white/95 backdrop-blur-sm py-2">
             <div className="w-[440px]">
-              <div className="grid grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <div className="grid grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-wide text-secondary">
                 <span className="text-center">Waiver</span>
                 <span className="text-center">Check-In</span>
                 <span className="text-center">Waitlist</span>
@@ -1010,11 +1010,11 @@ export default function CheckIn() {
                   </button>
                 </div>
 
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-secondary">
                   {p.email}
                 </p>
 
-                <p className="mt-1 inline-flex items-center gap-2 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                <p className="mt-1 inline-flex items-center gap-2 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-secondary">
                   <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white">
                     <span className={`h-2.5 w-2.5 rounded-full ${priorityLevel.dotClass}`} />
                   </span>

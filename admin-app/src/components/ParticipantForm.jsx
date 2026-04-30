@@ -515,7 +515,7 @@ export default function ParticipantForm({
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {!lockEvent && (
             <label className="sm:col-span-2">
-              <span className="mb-1 block text-sm font-medium text-slate-700">Event</span>
+              <span className="mb-1 block text-sm font-medium text-secondary">Event</span>
               <select
                 value={eventId}
                 onChange={(e) => {
@@ -537,7 +537,7 @@ export default function ParticipantForm({
           )}
 
           <label>
-            <span className="mb-1 block text-sm font-medium text-slate-700">First Name</span>
+            <span className="mb-1 block text-sm font-medium text-secondary">First Name</span>
             <input
               type="text"
               value={firstName}
@@ -548,7 +548,7 @@ export default function ParticipantForm({
           </label>
 
           <label>
-            <span className="mb-1 block text-sm font-medium text-slate-700">Last Name</span>
+            <span className="mb-1 block text-sm font-medium text-secondary">Last Name</span>
             <input
               type="text"
               value={lastName}
@@ -559,7 +559,7 @@ export default function ParticipantForm({
           </label>
 
           <label className="sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Email</span>
+            <span className="mb-1 block text-sm font-medium text-secondary">Email</span>
             <input
               type="email"
               value={email}
@@ -570,7 +570,7 @@ export default function ParticipantForm({
           </label>
 
           <label>
-            <span className="mb-1 block text-sm font-medium text-slate-700">Role</span>
+            <span className="mb-1 block text-sm font-medium text-secondary">Role</span>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
@@ -583,7 +583,7 @@ export default function ParticipantForm({
           </label>
 
           <label>
-            <span className="mb-1 block text-sm font-medium text-slate-700">Priority (optional)</span>
+            <span className="mb-1 block text-sm font-medium text-secondary">Priority (optional)</span>
             <input
               type="number"
               min="0"
@@ -596,7 +596,7 @@ export default function ParticipantForm({
           </label>
 
           {role !== "volunteer" && (
-            <label className="sm:col-span-2 inline-flex items-center gap-2 text-sm text-slate-700">
+            <label className="sm:col-span-2 inline-flex items-center gap-2 text-sm text-secondary">
               <input
                 type="checkbox"
                 checked={requiresAssistance}
@@ -612,7 +612,7 @@ export default function ParticipantForm({
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label>
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Volunteer Type</span>
+                  <span className="mb-1 block text-sm font-medium text-secondary">Volunteer Type</span>
                   <select
                     multiple
                     value={volunteerTypes}
@@ -628,9 +628,9 @@ export default function ParticipantForm({
 
                 {hasAdditionalTypeOptions ? (
                   <label className="sm:col-span-2">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Additional Volunteer Types</span>
+                    <span className="mb-1 block text-sm font-medium text-secondary">Additional Volunteer Types</span>
                     {additionalRolesHelperText && (
-                      <span className="mb-2 block text-sm text-slate-600">
+                      <span className="mb-2 block text-sm text-secondary">
                         {additionalRolesHelperText}
                       </span>
                     )}
@@ -647,12 +647,12 @@ export default function ParticipantForm({
                     </select>
                   </label>
                 ) : (
-                  <p className="sm:col-span-2 text-sm text-slate-600">
+                  <p className="sm:col-span-2 text-sm text-secondary">
                     No additional role selection required for this volunteer type
                   </p>
                 )}
 
-                <label className="sm:col-span-2 inline-flex items-center gap-2 text-sm text-slate-700">
+                <label className="sm:col-span-2 inline-flex items-center gap-2 text-sm text-secondary">
                   <input
                     type="checkbox"
                     checked={volunteerIsVersatile}
@@ -665,7 +665,7 @@ export default function ParticipantForm({
           )}
 
           <label className="sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Session (optional)</span>
+            <span className="mb-1 block text-sm font-medium text-secondary">Session (optional)</span>
             <select
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
@@ -679,7 +679,7 @@ export default function ParticipantForm({
           </label>
 
           {assignmentGuidanceLoading && sessionId && (
-            <div className="sm:col-span-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <div className="sm:col-span-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-secondary">
               Checking assignment guidance...
             </div>
           )}
@@ -797,7 +797,7 @@ export default function ParticipantForm({
                       )}
 
                       {reasonsExpanded && (
-                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-secondary">
                           {(Array.isArray(rec.reasons) ? rec.reasons : []).map((reason, reasonIndex) => (
                             <li key={reasonIndex}>{reason}</li>
                           ))}
@@ -819,7 +819,7 @@ export default function ParticipantForm({
           )}
 
           <label className="sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Notes (optional)</span>
+            <span className="mb-1 block text-sm font-medium text-secondary">Notes (optional)</span>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -828,7 +828,7 @@ export default function ParticipantForm({
             />
           </label>
 
-          <label className="sm:col-span-2 inline-flex items-center gap-2 text-sm text-slate-700">
+          <label className="sm:col-span-2 inline-flex items-center gap-2 text-sm text-secondary">
             <input
               type="checkbox"
               checked={isMinor}

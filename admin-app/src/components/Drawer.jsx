@@ -17,7 +17,7 @@ function Drawer({ isOpen, onClose }) {
           <h2 className="font-semibold text-ocean">
             Surfers Admin
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-secondary">
             Event Management
           </p>
         </div>

@@ -42,9 +42,9 @@ function TopBar({ title, onMenuClick, profile, onSignOut, releaseTag }) {
         {menuOpen && (
           <div className="absolute right-0 z-50 mt-2 w-56 rounded-md border border-gray-200 bg-white p-2 text-sm text-gray-800 shadow-lg">
             <div className="border-b border-gray-100 px-2 pb-2">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500">Signed in as</p>
+              <p className="text-[11px] uppercase tracking-wide text-secondary">Signed in as</p>
               <p className="truncate font-medium text-gray-900">{profileName}</p>
-              <p className="mt-0.5 text-xs text-gray-500">Role: {profile?.role || "admin"}</p>
+              <p className="mt-0.5 text-xs text-secondary">Role: {profile?.role || "admin"}</p>
             </div>
             <button
               type="button"
