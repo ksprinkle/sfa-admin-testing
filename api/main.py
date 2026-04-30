@@ -46,7 +46,7 @@ def seed_admin():
 
     db.close()
 
-seed_admin()
+#seed_admin()
 
 from db.session import SessionLocal
 from models.users import User
