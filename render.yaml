@@ -19,12 +19,13 @@ services:
           name: sfa-db
           property: connectionString
 
-  - type: static
-    name: sfa-admin
-    rootDir: admin-app
-    buildCommand: npm ci && npm run build
-    publishPath: dist
-    envVars:
+  - - type: web
+      name: sfa-admin
+      runtime: node
+      rootDir: admin-app
+      buildCommand: npm ci && npm run build
+      startCommand: npm run preview
+        envVars:
       - key: VITE_API_URL
         fromService:
           type: web
