@@ -5,7 +5,6 @@ from api.dependencies import get_current_user
 from api.models.users import User
 from api.security import hash_password, verify_password, create_access_token
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import Depends, HTTPException
 from api.schemas.users import UserResponse
 from api.dependencies import require_admin
 from api.config import settings
