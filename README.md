@@ -1,35 +1,3 @@
-# Recent Changes (Spring 2026)
-
-## Priority System & UI/UX Overhaul
-- Participant priority is now a 3-level system:
-      - 1 = High (Red)
-      - 2 = Medium (Yellow)
-      - 3 = Low (Gray)
-      - 0 = Unset (Gray)
-- Priority can only be changed from the **Participants** page (table view) using a dropdown.
-- On the **Event Participants** page, priority is display-only (color dot, no controls).
-- Priority legend is visible at the top right of the Event Participants page.
-- Drag-and-drop session assignment for participants remains available.
-- When attempting to drag a participant into a full session, a notification appears at the top of the page with a close button.
-- All error and status notifications are now more visible and user-friendly.
-
-## Backend/API Updates
-- Priority update endpoint expects the priority as a query parameter (not JSON body).
-- All priority values are clamped between 0 and 3 on the backend.
-- Participant model and schema updated to reflect new priority logic.
-- Event title is now correctly displayed for each participant (fixed test data issue).
-
-## Dashboard & Stats
-- Dashboard and event detail stats now accurately reflect checked-in, waitlisted, and confirmed participants.
-- Capacity bar and participant counts are always up-to-date and correct.
-
-## General Improvements & Bug Fixes
-- All participant tables now show priority with a colored dot and legend.
-- Consistent color logic and legend across all participant views.
-- Improved error handling and UI feedback for all participant actions.
-- Fixed duplicate function declarations and improved code maintainability.
-- Cleaned up debug logs and improved developer experience.
-README.md
 # Surfers For Autism – Admin PWA
 
 Admin dashboard and event operations system for the **Surfers For Autism** platform.
@@ -39,6 +7,14 @@ This system manages events, participant registrations, waitlists, and live event
 The application is built as a **Progressive Web App (PWA)** so it can run on **phones, tablets, and laptops during events**.
 
 ## Recent Updates (April 2026)
+
+- Deployment and backend stabilization updates (April 30, 2026):
+      - Render service config hardened (`render.yaml`) to use correct service structure and root directory.
+      - Render start command aligned with package imports (`uvicorn api.main:app ...`).
+      - Backend imports standardized around `api.*` package paths for consistent runtime behavior.
+      - Seed/test-user workflow rolled back to restore clean working state after validation.
+      - `passlib`/`bcrypt` compatibility fix applied to avoid startup/auth hashing issues.
+      - Python dependency versions locked for higher deploy reproducibility.
 
 - Fast Assign mode hardening updates (April 28, 2026):
       - Added Fast Assign event-day workflow at /events/:eventId/fast-assign for one-tap or one-key assignment.
@@ -121,7 +97,7 @@ The application is built as a **Progressive Web App (PWA)** so it can run on **p
 
 Backend from repository root:
 
-"c:/Users/caspe/A Local Documents/SFA/PWA Development Files/surfers-for-autism-app/venv/Scripts/python.exe" -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000
+"c:/Users/caspe/A Local Documents/SFA/PWA Development Files/surfers-for-autism-app/venv/Scripts/python.exe" -m uvicorn api.main:app --host 0.0.0.0 --port 10000
 
 Frontend from admin app folder:
 
@@ -131,7 +107,7 @@ npm run dev -- --host 0.0.0.0 --port 5173
 Common startup notes:
 
 - `npm run dev` at repository root fails because there is no root package.json.
-- If backend reports port 8000 already in use, stop the existing process on 8000, then start backend once.
+- If backend reports port 10000 already in use, stop the existing process on 10000, then start backend once.
 - For phone testing/install, open the frontend via your laptop IPv4 address and port 5173.
 
 ---

@@ -1,10 +1,10 @@
 Roadmap Intent (Planning Only)
 1) Session Metadata
-Date: 2026-04-26
+Date: 2026-04-30
 Planner source: ChatGPT
 Planning horizon: 1 sprint (stabilization + pre-release hardening)
 Requested by: Project owner
-Related brief revision date: 2026-04-26
+Related brief revision date: 2026-04-30
 2) Current Assumptions
 The system is functionally complete for live event use (sessions, waitlist, priority, check-in).
 Offline-first behavior and queue retry logic are implemented and validated.
@@ -137,6 +137,15 @@ Prioritized sync visibility and conflict handling
 Deferred automation (no-show) pending client input
 Reason:
 System reached production-ready state after simulation
+
+Rev 2:
+Date: 2026-04-30
+Summary of planning changes:
+- Recorded completion of deployment hardening tasks (Render structure/rootDir/start command alignment).
+- Captured backend import consistency and dependency-stability work as completed baseline.
+- Shifted near-term focus from environment stabilization to operational confidence and post-deploy monitoring.
+Reason:
+Recent sessions prioritized deploy/runtime reliability and reproducible environments.
 
 🧠 Why This Roadmap Is Correct (quick context)
 

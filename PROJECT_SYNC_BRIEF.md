@@ -39,13 +39,37 @@ Treat the following as already implemented and working as desired. Do not propos
 
 When suggesting next steps, focus on net-new work only. Do not include already-completed features in scope unless I explicitly request revisiting them.
 
-Date: 2026-04-28
+Date: 2026-04-30
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 0d269bc
+Latest implementation commit: 3c11a91
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
-Local release tag: v0.1.0 (local only; remote not configured)
+Local release tag: v0.1.0
+
+## Session Delta (Committed - April 30, Deployment and Environment Stability) — 3c11a91
+
+Status: Committed
+
+Commit chain:
+- `64b9e9f` fix render start command
+- `88de896` fix render.yaml static -> web
+- `d730a88` fix render.yaml structure and rootDir
+- `6f2f8bd` fix import consistency (api package)
+- `eaad62f` fix bcrypt compatibility with passlib
+- `3c11a91` lock dependency versions for stability
+
+Behavior summary:
+- Render deployment configuration is now aligned for the backend service shape and root directory.
+- Backend startup command and import strategy now consistently use package execution (`api.*`).
+- Dependency/runtime stability improved by bcrypt-passlib compatibility alignment and tighter version locking.
+- Temporary seed-state experiments were backed out to restore expected working behavior.
+
+Validation evidence:
+- Multiple commit/push cycles completed successfully to `origin/master`.
+- Working tree returned clean after each stabilization pass.
+
+---
 
 ## Session Delta (Committed - April 28, Public Event Registration Endpoint) — 6010cc4
 

@@ -1,5 +1,22 @@
 # Recent Changes (Spring 2026)
 
+## Latest Updates (April 30, 2026)
+
+### Deployment + Runtime Stability
+- Render deployment configuration was normalized in `render.yaml`:
+  - service structure corrected (`static`/`web` alignment)
+  - root directory and startup behavior aligned for backend package execution
+- Render/backend startup command standardized to package entrypoint form:
+  - `uvicorn api.main:app --host 0.0.0.0 --port 10000`
+
+### Import + Dependency Hardening
+- Backend imports were standardized for consistency under package execution (`api.*` pathing).
+- Added bcrypt/passlib compatibility adjustment to prevent auth/hash runtime failures.
+- Locked selected backend dependency versions to reduce environment drift between local and cloud builds.
+
+### State Cleanup
+- Temporary seed-admin/test-data workflow was reversed to restore the intended working state after smoke validation.
+
 ## Latest Updates (April 26, 2026)
 
 ### Versioning + Build Visibility

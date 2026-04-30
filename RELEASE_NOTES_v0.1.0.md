@@ -126,3 +126,30 @@ Base Commit: 6b2b6d6
 - Assignment loop remains non-blocking and rapid under keyboard-heavy use.
 - Undo guard uses assignment generation tracking to avoid stale undo collisions.
 - Guidance remains visible during constrained and recommendation-sparse scenarios.
+
+## Post-v0.1.0 Maintenance (2026-04-30)
+
+### Deployment and Runtime Stability
+
+- Render service configuration normalized to correct structure and root directory behavior.
+- Render backend startup command aligned to package entrypoint usage (`uvicorn api.main:app`).
+- Startup/deploy path now matches package-based import strategy used in backend modules.
+
+### Compatibility and Reproducibility
+
+- Added bcrypt/passlib compatibility fix to prevent auth hashing/runtime incompatibilities.
+- Locked dependency versions to improve repeatability across local and cloud environments.
+
+### Cleanup and State Restoration
+
+- Seed admin/testing changes were rolled back to restore expected working state after smoke tests.
+- Import consistency cleanup completed to reduce deployment-time module resolution drift.
+
+### Commit Trail (April 30 sequence)
+
+- `64b9e9f` fix render start command
+- `88de896` fix render.yaml static -> web
+- `d730a88` fix render.yaml structure and rootDir
+- `6f2f8bd` fix import consistency (api package)
+- `eaad62f` fix bcrypt compatibility with passlib
+- `3c11a91` lock dependency versions for stability
