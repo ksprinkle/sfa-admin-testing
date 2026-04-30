@@ -1,4 +1,6 @@
 # Project Sync Brief
+This document reflects the CURRENT WORKING STATE of the system.
+Do not regress or redesign existing working infrastructure (auth, deployment, imports).
 
 ## Copilot Intake Starter
 
@@ -46,6 +48,53 @@ Latest implementation commit: 3c11a91
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
+
+## 🔒 Backend Deployment & Auth – Locked Decisions
+
+### Deployment (Render)
+The application is executed from the project root using `uvicorn api.main:app`.
+This means the Python import root is the repository root, and all imports must resolve from the `api` package.
+
+* Start command: `uvicorn api.main:app`
+* Build command: `pip install -r api/requirements.txt`
+* API is deployed and accessible via `/docs`
+
+### Import Architecture (DO NOT CHANGE)
+This is a locked architectural decision. Changing import structure or start command will break deployment.
+
+* All imports must use `api.*`
+* Example:
+
+  * ✅ `from api.db.session import SessionLocal`
+  * ❌ `from db.session import SessionLocal`
+* This is required for Render deployment consistency
+
+### Authentication Status
+Swagger uses OAuth2PasswordRequestForm: "username" field must be the user's email.
+
+* Register endpoint working
+* Login endpoint working
+* JWT token generation working
+* Swagger authorization confirmed working
+
+### Critical Dependency Fix
+All core dependencies should be version-pinned to prevent unexpected breaking changes during deployment.
+
+* `bcrypt==3.2.2` is REQUIRED
+* Newer versions break passlib with:
+  `AttributeError: module 'bcrypt' has no attribute '__about__'`
+* Do NOT upgrade bcrypt without testing
+
+### Environment Constraints
+
+* Running on Render free tier
+* No shell access available
+* Database persistence is not guaranteed long-term
+
+### Data Initialization
+
+* No automatic seeding in production
+* Admin users should be created via `/register`
 
 ## Session Delta (Committed - April 30, Deployment and Environment Stability) — 3c11a91
 
@@ -780,3 +829,9 @@ Definition of done for a TASK:
 - code merged in local commit,
 - build/errors checked,
 - behavior notes documented in this brief.
+
+# Recovery Rule
+If authentication fails unexpectedly:
+- First verify bcrypt version
+- Then verify user was created AFTER bcrypt fix
+- Then verify login uses "username" (email)
