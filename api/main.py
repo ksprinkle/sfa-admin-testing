@@ -18,8 +18,60 @@ import api.models.users   # <-- THIS is critical
 import api.models.sessions
 import api.models.event_activity_log
 import api.models.feedback      # <-- Don't forget to import the Feedback model 
+
 # 👇 CREATE TABLES
 Base.metadata.create_all(bind=engine)
+
+from db.session import SessionLocal
+from models.users import User
+from security import get_password_hash
+
+def seed_admin():
+    db = SessionLocal()
+
+    existing = db.query(User).filter(User.email == "admin@example.com").first()
+
+    if not existing:
+        user = User(
+            email="admin@example.com",
+            hashed_password=get_password_hash("password123"),
+            role="admin",
+            is_active=True
+        )
+        db.add(user)
+        db.commit()
+        print("✅ Admin user created")
+    else:
+        print("ℹ️ Admin already exists")
+
+    db.close()
+
+seed_admin()
+
+from db.session import SessionLocal
+from models.users import User
+from security import get_password_hash
+
+def seed_admin():
+    db = SessionLocal()
+
+    existing = db.query(User).filter(User.email == "admin@example.com").first()
+    if not existing:
+        user = User(
+            email="admin@example.com",
+            hashed_password=get_password_hash("password123"),
+            role="admin",
+            is_active=True
+        )
+        db.add(user)
+        db.commit()
+        print("✅ Admin user created")
+    else:
+        print("ℹ️ Admin already exists")
+
+    db.close()
+
+seed_admin()
 
 print("✅ Tables created at startup")
 
