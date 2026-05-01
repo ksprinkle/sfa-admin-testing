@@ -8,7 +8,7 @@ from api.dependencies import get_current_user
 from api.models.users import User
 from api.security import hash_password, verify_password, create_access_token
 from fastapi.security import OAuth2PasswordRequestForm
-from api.schemas.users import UserResponse
+from api.schemas.users import UserResponse, UserRoleByEmailUpdateRequest
 from api.dependencies import require_admin
 from api.config import settings
 
@@ -113,6 +113,29 @@ def update_user_role_by_email(
         plus_variant = normalized_email.replace(" ", "+")
         user = db.query(User).filter(func.lower(User.email) == plus_variant).first()
 
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if new_role not in ["admin", "participant"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    user.role = new_role
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+@router.put("/admin/users/by-email/role-body", response_model=UserResponse)
+def update_user_role_by_email_body(
+    payload: UserRoleByEmailUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    normalized_email = payload.email.strip().lower()
+    new_role = payload.new_role.strip().lower()
+
+    user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 

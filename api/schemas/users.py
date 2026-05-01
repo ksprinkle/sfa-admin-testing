@@ -11,3 +11,8 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class UserRoleByEmailUpdateRequest(BaseModel):
+    email: EmailStr
+    new_role: str
