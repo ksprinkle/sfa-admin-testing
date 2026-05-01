@@ -44,7 +44,7 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-05-01
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 8e57037
+Latest implementation commit: ec98be8
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
@@ -95,6 +95,36 @@ All core dependencies should be version-pinned to prevent unexpected breaking ch
 
 * No automatic seeding in production
 * Admin users should be created via `/register`
+
+## Session Delta (Committed - May 1, User Management + Promote UI + Form Fixes) — ec98be8
+
+Status: Committed
+
+Commit chain:
+- `46350b1` fix: move feedback form and images to public/ so builds don't overwrite them
+- `04f5b89` docs: expand feedback form scope to include template and annual generation testing
+- `449bdb5` feat: add admin user listing and promote-by-email endpoints
+- `8c79ddb` fix: make promote-by-email robust to plus-sign query encoding
+- `65ad679` feat: add body-based admin promote-by-email endpoint
+- `ec98be8` feat: add in-app admin promote-user action
+
+Behavior summary:
+- **Static asset source fix**: All files served on GitHub Pages (feedback form, event images) must live in `admin-app/public/`, not `docs/` directly. `emptyOutDir: true` wipes `docs/` on every build. Images moved to `admin-app/public/images/`.
+- **Feedback form scope updated**: Tasks now cover direct event creation, template-based event creation, annual generation, and verifying map/weather/surf links carry into generated events.
+- **Admin user listing**: `GET /api/auth/admin/users` lists registered login users with optional `?email_contains=` and `?role=` filters.
+- **Promote-by-email endpoints**: `PUT /api/auth/admin/users/by-email/role` (query params) and `PUT /api/auth/admin/users/by-email/role-body` (JSON body — preferred; avoids URL encoding issues with + in emails).
+- **In-app Promote User button**: Admin-only button in app header. Click prompts for email, sends to body endpoint, shows success/failure alert. No Swagger needed.
+
+Architecture note (DO NOT REGRESS):
+- Registered login users live in `users` table, NOT the `participants` table. They will never appear in participant lists unless separately added as participants.
+- `admin-app/public/` is the authoritative source for all static files served via GitHub Pages. Never edit `docs/` directly for static HTML or images.
+
+Validation evidence:
+- `get_errors` clean on all modified files.
+- `npm run build` succeeded in `admin-app`.
+- Tester accounts successfully promoted via in-app Promote User action.
+
+---
 
 ## Session Delta (Committed - May 1, Feedback Form Polish + Hardening) — 8e57037
 
