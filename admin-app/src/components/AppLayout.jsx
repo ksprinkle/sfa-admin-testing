@@ -3,6 +3,8 @@ function AppLayout({
   releaseTag,
   profile,
   onSignOut,
+  canPromoteUsers = false,
+  onPromoteUser,
   buildFingerprint,
   showHeader = true,
   children,
@@ -24,6 +26,16 @@ function AppLayout({
             {profile ? (
               <div className="flex items-center gap-3">
                 <span className="hidden max-w-[260px] truncate text-sm text-white/90 sm:inline">{profile.email}</span>
+                {canPromoteUsers ? (
+                  <button
+                    type="button"
+                    onClick={onPromoteUser}
+                    className="rounded-md border border-white/35 bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
+                    title="Promote a registered user to admin"
+                  >
+                    Promote User
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => window.open("./event-creation-feedback-form.html", "_blank")}

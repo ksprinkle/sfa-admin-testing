@@ -13,7 +13,14 @@ import CheckIn from "./pages/CheckIn"
 import FastAssign from "./pages/FastAssign"
 import FeedbackReview from "./pages/FeedbackReview"
 import EventTemplates from "./pages/EventTemplates"
-import { clearAuthSession, fetchMyProfile, getAuthChangedEventName, getStoredProfile, getStoredToken } from "./api/auth"
+import {
+  clearAuthSession,
+  fetchMyProfile,
+  getAuthChangedEventName,
+  getStoredProfile,
+  getStoredToken,
+  promoteUserToAdminByEmail,
+} from "./api/auth"
 import { getReleaseTag } from "./config/release"
 
 function getBuildFingerprint() {
@@ -100,6 +107,24 @@ function App() {
     setProfile(null)
   }
 
+  const handlePromoteUser = async () => {
+    const emailInput = window.prompt("Enter the registered email to promote to admin:")
+    if (emailInput === null) return
+
+    const email = emailInput.trim()
+    if (!email) {
+      window.alert("Email is required.")
+      return
+    }
+
+    try {
+      const updated = await promoteUserToAdminByEmail(email, token)
+      window.alert(`${updated.email} is now ${updated.role}.`)
+    } catch (error) {
+      window.alert(error?.message || "Could not promote user")
+    }
+  }
+
   const getTitle = () => {
     switch (location.pathname) {
       case "/":
@@ -126,6 +151,8 @@ function App() {
       releaseTag={token ? getReleaseTag() : undefined}
       profile={token ? profile : null}
       onSignOut={handleSignOut}
+      canPromoteUsers={Boolean(token && profile?.role === "admin")}
+      onPromoteUser={handlePromoteUser}
       buildFingerprint={token ? buildFingerprint : undefined}
       showHeader={Boolean(token)}
       footer={token ? <BottomNav /> : null}
