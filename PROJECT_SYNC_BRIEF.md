@@ -44,7 +44,7 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-05-01
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: ec98be8
+Latest implementation commit: 7f93864
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
@@ -95,6 +95,28 @@ All core dependencies should be version-pinned to prevent unexpected breaking ch
 
 * No automatic seeding in production
 * Admin users should be created via `/register`
+
+## Session Delta (Committed - May 1, Event Creation Button Tips + St Lucie Image) — 7f93864
+
+Status: Committed
+
+Commit chain:
+- `7f93864` feat: add event creation tips and include stLucie event image
+
+Behavior summary:
+- **Templates button guidance**: Added tooltip text where Templates is surfaced so users understand template creation carries over details and those details remain editable after creation.
+- **New Event button guidance**: Added tooltip text to clarify this path creates a single event without pre-filled template details.
+- **Static image added**: Added `docs/images/stLucie_County_pepperPark_beach_view.jpg` to the published docs image set.
+
+File touchpoints:
+- `admin-app/src/pages/Events.jsx`
+- `admin-app/src/pages/EventDetail.jsx`
+- `docs/images/stLucie_County_pepperPark_beach_view.jpg`
+
+Validation evidence:
+- `get_errors` clean in modified React files (`Events.jsx`, `EventDetail.jsx`).
+
+---
 
 ## Session Delta (Committed - May 1, User Management + Promote UI + Form Fixes) — ec98be8
 
