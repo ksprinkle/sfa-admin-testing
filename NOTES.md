@@ -2,6 +2,21 @@
 
 ## Latest Updates (April 30, 2026)
 
+### UI Theme System
+- Introduced CSS variable theme tokens in `admin-app/src/index.css`:
+  - `--color-primary`, `--bg-card`, `--text-secondary`, `--radius-lg`, `--shadow-sm`
+- Added global typography scale (h1–h3, body, small, label) and `card-in` fade-in animation with `prefers-reduced-motion` safeguard.
+- Introduced reusable `Card` and `Button` components consuming theme tokens.
+- Standardized all helper/label/metadata text across every major page and component to use `.text-secondary` (replacing scattered `text-gray-*` inline classes):
+  - EventDetail, FastAssign, Events, Dashboard, CheckIn, EventTemplates
+  - ParticipantForm, EventForm, TopBar, Drawer
+- Build validated clean after all changes (`npm run build` — no new errors).
+- Commit: `0b7e801`
+
+### Python Runtime Pin
+- Added `runtime.txt` with `python-3.11.9` at repo root for Render deployment Python version targeting.
+- Commits: `7558e60` (create), `184f58c` (move to repo root)
+
 ### Deployment + Runtime Stability
 - Render deployment configuration was normalized in `render.yaml`:
   - service structure corrected (`static`/`web` alignment)

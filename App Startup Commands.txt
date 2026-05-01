@@ -1,9 +1,16 @@
-Backend startup from venv:
+Backend startup from venv (LOCAL DEV — fixed port 8000):
+# Run from the REPO ROOT so that 'api.*' package imports resolve correctly.
+# Do NOT use --app-dir; the working directory IS the import root.
+# Do NOT use $PORT here — that is for Render (production) only.
 
 Use this backend command going forward:
-1,python -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000 --reload --no-access-log
+1, python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload --no-access-log
 
-2,python -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000 --reload
+2, python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+# PRODUCTION (Render) uses:
+#   uvicorn api.main:app --host 0.0.0.0 --port $PORT
+#   (render.yaml injects $PORT automatically — do not hardcode it)
 
 
 Frontend startup from new terminal window: (React App)

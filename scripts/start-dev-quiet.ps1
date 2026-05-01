@@ -13,10 +13,12 @@ if (-not (Test-Path $pythonExe)) {
     Write-Error "Python executable not found at $pythonExe. Create or activate the project venv first."
 }
 
+# Local dev: run from repo root using 'api.main:app' so package imports resolve.
+# Port is fixed at 8000. $PORT is for Render (production) only — do not use here.
 $backendArgs = @(
     "-NoExit"
     "-Command"
-    "Set-Location '$backendCwd'; & '$pythonExe' -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000 --reload --no-access-log --log-level warning"
+    "Set-Location '$backendCwd'; & '$pythonExe' -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload --no-access-log --log-level warning"
 )
 
 $frontendArgs = @(
@@ -29,7 +31,7 @@ if ($NoNewWindows) {
     Write-Host "Starting backend in this terminal (quiet mode)..."
     Start-Process -FilePath "powershell.exe" -ArgumentList $frontendArgs | Out-Null
     Set-Location $backendCwd
-    & $pythonExe -m uvicorn main:app --app-dir api --host 0.0.0.0 --port 8000 --reload --no-access-log --log-level warning
+    & $pythonExe -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload --no-access-log --log-level warning
     exit $LASTEXITCODE
 }
 

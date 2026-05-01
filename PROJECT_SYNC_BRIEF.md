@@ -44,7 +44,7 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-04-30
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 3c11a91
+Latest implementation commit: 184f58c
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
@@ -95,6 +95,53 @@ All core dependencies should be version-pinned to prevent unexpected breaking ch
 
 * No automatic seeding in production
 * Admin users should be created via `/register`
+
+## Session Delta (Committed - April 30, UI Theme System + Runtime Fix) — 184f58c
+
+### Frontend: Global UI Theme System
+Status: Committed (0b7e801)
+Files changed:
+- admin-app/src/index.css
+- admin-app/src/components/Card.jsx
+- admin-app/src/components/Button.jsx
+- admin-app/src/components/AppLayout.jsx
+- admin-app/src/components/ParticipantForm.jsx
+- admin-app/src/components/EventForm.jsx
+- admin-app/src/components/TopBar.jsx
+- admin-app/src/components/Drawer.jsx
+- admin-app/src/pages/EventDetail.jsx
+- admin-app/src/pages/FastAssign.jsx
+- admin-app/src/pages/Events.jsx
+- admin-app/src/pages/Dashboard.jsx
+- admin-app/src/pages/CheckIn.jsx
+- admin-app/src/pages/EventTemplates.jsx
+
+Behavior summary:
+- Added CSS variable theme tokens to `index.css`: `--color-primary`, `--bg-card`, `--text-secondary`, `--radius-lg`, `--shadow-sm`.
+- Added global typography scale for h1/h2/h3/body/small/label elements.
+- Added `card-in` fade-in keyframe animation and `card-animate` class with `prefers-reduced-motion` safeguard.
+- Introduced reusable `Card` and `Button` components using theme tokens.
+- Standardized all helper text, labels, metadata, and subtitles across all major pages and components to use `.text-secondary` utility class (replaces inline `text-gray-*`/`text-muted` variants).
+
+Validation evidence:
+- Frontend diagnostics: pass (no errors on all modified files)
+- Frontend build: pass (`npm run build` in `admin-app`)
+
+### Deployment: Python Runtime Pin
+Status: Committed (7558e60 → 184f58c)
+Files changed:
+- runtime.txt (created at `api/`, moved to repo root)
+
+Behavior summary:
+- Added `runtime.txt` with `python-3.11.9` for Render deployment Python version pinning.
+- File was initially created in `api/`, then moved to repo root for correct Render resolution.
+- Git also recorded `api/requirements.txt` as renamed to root `requirements.txt`.
+
+Validation evidence:
+- File present and verified at repo root.
+- Committed and pushed to `origin/master`.
+
+---
 
 ## Session Delta (Committed - April 30, Deployment and Environment Stability) — 3c11a91
 
@@ -814,7 +861,9 @@ Behavior summary:
 
 ## 9) Known Constraints / Gaps
 
-- Git remote is not configured in this local repo, so push/tag publish is pending setup.
+- Git remote is configured and push to `origin/master` is working.
+- `runtime.txt` (Python 3.11.9) is now at repo root for Render compatibility.
+- `requirements.txt` was renamed by git from `api/requirements.txt` to `requirements.txt` at repo root; `render.yaml` `buildCommand` may need updating if Render resolves paths relative to `rootDir: api`.
 - Some untracked image assets are present and intentionally not auto-committed.
 
 ## 10) Session Update Protocol (for Copilot)
