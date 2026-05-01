@@ -499,7 +499,7 @@ export default function Events() {
             </p>
           </div>
           <img
-            src="/sfa_2026_shirt.jpg"
+            src={`${import.meta.env.BASE_URL}sfa_2026_shirt.jpg`}
             alt="Surfers for Autism 2026 shirt"
             className="h-24 w-auto rounded-lg border border-slate-200 object-cover shadow-sm"
             loading="lazy"

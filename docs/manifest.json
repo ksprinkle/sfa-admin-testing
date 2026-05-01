@@ -1,32 +1,32 @@
 {
   "name": "Surfers For Autism Admin",
   "short_name": "SFA Admin",
-  "start_url": "/",
+  "start_url": "/sfa-admin-testing/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#0f766e",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/sfa-admin-testing/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/sfa-admin-testing/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-192_maskSafe_white.png",
+      "src": "/sfa-admin-testing/icon-192_maskSafe_white.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icon-512_maskSafe_white.png",
+      "src": "/sfa-admin-testing/icon-512_maskSafe_white.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
