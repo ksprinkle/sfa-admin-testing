@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from api.db.session import get_db
@@ -61,6 +63,48 @@ def update_user_role(
     current_user = Depends(require_admin),
 ):
     user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if new_role not in ["admin", "participant"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    user.role = new_role
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+@router.get("/admin/users", response_model=list[UserResponse])
+def list_users(
+    email_contains: Optional[str] = None,
+    role: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    query = db.query(User)
+
+    if email_contains:
+        query = query.filter(User.email.ilike(f"%{email_contains}%"))
+
+    if role:
+        if role not in ["admin", "participant"]:
+            raise HTTPException(status_code=400, detail="Invalid role")
+        query = query.filter(User.role == role)
+
+    return query.order_by(User.email.asc()).all()
+
+
+@router.put("/admin/users/by-email/role", response_model=UserResponse)
+def update_user_role_by_email(
+    email: str,
+    new_role: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    user = db.query(User).filter(User.email == email).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
