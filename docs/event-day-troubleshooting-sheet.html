@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SFA Event-Day Troubleshooting Sheet</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #162235;
+        --muted: #516079;
+        --border: #c9d5e8;
+        --panel: #f7fbff;
+        --panel-strong: #eef6ff;
+        --ok: #157347;
+        --warn: #9a5b00;
+        --bad: #b42318;
+        --info: #0f5ea8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(180deg, #f9fcff 0%, #eef4fb 100%);
+        color: var(--ink);
+      }
+
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px 20px 56px;
+      }
+
+      .hero {
+        background: linear-gradient(135deg, #ffffff 0%, #eef6ff 100%);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow: 0 16px 40px rgba(15, 47, 86, 0.08);
+      }
+
+      h1,
+      h2,
+      h3,
+      p,
+      ul {
+        margin-top: 0;
+      }
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 10px;
+      }
+
+      h2 {
+        font-size: 1.15rem;
+        margin-bottom: 12px;
+      }
+
+      p,
+      li {
+        line-height: 1.55;
+      }
+
+      .meta {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 16px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        margin-top: 24px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 20px;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        border: 1px solid transparent;
+        background: var(--panel-strong);
+      }
+
+      .ok { color: var(--ok); border-color: rgba(21, 115, 71, 0.16); }
+      .warn { color: var(--warn); border-color: rgba(154, 91, 0, 0.16); }
+      .bad { color: var(--bad); border-color: rgba(180, 35, 24, 0.16); }
+      .info { color: var(--info); border-color: rgba(15, 94, 168, 0.16); }
+
+      .scenario-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .scenario {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px;
+      }
+
+      .scenario h3 {
+        margin-bottom: 10px;
+      }
+
+      .scenario strong {
+        display: inline-block;
+        min-width: 130px;
+      }
+
+      code {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 0.92em;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        main {
+          max-width: none;
+          padding: 0;
+        }
+
+        .hero,
+        .card,
+        .scenario {
+          box-shadow: none;
+        }
+
+        .actions {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <h1>SFA Event-Day Troubleshooting Sheet</h1>
+        <p class="meta">Prepared for event-day testing and operations. Updated April 22, 2026.</p>
+        <p>
+          This sheet is for the Admin PWA check-in flow. It explains what you may see during offline, reconnect,
+          websocket, auth, and waiver scenarios, what those signals mean, and what action to take next.
+        </p>
+        <div class="actions">
+          <button class="button" onclick="window.print()">Print or Save as PDF</button>
+          <a class="button" href="/event-day-troubleshooting-sheet.html" download="sfa-event-day-troubleshooting-sheet.html">Download HTML Copy</a>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Quick Decision Guide</h2>
+          <div class="chips">
+            <span class="chip ok">Green or recovered in a few seconds: expected</span>
+            <span class="chip warn">Amber queue banner: safe to continue, waiting to sync</span>
+            <span class="chip bad">Waiver block: fix waiver, then retry</span>
+            <span class="chip info">Stale other-device view for a few seconds: usually websocket or polling delay</span>
+          </div>
+          <ul>
+            <li>If the amber queue clears after reconnect, the recovery worked.</li>
+            <li>If a second device catches up within about 5 to 10 seconds, treat that as normal fallback behavior.</li>
+            <li>If the queue does not clear after reconnect and a manual refresh, treat it as a real sync issue.</li>
+            <li>If the app sends you back to login, your token likely expired. Log in again and continue.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h2>What the Dev Diagnostics Panel Means</h2>
+          <ul>
+            <li><strong>Network:</strong> whether the browser currently thinks the device is online.</li>
+            <li><strong>Pending queue:</strong> how many check-ins are stored locally waiting to reach the server.</li>
+            <li><strong>Participant refresh:</strong> the last successful or failed fetch of event participants.</li>
+            <li><strong>Queue source:</strong> what triggered the last queue retry, such as <code>online-event</code>, <code>window-focus</code>, or <code>queue-interval</code>.</li>
+            <li><strong>WebSocket status:</strong> whether the live update connection is connecting, open, or reconnecting.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="grid">
+        <h2>Scenario Reference</h2>
+        <div class="scenario-grid">
+          <article class="scenario">
+            <h3>Offline or dropped network during check-in</h3>
+            <p><strong>You might see:</strong> a red offline message plus an amber queue banner saying check-ins are pending sync.</p>
+            <p><strong>Meaning:</strong> the app kept the check-in locally and will retry automatically.</p>
+            <p><strong>What to do:</strong> keep working if needed, restore connectivity, then leave the page open or bring it back into focus. The queue should retry on reconnect, focus, visibility, or the periodic retry loop.</p>
+            <p><strong>Escalate if:</strong> the queue is still present 10 to 15 seconds after connectivity is clearly back and a manual refresh does not clear it.</p>
+          </article>
+
+          <article class="scenario">
+            <h3>Waiver not verified</h3>
+            <p><strong>You might see:</strong> a red message naming the participant and explaining that waiver verification is required.</p>
+            <p><strong>Meaning:</strong> the server intentionally rejected the check-in. This is not an offline or sync bug.</p>
+            <p><strong>What to do:</strong> verify the waiver in the admin workflow, then retry the check-in.</p>
+            <p><strong>Escalate if:</strong> the participant is already verified and the same rejection continues.</p>
+          </article>
+
+          <article class="scenario">
+            <h3>Other device looks stale for a few seconds</h3>
+            <p><strong>You might see:</strong> phone updates first, laptop lags, or the reverse.</p>
+            <p><strong>Meaning:</strong> websocket delivery may be reconnecting or delayed, and the polling fallback should catch up shortly.</p>
+            <p><strong>What to do:</strong> wait a few seconds first. If it stays stale, tap Refresh once and confirm the backend is reachable.</p>
+            <p><strong>Escalate if:</strong> both devices are online and visible, but updates keep missing after 5 to 10 seconds.</p>
+          </article>
+
+          <article class="scenario">
+            <h3>Backend unavailable</h3>
+            <p><strong>You might see:</strong> refresh attempts fail, websocket status moves to reconnecting, or check-ins queue instead of syncing.</p>
+            <p><strong>Meaning:</strong> the frontend cannot currently reach the API or websocket endpoint.</p>
+            <p><strong>What to do:</strong> check that the backend process is running, confirm the frontend is using the current laptop host and port <code>8000</code>, then retry.</p>
+            <p><strong>Escalate if:</strong> the API base looks correct but both refresh and queue retries keep failing.</p>
+          </article>
+
+          <article class="scenario">
+            <h3>Forced websocket interruption</h3>
+            <p><strong>You might see:</strong> websocket status changing to closed or warning, then back to connecting or open.</p>
+            <p><strong>Meaning:</strong> live updates are temporarily down, but the app is attempting to reconnect automatically.</p>
+            <p><strong>What to do:</strong> watch for the websocket state to recover. If the refresh panel keeps showing successful polling, data should still catch up.</p>
+            <p><strong>Escalate if:</strong> websocket never returns to open and polling also stops refreshing participant data.</p>
+          </article>
+
+          <article class="scenario">
+            <h3>Login redirect during a long session</h3>
+            <p><strong>You might see:</strong> the app sends you back to the login screen.</p>
+            <p><strong>Meaning:</strong> the token is expired or invalid. This is auth state, not a check-in sync failure.</p>
+            <p><strong>What to do:</strong> log in again and reopen the event.</p>
+            <p><strong>Escalate if:</strong> login immediately loops or tokens expire far faster than expected.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

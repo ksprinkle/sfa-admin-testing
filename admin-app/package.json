@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "deploy": "npm run build && node -e \"const fs=require('fs');fs.closeSync(fs.openSync('docs/.nojekyll','w'));fs.copyFileSync('docs/index.html','docs/404.html');console.log('docs prepared for GitHub Pages');\"",
+    "deploy": "npm run build && node -e \"const fs=require('fs');const path=require('path');const out=path.resolve('..','docs');fs.closeSync(fs.openSync(path.join(out,'.nojekyll'),'w'));fs.copyFileSync(path.join(out,'index.html'),path.join(out,'404.html'));console.log('docs prepared for GitHub Pages at repo root');\"",
     "lint": "eslint .",
     "preview": "vite preview"
   },

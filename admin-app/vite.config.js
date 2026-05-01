@@ -27,7 +27,9 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/sfa-admin-testing/' : '/',
 
   build: {
-    outDir: 'docs',
+    // Build to repo-root docs/ so GitHub Pages can serve from /docs on master.
+    outDir: '../docs',
+    emptyOutDir: true,
     // Ensure assets are versioned for cache busting on GitHub Pages
     assetsDir: 'assets',
     // Optimize chunk splitting for subpath deployment
