@@ -10,6 +10,21 @@ class Settings:
     _DEFAULT_SQLITE_PATH = Path(__file__).resolve().parent.parent / "sfa.db"
     _RAW_DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
+    # In production (DEBUG=false), require PostgreSQL and forbid SQLite fallback.
+    # In local development (DEBUG=true), allow SQLite fallback for convenience.
+    if not DEBUG and not _RAW_DATABASE_URL:
+        raise ValueError(
+            "DATABASE_URL environment variable is required in production (DEBUG=false). "
+            "SQLite fallback is disabled in production."
+        )
+
+    if not DEBUG and _RAW_DATABASE_URL and _RAW_DATABASE_URL.startswith("sqlite"):
+        raise ValueError(
+            f"SQLite is not allowed in production (DEBUG=false). "
+            f"Received DATABASE_URL: {_RAW_DATABASE_URL}. "
+            f"Use PostgreSQL instead."
+        )
+
     # Legacy local setups sometimes export sqlite:///./api/sfa.db, which can point
     # to different files depending on process working directory and cause stale/missing data.
     if _RAW_DATABASE_URL in {"", "sqlite:///./api/sfa.db", "sqlite:///./sfa.db"}:
