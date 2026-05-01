@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SFA Admin</title>
+    <script>
+      // GitHub Pages SPA redirect — encodes the full path into a query param so
+      // index.html can restore it before React Router mounts.
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        '/sfa-admin-testing/' +
+        '?r=' + encodeURIComponent(l.pathname + l.search + l.hash)
+      );
+    </script>
+  </head>
+  <body></body>
+</html>

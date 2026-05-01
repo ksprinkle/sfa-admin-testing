@@ -2,6 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Restore full path encoded by 404.html redirect for GitHub Pages SPA routing.
+      (function () {
+        var r = new URLSearchParams(window.location.search).get('r');
+        if (r) {
+          window.history.replaceState(null, null, decodeURIComponent(r));
+        }
+      })();
+    </script>
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="shortcut icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
