@@ -918,8 +918,10 @@
     <script>
       (function () {
         const DRAFT_KEY = "sfa_feedback_draft";
+        const DRAFT_VERSION = 1;
         const RETURN_PATH_KEY = "sfa_feedback_return_path";
         const FALLBACK_RETURN_PATH = "/sfa-admin-testing/";
+        const SAVING_INDICATOR_DELAY_MS = 180;
         const FORM_VERSION = "v0.1";
         const FORM_FEATURE = "event_creation";
         const _formOpenedAt = Date.now();
@@ -950,6 +952,7 @@
         let lastSavedAt = null;
         let isSaving = false;
         let saveAgeIntervalId = null;
+        let savingIndicatorTimer = null;
 
         if (autosaveStatus && !autosaveIndicatorEnabled) {
           autosaveStatus.style.display = "none";
@@ -959,7 +962,7 @@
           if (!timestamp) return "";
           const elapsedMs = Math.max(0, Date.now() - timestamp);
           const elapsedSec = Math.floor(elapsedMs / 1000);
-          if (elapsedSec < 5) return "just now";
+          if (elapsedSec < 10) return "just now";
           if (elapsedSec < 60) return `${elapsedSec}s ago`;
           const elapsedMin = Math.floor(elapsedSec / 60);
           if (elapsedMin < 60) return `${elapsedMin}m ago`;
@@ -980,15 +983,22 @@
           autosaveStatus.textContent = `Saved • ${formatTimeAgo(lastSavedAt)}`;
         }
 
-        function setSavingState(nextState) {
+        function startSavingState() {
           if (!autosaveIndicatorEnabled) return;
-          if (isSaving === nextState) return;
-          isSaving = nextState;
-          renderAutosaveStatus();
+          isSaving = true;
+          if (savingIndicatorTimer) window.clearTimeout(savingIndicatorTimer);
+          savingIndicatorTimer = window.setTimeout(function () {
+            savingIndicatorTimer = null;
+            if (isSaving) renderAutosaveStatus();
+          }, SAVING_INDICATOR_DELAY_MS);
         }
 
         function markSavedNow() {
           if (!autosaveIndicatorEnabled) return;
+          if (savingIndicatorTimer) {
+            window.clearTimeout(savingIndicatorTimer);
+            savingIndicatorTimer = null;
+          }
           lastSavedAt = Date.now();
           isSaving = false;
           renderAutosaveStatus();
@@ -1092,11 +1102,19 @@
 
         function saveDraftNow() {
           const draft = captureDraftData();
-          const wrote = writeStorage(DRAFT_KEY, JSON.stringify(draft));
+          const payload = {
+            version: DRAFT_VERSION,
+            data: draft,
+          };
+          const wrote = writeStorage(DRAFT_KEY, JSON.stringify(payload));
           if (wrote) {
             markSavedNow();
           } else {
-            setSavingState(false);
+            if (savingIndicatorTimer) {
+              window.clearTimeout(savingIndicatorTimer);
+              savingIndicatorTimer = null;
+            }
+            isSaving = false;
           }
           return draft;
         }
@@ -1107,28 +1125,60 @@
           try {
             const parsed = JSON.parse(raw);
             if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-            return parsed;
+            if (parsed.version !== DRAFT_VERSION) return null;
+            if (!parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return null;
+            return parsed.data;
           } catch {
             return null;
           }
         }
 
-        // Pre-fill saved draft answers on load
-        (function restoreForm() {
-          const data = parseDraft();
-          if (!data) return;
+        function parseDraftRaw(raw) {
+          if (!raw) return null;
+          try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+            if (parsed.version !== DRAFT_VERSION) return null;
+            if (!parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return null;
+            return parsed.data;
+          } catch {
+            return null;
+          }
+        }
+
+        function applyDraftToForm(data, respectFocus) {
+          if (!data || typeof data !== "object") return;
+          const activeEl = document.activeElement;
+          const activeName = activeEl && activeEl.name ? activeEl.name : "";
+
           getAllFormFields().forEach((el) => {
             const value = data[el.name];
             if (value === undefined) return;
+            if (respectFocus && activeName && el.name === activeName) return;
+
             if (el.type === "radio") {
-              if (el.value === value) el.checked = true;
+              el.checked = el.value === value;
             } else if (el.type === "checkbox") {
               el.checked = Boolean(value);
             } else {
               el.value = value;
             }
           });
+        }
+
+        // Pre-fill saved draft answers on load
+        (function restoreForm() {
+          const data = parseDraft();
+          if (!data) return;
+          applyDraftToForm(data, false);
         })();
+
+        window.addEventListener("storage", function (event) {
+          if (event.key !== DRAFT_KEY) return;
+          const nextDraft = parseDraftRaw(event.newValue);
+          if (!nextDraft) return;
+          applyDraftToForm(nextDraft, true);
+        });
 
         if (autosaveIndicatorEnabled) {
           saveAgeIntervalId = window.setInterval(function () {
@@ -1136,6 +1186,7 @@
           }, 5000);
           window.addEventListener("beforeunload", function () {
             if (saveAgeIntervalId) window.clearInterval(saveAgeIntervalId);
+            if (savingIndicatorTimer) window.clearTimeout(savingIndicatorTimer);
           });
         }
 
@@ -1145,15 +1196,22 @@
           saveTimer = window.setTimeout(saveDraftNow, 300);
         }
 
+        function clearPendingDraftSave() {
+          if (saveTimer) {
+            window.clearTimeout(saveTimer);
+            saveTimer = null;
+          }
+        }
+
         document.addEventListener("input", function (event) {
           if (!isFeedbackField(event.target)) return;
-          setSavingState(true);
+          startSavingState();
           scheduleDraftSave();
         });
 
         document.addEventListener("change", function (event) {
           if (!isFeedbackField(event.target)) return;
-          setSavingState(true);
+          startSavingState();
           scheduleDraftSave();
         });
 
@@ -1161,7 +1219,7 @@
           "blur",
           function (event) {
             if (!isFeedbackField(event.target)) return;
-            setSavingState(true);
+            startSavingState();
             saveDraftNow();
           },
           true
@@ -1244,6 +1302,7 @@
         });
 
         saveExitBtn.addEventListener("click", function () {
+          clearPendingDraftSave();
           saveDraftNow();
           window.location.href = getReturnTarget(true);
         });
