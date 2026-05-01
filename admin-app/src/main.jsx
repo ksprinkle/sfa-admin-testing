@@ -73,7 +73,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     if (import.meta.env.PROD) {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
+      // Register service worker with correct base path for GitHub Pages subpath
+      const swPath = new URL("sw.js", import.meta.url).href
+      navigator.serviceWorker.register(swPath).catch((err) => {
         console.error("Service worker registration failed:", err)
       })
       return
