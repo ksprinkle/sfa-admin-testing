@@ -452,13 +452,14 @@ export default function Events() {
       <button
         onClick={() => navigate("/event-templates")}
         className="px-3 py-2 sm:py-1 bg-sky-100 text-sky-800 rounded hover:bg-sky-200 text-sm"
-        title="Go to Event Templates"
+        title="Using Templates retains details from the chosen template. Details can be edited after creation."
       >
         Templates
       </button>
       <button
         onClick={() => navigate("/events/new")}
         className="w-full sm:w-auto bg-ocean text-white px-4 py-2.5 sm:py-2 rounded"
+        title="Creates a single event with no pre-determined details."
       >
         + New Event
       </button>

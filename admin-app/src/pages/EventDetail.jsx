@@ -2768,7 +2768,7 @@ function EventDetail() {
             onClick={() => navigate("/event-templates")}
             variant="primary"
             className="px-3 py-2 sm:py-1 text-sm"
-            title="Go to Event Templates"
+            title="Using Templates retains details from the chosen template. Details can be edited after creation."
           >
             Templates
           </Button>
