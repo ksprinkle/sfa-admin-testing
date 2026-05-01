@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { fetchAdminEvent, fetchEventParticipants, updateParticipantSession, updateParticipantPriority, updateParticipantType, duplicateEvent, saveEventAsTemplate, createAdminParticipant, fetchEventSessionStats, fetchRecommendedSessions, evaluateAssignment, getSessionProjection } from "../api/events"
 import { fetchNoShowCandidates, promoteNoShowSlots } from "../api/no_show"
+import { getWsBase } from "../api/baseUrl"
 import BackButton from "../components/BackButton"
 import Button from "../components/Button"
 import Card from "../components/Card"
@@ -465,10 +466,7 @@ function EventDetail() {
 
   // WebSocket: Listen for real-time updates and refresh participants
   useEffect(() => {
-    const apiBase = import.meta.env.DEV
-      ? `${window.location.protocol}//${window.location.hostname}:8000`
-      : (import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`)
-    const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates";
+    const wsUrl = getWsBase() + "/api/ws/updates";
     let ws = null;
     let reconnectTimer = null;
     let isCancelled = false;

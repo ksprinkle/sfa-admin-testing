@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
 import ParticipantForm from "../components/ParticipantForm"
+import { getWsBase } from "../api/baseUrl"
 
 const PRIORITY_LEVELS = [
   { value: 1, label: "High", dotClass: "bg-red-500" },
@@ -1045,10 +1046,7 @@ export default function Participants() {
 
   // WebSocket: Listen for real-time updates and refresh participants
   useEffect(() => {
-    const apiBase = import.meta.env.DEV
-      ? `${window.location.protocol}//${window.location.hostname}:8000`
-      : (import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`)
-    const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates";
+    const wsUrl = getWsBase() + "/api/ws/updates";
     let ws = null;
     let reconnectTimer = null;
     let isCancelled = false;

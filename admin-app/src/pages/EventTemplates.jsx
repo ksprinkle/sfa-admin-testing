@@ -11,6 +11,7 @@ import {
   generateAnnualEventsFromTemplate,
   updateEventTemplate,
 } from "../api/events"
+import { getApiBase } from "../api/baseUrl"
 
 
 function getTodayIsoDate() {
@@ -906,7 +907,7 @@ function EventTemplates() {
   useEffect(() => {
     async function fetchAllEvents() {
       try {
-        const res = await fetch("/api/events?include_all=true")
+        const res = await fetch(`${getApiBase()}/api/events?include_all=true`)
         const data = await res.json()
         setAllEvents(Array.isArray(data) ? data : [])
       } catch (err) {

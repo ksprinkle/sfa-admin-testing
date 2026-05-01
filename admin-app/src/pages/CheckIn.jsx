@@ -8,6 +8,7 @@ import {
   promoteParticipant,
   verifyWaiver,
 } from "../api/events"
+import { getWsBase } from "../api/baseUrl"
 import BackButton from "../components/BackButton"
 import SyncStateIndicator from "../components/SyncStateIndicator"
 
@@ -188,10 +189,7 @@ function isParticipantCheckable(participant) {
 export default function CheckIn() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-  const apiBase = import.meta.env.DEV
-    ? `${window.location.protocol}//${window.location.hostname}:8000`
-    : (import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`)
-  const wsUrl = apiBase.replace(/^http/, "ws") + "/api/ws/updates"
+  const wsUrl = getWsBase() + "/api/ws/updates"
 
   const [participants, setParticipants] = useState([])
   const [eventInfo, setEventInfo] = useState(null)
@@ -829,7 +827,7 @@ export default function CheckIn() {
           className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
           title="Refresh participants"
         >
-          ↻ Refresh
+          G�+ Refresh
         </button>
       </div>
 
