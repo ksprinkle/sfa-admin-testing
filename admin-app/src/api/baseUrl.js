@@ -1,5 +1,5 @@
 const DEFAULT_LOCAL_API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`
-const DEFAULT_PROD_API_BASE = "https://sfa-api.onrender.com"
+const DEFAULT_PROD_API_BASE = "https://sfa-admin-testing.onrender.com"
 
 function isPrivateOrLoopbackHost(hostname) {
   const host = String(hostname || "").toLowerCase()
