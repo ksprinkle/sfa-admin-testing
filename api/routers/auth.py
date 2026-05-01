@@ -1,6 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from api.db.session import get_db
 from api.dependencies import get_current_user
@@ -104,7 +105,13 @@ def update_user_role_by_email(
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
-    user = db.query(User).filter(User.email == email).first()
+    normalized_email = email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
+
+    # Query-string '+' can arrive as a space if client URL-encoding is omitted.
+    if not user and " " in normalized_email:
+        plus_variant = normalized_email.replace(" ", "+")
+        user = db.query(User).filter(func.lower(User.email) == plus_variant).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
