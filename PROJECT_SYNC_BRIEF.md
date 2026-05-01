@@ -44,7 +44,7 @@ When suggesting next steps, focus on net-new work only. Do not include already-c
 Date: 2026-05-01
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: a38fa34
+Latest implementation commit: 8e57037
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
@@ -95,6 +95,33 @@ All core dependencies should be version-pinned to prevent unexpected breaking ch
 
 * No automatic seeding in production
 * Admin users should be created via `/register`
+
+## Session Delta (Committed - May 1, Feedback Form Polish + Hardening) — 8e57037
+
+Status: Committed
+
+Commit chain:
+- `084b6a7` feat: improve feedback form autosave status indicator
+- `8e57037` feat: harden feedback form with draft versioning, cross-tab sync, and exit save
+
+Behavior summary:
+- **Autosave indicator anti-flicker**: `Saving...` is delayed 180ms before appearing; short saves never flash the indicator.
+- **"Saved • just now" hold**: indicator stays at "just now" for 10 full seconds before switching to relative time ("Xs ago" / "Xm ago"); 5-second polling interval.
+- **Draft versioning**: localStorage draft stored as `{ version: 1, data: {...fields} }`; restore skips non-v1 drafts to avoid field-mapping errors after form schema changes.
+- **Cross-tab draft sync**: `window.storage` event listener syncs draft changes across open tabs; silently skips focused fields to avoid interrupting active typing.
+- **`Save & Exit` hardening**: clears pending debounce timer, performs a synchronous immediate save, then navigates to stored referrer (falls back to `/sfa-admin-testing/`).
+- **Return path tracking**: `document.referrer` saved to `localStorage["sfa_feedback_return_path"]` on load so post-submit and Save & Exit can both route back to the app.
+- All localStorage operations wrapped in try/catch; gracefully disabled if storage is unavailable.
+
+Key localStorage keys (DO NOT RENAME without updating restore logic):
+- `sfa_feedback_draft` — versioned draft object `{ version: 1, data: {...} }`
+- `sfa_feedback_return_path` — referrer URL captured on page open
+
+Validation evidence:
+- `get_errors` on `docs/event-creation-feedback-form.html` returned clean at each stage.
+- Committed and pushed to `origin/master`.
+
+---
 
 ## Session Delta (Committed - May 1, GitHub Pages + Tester Feedback Flow) — a38fa34
 
