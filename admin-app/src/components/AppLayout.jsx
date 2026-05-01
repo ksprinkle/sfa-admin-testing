@@ -26,6 +26,14 @@ function AppLayout({
                 <span className="hidden max-w-[260px] truncate text-sm text-white/90 sm:inline">{profile.email}</span>
                 <button
                   type="button"
+                  onClick={() => window.open("./event-creation-feedback-form.html", "_blank")}
+                  className="rounded-md border border-white/35 bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
+                  title="Share feedback about this testing session"
+                >
+                  Feedback
+                </button>
+                <button
+                  type="button"
                   onClick={onSignOut}
                   className="rounded-md border border-white/35 bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
                 >
