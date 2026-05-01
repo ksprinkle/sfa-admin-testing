@@ -4,16 +4,13 @@
     <meta charset="utf-8" />
     <title>SFA Admin</title>
     <script>
-      // GitHub Pages SPA redirect — preserves the path by encoding it into the query string.
-      // segmentCount = 1 matches the single-segment repo base path (/sfa-admin-testing/).
-      var segmentCount = 1;
+      // GitHub Pages SPA redirect — encodes the full path into a query param so
+      // index.html can restore it before React Router mounts.
       var l = window.location;
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-        l.pathname.split('/').slice(0, 1 + segmentCount).join('/') + '/?/' +
-        l.pathname.slice(1).split('/').slice(segmentCount).join('/').replace(/&/g, '~and~') +
-        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-        l.hash
+        '/sfa-admin-testing/' +
+        '?r=' + encodeURIComponent(l.pathname + l.search + l.hash)
       );
     </script>
   </head>
