@@ -41,10 +41,10 @@ Treat the following as already implemented and working as desired. Do not propos
 
 When suggesting next steps, focus on net-new work only. Do not include already-completed features in scope unless I explicitly request revisiting them.
 
-Date: 2026-04-30
+Date: 2026-05-01
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 184f58c
+Latest implementation commit: a38fa34
 Current workspace status: clean working tree
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
@@ -95,6 +95,40 @@ All core dependencies should be version-pinned to prevent unexpected breaking ch
 
 * No automatic seeding in production
 * Admin users should be created via `/register`
+
+## Session Delta (Committed - May 1, GitHub Pages + Tester Feedback Flow) — a38fa34
+
+Status: Committed
+
+Commit chain:
+- `082a35e` fix: use production API base for github pages login
+- `4b6469f` fix: point github pages frontend to live api host
+- `58c12eb` fix: add SPA 404 redirect and .nojekyll for github pages routing
+- `c6b5a4b` fix: correct SPA redirect to encode full path including basename
+- `6aa2128` fix: use BASE_URL for public assets and fix manifest icon paths
+- `cbcc99d` fix: move 404.html and .nojekyll to public folder, add SPA redirect to index.html source
+- `7cf926b` chore: add event images for github pages
+- `a38fa34` Add feedback button
+
+Behavior summary:
+- GitHub Pages SPA deep-link routing now works (including `/login`) using 404 redirect + startup path restoration.
+- Frontend production API base points at Render host; login fetches no longer target localhost in production.
+- Public asset pathing was corrected for GitHub Pages base path handling.
+- Event images are now hosted in `docs/images/` and available via public URL pattern:
+  - `https://ksprinkle.github.io/sfa-admin-testing/images/<filename>.jpg`
+- Featured image resolution issue was confirmed to be URL path usage (`/images/...` is valid; `/docs/images/...` is not).
+- Added global header Feedback button in admin shell that opens tester form:
+  - `./event-creation-feedback-form.html`
+
+Important operational note:
+- CORS for production must include GitHub Pages origin in Render env vars:
+  - `CORS_ORIGINS=https://ksprinkle.github.io`
+
+Validation evidence:
+- Verified public image URL behavior:
+  - `/images/...` returns HTTP 200
+  - `/docs/images/...` returns HTTP 404
+- Latest commit pushed to `origin/master` and deployment initiated from GitHub Pages.
 
 ## Session Delta (Committed - April 30, UI Theme System + Runtime Fix) — 184f58c
 

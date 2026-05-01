@@ -6,6 +6,18 @@ This system manages events, participant registrations, waitlists, and live event
 
 The application is built as a **Progressive Web App (PWA)** so it can run on **phones, tablets, and laptops during events**.
 
+## Recent Updates (May 2026)
+
+- GitHub Pages deployment and tester feedback workflow updates (May 1, 2026):
+      - Production frontend now uses live backend API host for login/auth requests.
+      - SPA deep-link routing on GitHub Pages fixed (404 redirect + path restoration on load).
+      - 404 and `.nojekyll` files moved into `admin-app/public/` so Vite includes them in publish output.
+      - Public asset pathing aligned with GitHub Pages base URL behavior.
+      - Event image hosting standardized in `docs/images/` with public URL pattern:
+            - `https://ksprinkle.github.io/sfa-admin-testing/images/<filename>.jpg`
+      - Added a header Feedback button in the admin app that opens tester form:
+            - `./event-creation-feedback-form.html`
+
 ## Recent Updates (April 2026)
 
 - Deployment and backend stabilization updates (April 30, 2026):

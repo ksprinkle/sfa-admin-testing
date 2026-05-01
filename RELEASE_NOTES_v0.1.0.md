@@ -153,3 +153,38 @@ Base Commit: 6b2b6d6
 - `6f2f8bd` fix import consistency (api package)
 - `eaad62f` fix bcrypt compatibility with passlib
 - `3c11a91` lock dependency versions for stability
+
+## Post-v0.1.0 Maintenance (2026-05-01)
+
+### GitHub Pages Deployment Reliability
+
+- Frontend production API base corrected so login/auth no longer call localhost in production.
+- GitHub Pages SPA routing fixed for direct links and refreshes (including `/login`) by combining:
+  - `404.html` redirect strategy
+  - startup path restoration in app `index.html`
+- `.nojekyll` and `404.html` placement corrected in `admin-app/public/` so files are emitted to deployed static output.
+- Public asset path handling updated to use base-aware paths for manifest and static files.
+
+### Event Image Delivery
+
+- Added event images under `docs/images/` for GitHub Pages static hosting.
+- Confirmed public URL convention for Featured Image fields:
+  - `https://ksprinkle.github.io/sfa-admin-testing/images/<filename>.jpg`
+- Confirmed `/docs/images/...` is not a valid public path and causes missing image behavior.
+
+### Tester Feedback Capture
+
+- Added global admin header Feedback button that opens:
+  - `./event-creation-feedback-form.html`
+- This gives test operators a direct in-app entry point to record event-creation feedback.
+
+### Commit Trail (May 1 sequence)
+
+- `082a35e` fix: use production API base for github pages login
+- `4b6469f` fix: point github pages frontend to live api host
+- `58c12eb` fix: add SPA 404 redirect and .nojekyll for github pages routing
+- `c6b5a4b` fix: correct SPA redirect to encode full path including basename
+- `6aa2128` fix: use BASE_URL for public assets and fix manifest icon paths
+- `cbcc99d` fix: move 404.html and .nojekyll to public folder, add SPA redirect to index.html source
+- `7cf926b` chore: add event images for github pages
+- `a38fa34` Add feedback button
