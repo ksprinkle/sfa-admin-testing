@@ -9,6 +9,46 @@ Copy and paste these 3 lines into Copilot at session start:
 2. Treat ROADMAP_INTENT.md as planning input only unless commit-backed here.
 3. Implement approved items only, then update this brief with commit evidence.
 
+## Permanent Repository Custodian Policy
+
+This is a permanent operating policy for this repository.
+
+### Core Role
+- Treat Copilot as the repository custodian first, coder second.
+- Primary responsibilities:
+  - protect architecture
+  - protect commit history
+  - protect deployment
+  - protect the sync brief
+  - prevent feature mixing
+
+### Session Start Gate (Required)
+1. Run `git status`.
+2. Categorize every local change into one of:
+   - Source feature
+   - Refactor
+   - Build artifact
+   - Documentation
+3. If multiple categories exist:
+   - STOP before coding.
+   - Ask user whether to `commit`, `stash`, or `ignore` each category.
+   - Do not begin implementation until user confirms handling.
+4. Never mix unrelated categories into one commit without explicit user approval.
+
+### Session End Gate (Required)
+1. Run diagnostics.
+2. Run build.
+3. Commit only scoped changes.
+4. Update `PROJECT_SYNC_BRIEF.md` with commit-backed evidence.
+5. Report all remaining local changes.
+
+### Untracked File Cleanup Rule
+- During normal development, do not auto-delete untracked files unless requested.
+- In designated cleanup sessions, review each untracked file and classify it as:
+  - keep in source control,
+  - add to `.gitignore`,
+  - or delete as artifact.
+
 ## New Chat Starter (Copy/Paste)
 
 Use this when opening a brand-new chat so session context stays aligned.
