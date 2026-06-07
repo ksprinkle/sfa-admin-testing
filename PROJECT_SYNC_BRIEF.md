@@ -41,13 +41,62 @@ Treat the following as already implemented and working as desired. Do not propos
 
 When suggesting next steps, focus on net-new work only. Do not include already-completed features in scope unless I explicitly request revisiting them.
 
-Date: 2026-05-01
+Date: 2026-06-07
 Prepared by: GitHub Copilot (implementation record)
 Branch: master
-Latest implementation commit: 7f93864
-Current workspace status: clean working tree
+Latest implementation commit: aa25404
+Current workspace status: local working tree contains additional uncommitted non-feature files
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
+
+## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e
+
+Status: Committed
+
+Commit chain:
+- `b22d05e` refactor: centralize external URL normalization
+
+Behavior summary:
+- Added shared `normalizeExternalUrl(...)` helper in `admin-app/src/utils/externalUrl.js`.
+- Replaced duplicated per-page URL normalization helpers in Event pages with a single shared import.
+- Added fbcdn wrapper + signed URL expiry handling in one place to avoid stale/expired featured image links.
+
+File touchpoints:
+- `admin-app/src/utils/externalUrl.js`
+- `admin-app/src/pages/Dashboard.jsx`
+- `admin-app/src/pages/Events.jsx`
+- `admin-app/src/pages/EventDetail.jsx`
+
+Validation evidence:
+- `get_errors` clean for all touched source files.
+- `npm run build` succeeded in `admin-app`.
+
+---
+
+## Session Delta (Committed - June 7, Public Registration + Intake Assignment Flow) — aa25404
+
+Status: Committed
+
+Commit chain:
+- `aa25404` feat: add public participant registration and intake assignment actions
+
+Behavior summary:
+- Added static public registration page for GitHub Pages at `admin-app/public/participant-registration.html`.
+  - Loads event by slug via `GET /api/events/{slug}`.
+  - Submits registration via `POST /api/public/events/{slug}/register`.
+  - Handles 404/409/error states with user-friendly feedback.
+- Added Event Detail intake visibility panel showing unassigned intake and waitlisted counts.
+- Added one-click "Assign Top Recommendation" action for unassigned non-volunteer participants.
+  - Uses existing recommendation engine (`fetchRecommendedSessions`) and existing assignment flow (`queueAssignment`).
+- Preserved existing bulk auto-assign behavior for unassigned participants.
+
+File touchpoints:
+- `admin-app/public/participant-registration.html`
+- `admin-app/src/pages/EventDetail.jsx`
+
+Validation evidence:
+- `get_errors` clean for touched files.
+- `npm run build` succeeded in `admin-app`.
 
 ## 🔒 Backend Deployment & Auth – Locked Decisions
 
