@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { fetchEvents, fetchEventSummary } from "../api/events"
 import { useNavigate } from "react-router-dom";
 import { getReleaseTag } from "../config/release"
+import { normalizeExternalUrl } from "../utils/externalUrl"
 
 function formatEventType(eventType) {
   if (!eventType) return "Unspecified"
@@ -40,14 +41,6 @@ function getEventTypeTone(eventType) {
     valueClass: "text-ocean",
     pillClass: "border-gray-300 bg-gray-100 text-secondary",
   }
-}
-
-function normalizeExternalUrl(rawUrl) {
-  const value = String(rawUrl || "").trim()
-  if (!value) return null
-  if (/^https?:\/\//i.test(value)) return value
-  if (value.startsWith("//")) return `https:${value}`
-  return `https://${value}`
 }
 
 const DEFAULT_VOLUNTEER_COUNTS = {
@@ -189,9 +182,15 @@ function Dashboard() {
 
       const summariesByType = {}
       const liveSummaryCandidates = (published.length > 0 ? published : [active]).filter(Boolean)
-      const liveSummaries = await Promise.all(liveSummaryCandidates.map((evt) => fetchEventSummary(evt.id)))
-      for (const item of liveSummaries) {
-        const matchingEvent = liveSummaryCandidates.find((evt) => String(evt.id) === String(item.event_id))
+      const liveSummarySettled = await Promise.allSettled(
+        liveSummaryCandidates.map((evt) => fetchEventSummary(evt.id))
+      )
+
+      for (const result of liveSummarySettled) {
+        if (result.status !== "fulfilled") continue
+
+        const item = result.value
+        const matchingEvent = liveSummaryCandidates.find((evt) => String(evt.id) === String(item?.event_id))
         const eventTypeKey = String(matchingEvent?.event_type || "unspecified").trim().toLowerCase() || "unspecified"
         const existing = summariesByType[eventTypeKey] || {
           label: formatEventType(eventTypeKey),
@@ -217,6 +216,19 @@ function Dashboard() {
           normalizeFlexibleVolunteerGroupCounts(item.volunteer_flexible_group_counts)
         )
         summariesByType[eventTypeKey] = existing
+      }
+
+      const hasLiveSummaryData = Object.keys(summariesByType).length > 0
+      if (!hasLiveSummaryData) {
+        const fallbackTypeKey = String(active?.event_type || "unspecified").trim().toLowerCase() || "unspecified"
+        summariesByType[fallbackTypeKey] = {
+          label: formatEventType(fallbackTypeKey),
+          volunteers: Number(summary.volunteer_count) || 0,
+          versatile: Number(summary.versatile_volunteer_count) || 0,
+          roleCounts: normalizeVolunteerTypeCounts(summary.volunteer_type_counts),
+          groupCounts: normalizeVolunteerGroupCounts(summary.volunteer_group_counts),
+          flexibleGroupCounts: normalizeFlexibleVolunteerGroupCounts(summary.volunteer_flexible_group_counts),
+        }
       }
 
       setVolunteerBreakdownByType(summariesByType)

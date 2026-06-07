@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import EventActionsDropdown from "../components/EventActionsDropdown"
 import BackButton from "../components/BackButton"
 import { archiveEvent, cancelEvent, deleteEvent, exportEventRemovalLogCsv, fetchEventRemovalLog } from "../api/events"
+import { normalizeExternalUrl } from "../utils/externalUrl"
 
 const EVENT_TYPE_FILTER_KEY = "sfa.events.selectedType"
 
@@ -69,14 +70,6 @@ function getEventTypeRowTone(eventType) {
     rowClass: "bg-white hover:bg-gray-50",
     pillClass: "border-gray-200 bg-gray-50 text-secondary",
   }
-}
-
-function normalizeExternalUrl(rawUrl) {
-  const value = String(rawUrl || "").trim()
-  if (!value) return null
-  if (/^https?:\/\//i.test(value)) return value
-  if (value.startsWith("//")) return `https:${value}`
-  return `https://${value}`
 }
 
 export default function Events() {

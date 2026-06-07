@@ -10,6 +10,7 @@ import Button from "../components/Button"
 import Card from "../components/Card"
 import SyncStateIndicator from "../components/SyncStateIndicator"
 import ParticipantForm from "../components/ParticipantForm"
+import { normalizeExternalUrl } from "../utils/externalUrl"
 
 import {
   DndContext,
@@ -102,14 +103,6 @@ function buildMapUrl(eventInfo) {
   }
 
   return null
-}
-
-function normalizeExternalUrl(rawUrl) {
-  const value = String(rawUrl || "").trim()
-  if (!value) return null
-  if (/^https?:\/\//i.test(value)) return value
-  if (value.startsWith("//")) return `https:${value}`
-  return `https://${value}`
 }
 
 function buildWeatherUrl(eventInfo) {
