@@ -553,7 +553,9 @@ function EventDetail() {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [bulkAssignLoading, setBulkAssignLoading] = useState(false)
   const [bulkAssignMessage, setBulkAssignMessage] = useState("")
+  const [intakeActionMessage, setIntakeActionMessage] = useState("")
   const [bulkAssignSmartMode, setBulkAssignSmartMode] = useState(false)
+  const [assigningRecommendedById, setAssigningRecommendedById] = useState({})
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingParticipant, setEditingParticipant] = useState(null)
   const [sessionStatsById, setSessionStatsById] = useState({})
@@ -1252,6 +1254,17 @@ function EventDetail() {
   }))
 
   const isVolunteer = (participant) => (participant?.role || "").toLowerCase().trim() === "volunteer"
+  const intakeUnassignedCount = participants.filter((participant) => (
+    !participant?.removed_at
+    && !isVolunteer(participant)
+    && !participant?.is_waitlisted
+    && !participant?.session_id
+  )).length
+  const intakeWaitlistedCount = participants.filter((participant) => (
+    !participant?.removed_at
+    && !isVolunteer(participant)
+    && Boolean(participant?.is_waitlisted)
+  )).length
 
   const getSessionCapacity = (sessionId) => {
     const matchedSession = (Array.isArray(eventInfo?.sessions) ? eventInfo.sessions : []).find(
@@ -1881,6 +1894,37 @@ function EventDetail() {
     await handleMoveParticipant(participantId, targetSessionId)
   }
 
+  async function handleAssignTopRecommendation(participant) {
+    const participantId = String(participant?.id || "")
+    if (!participantId || assigningRecommendedById[participantId]) return
+
+    const participantName = `${participant?.first_name || "Participant"} ${participant?.last_name || ""}`.trim()
+    setIntakeActionMessage("")
+    setAssigningRecommendedById((prev) => ({ ...prev, [participantId]: true }))
+
+    try {
+      const recommendations = await fetchRecommendedSessions(participantId)
+      const targetSessionId = String(recommendations?.[0]?.session_id || "")
+
+      if (!targetSessionId) {
+        setIntakeActionMessage(`No recommendation available for ${participantName}.`)
+        return
+      }
+
+      await queueAssignment(participantId, targetSessionId)
+      await refreshParticipants()
+      setIntakeActionMessage(`Assigned ${participantName} to the top recommended session.`)
+    } catch {
+      setIntakeActionMessage(`Could not assign ${participantName} from recommendation.`)
+    } finally {
+      setAssigningRecommendedById((prev) => {
+        const next = { ...prev }
+        delete next[participantId]
+        return next
+      })
+    }
+  }
+
   // Add a button to auto-assign all unassigned participants
   // Use existing queueAssignment and recommendation endpoint
   async function handleAutoAssignUnassignedParticipants() {
@@ -2357,6 +2401,8 @@ function EventDetail() {
       }
     };
     const isVolunteerCard = (p.role || "").trim().toLowerCase() === "volunteer"
+    const showRecommendedAssign = !isVolunteerCard && !p.session_id && !p.is_waitlisted && !p.removed_at
+    const assigningRecommended = Boolean(assigningRecommendedById[String(p.id)])
     const baseRoleCardClass = isVolunteerCard
       ? "bg-cyan-50/45 border-cyan-200"
       : "bg-amber-50/35 border-amber-200"
@@ -2402,6 +2448,21 @@ function EventDetail() {
         <div className="text-xs text-secondary">
           {p.email}
         </div>
+        {showRecommendedAssign && (
+          <button
+            type="button"
+            onPointerDown={(e) => { e.stopPropagation() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleAssignTopRecommendation(p)
+            }}
+            disabled={assigningRecommended}
+            className={`mt-2 w-full rounded border px-2 py-1 text-xs font-semibold ${assigningRecommended ? "cursor-not-allowed border-gray-300 bg-gray-100 text-gray-500" : "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"}`}
+            title="Assign this participant to the top recommended session"
+          >
+            {assigningRecommended ? "Assigning..." : "Assign Top Recommendation"}
+          </button>
+        )}
         {p.requires_assistance && (
           <span className="mt-1 inline-flex items-center rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800">
             Needs Assistance
@@ -2778,6 +2839,28 @@ function EventDetail() {
             {bulkAssignMessage && (
               <p className="whitespace-pre-line text-xs text-secondary">{bulkAssignMessage}</p>
             )}
+            {intakeActionMessage && (
+              <p className="text-xs text-sky-700">{intakeActionMessage}</p>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Card.Header>Intake Queue</Card.Header>
+            <p className="mt-1 text-sm text-secondary">
+              Public registrations enter as unassigned participants and can be assigned in one click from recommendation.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-medium text-sky-800">
+              Unassigned Intake: {intakeUnassignedCount}
+            </span>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-medium text-amber-800">
+              Waitlisted: {intakeWaitlistedCount}
+            </span>
           </div>
         </div>
       </Card>
