@@ -79,7 +79,14 @@ function App() {
           setProfile(nextProfile)
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        const message = String(error?.message || "").toLowerCase()
+        const isOffline = typeof navigator !== "undefined" && navigator.onLine === false
+        const isNetworkFailure = message.includes("failed to fetch") || message.includes("network")
+
+        // Keep the current auth session during offline/network interruptions.
+        if (isOffline || isNetworkFailure) return
+
         clearAuthSession()
       })
 

@@ -138,6 +138,35 @@ Validation evidence:
 - `get_errors` clean for touched files.
 - `npm run build` succeeded in `admin-app`.
 
+---
+
+## Session Delta (Committed - June 7, RC1 Offline Validation Auth Continuity Fix) — <pending_commit>
+
+Status: Pending commit
+
+Defect classification:
+- RC1 Blocker
+- Area: Offline validation / operator session continuity
+- Symptom: During offline check-in actions, the app redirected to `/login`, interrupting operator workflow.
+
+Root cause:
+- `fetchMyProfile(...).catch(...)` in `admin-app/src/App.jsx` cleared auth session for any profile fetch error, including offline/network failures.
+
+Fix summary (minimal scope):
+- Updated profile refresh error handling to preserve auth session on offline/network fetch failures.
+- Continued to clear auth session for non-network failures.
+
+File touchpoints:
+- `admin-app/src/App.jsx`
+
+Validation evidence:
+- Reproduced pre-fix failure: offline check-in requests caused redirect to `/login`.
+- Post-fix behavior: offline check-in flow remained in-app, showed offline queue status, and preserved operator session.
+- Reconnection behavior confirmed: pending queue synced on reconnect; rejected updates surfaced as failed sync with retry/dismiss controls.
+
+Notes:
+- Docs build artifacts were intentionally left uncommitted during RC1 validation phases unless release publication is explicitly requested.
+
 ## 🔒 Backend Deployment & Auth – Locked Decisions
 
 ### Deployment (Render)
