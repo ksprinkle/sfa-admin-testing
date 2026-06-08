@@ -118,11 +118,65 @@
       margin-bottom: 6px;
     }
 
+    .event-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .event-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbfdff;
+    }
+
+    .event-item h4 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+
+    .event-meta {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .event-actions {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr;
+    }
+
+    .event-link {
+      font-size: 12px;
+      color: var(--primary-strong);
+      word-break: break-all;
+    }
+
+    @media (min-width: 640px) {
+      .event-actions {
+        grid-template-columns: auto 1fr;
+        align-items: center;
+      }
+    }
+
     .hidden { display: none; }
   </style>
 </head>
 <body>
   <main class="shell">
+    <section class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div>
+          <h1 style="margin-bottom:4px;">Open Events</h1>
+          <p class="muted" style="margin-bottom:0;">Select an open event to start registration. This list updates from live event settings.</p>
+        </div>
+        <button id="refreshEventsButton" class="btn secondary" type="button" style="width:auto;">Refresh List</button>
+      </div>
+      <div id="openEventsStatus" class="status"></div>
+      <div id="openEventsList" class="event-list"></div>
+    </section>
+
     <section class="card">
       <h1>Participant Registration</h1>
       <p class="muted">Use your event slug to load registration details and submit intake.</p>
@@ -208,6 +262,9 @@
       const eventSlugInput = document.getElementById("eventSlug");
       const loadEventButton = document.getElementById("loadEventButton");
       const loadStatus = document.getElementById("loadStatus");
+      const refreshEventsButton = document.getElementById("refreshEventsButton");
+      const openEventsStatus = document.getElementById("openEventsStatus");
+      const openEventsList = document.getElementById("openEventsList");
       const eventCard = document.getElementById("eventCard");
       const registerCard = document.getElementById("registerCard");
       const eventTitle = document.getElementById("eventTitle");
@@ -238,6 +295,90 @@
       function parseSlugFromQuery() {
         const params = new URLSearchParams(window.location.search);
         return String(params.get("slug") || "").trim();
+      }
+
+      function toLocationLabel(location) {
+        if (!location) return "Location TBD";
+        return [location.venue, location.city, location.state].filter(Boolean).join(", ") || "Location TBD";
+      }
+
+      function toRegistrationLink(slug) {
+        return window.location.origin + window.location.pathname + "?slug=" + encodeURIComponent(slug);
+      }
+
+      function renderOpenEvents(events) {
+        openEventsList.innerHTML = "";
+
+        if (!events.length) {
+          openEventsList.innerHTML = '<p class="muted">No open events are currently available for participant registration.</p>';
+          return;
+        }
+
+        events.forEach(function (event) {
+          const wrapper = document.createElement("article");
+          wrapper.className = "event-item";
+
+          const title = document.createElement("h4");
+          title.textContent = event.title || "Untitled Event";
+
+          const meta = document.createElement("p");
+          meta.className = "event-meta";
+          meta.textContent = toDateLabel(event.start_date, event.end_date) + " • " + toLocationLabel(event.location);
+
+          const actions = document.createElement("div");
+          actions.className = "event-actions";
+
+          const selectButton = document.createElement("button");
+          selectButton.type = "button";
+          selectButton.className = "btn";
+          selectButton.style.width = "auto";
+          selectButton.textContent = "Use This Event";
+          selectButton.addEventListener("click", function () {
+            eventSlugInput.value = event.slug;
+            loadEvent();
+          });
+
+          const link = document.createElement("a");
+          link.className = "event-link";
+          link.href = toRegistrationLink(event.slug);
+          link.textContent = link.href;
+
+          actions.appendChild(selectButton);
+          actions.appendChild(link);
+
+          wrapper.appendChild(title);
+          wrapper.appendChild(meta);
+          wrapper.appendChild(actions);
+          openEventsList.appendChild(wrapper);
+        });
+      }
+
+      async function loadOpenEvents() {
+        setStatus(openEventsStatus, "Loading open events...", "");
+
+        try {
+          const res = await fetch(apiBase + "/api/events", {
+            method: "GET",
+            headers: { "Accept": "application/json" }
+          });
+
+          if (!res.ok) {
+            throw new Error("Could not load open events.");
+          }
+
+          const events = await res.json();
+          const openEvents = Array.isArray(events)
+            ? events.filter(function (event) {
+              return Boolean(event && event.participant_available);
+            })
+            : [];
+
+          renderOpenEvents(openEvents);
+          setStatus(openEventsStatus, openEvents.length + " open event" + (openEvents.length === 1 ? "" : "s") + " available.", "ok");
+        } catch (err) {
+          renderOpenEvents([]);
+          setStatus(openEventsStatus, String(err && err.message ? err.message : "Failed to load open events."), "err");
+        }
       }
 
       async function loadEvent() {
@@ -341,11 +482,14 @@
       }
 
       loadEventButton.addEventListener("click", loadEvent);
+      refreshEventsButton.addEventListener("click", loadOpenEvents);
       form.addEventListener("submit", submitRegistration);
       clearButton.addEventListener("click", function () {
         form.reset();
         setStatus(submitStatus, "", "");
       });
+
+      loadOpenEvents();
 
       const slugFromQuery = parseSlugFromQuery();
       if (slugFromQuery) {
