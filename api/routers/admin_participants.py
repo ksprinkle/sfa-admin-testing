@@ -28,6 +28,7 @@ from api.services.session_service import (
 from api.services.assignment_evaluator import evaluate_assignment
 from api.services.session_recommender import recommend_sessions
 from api.models.participant_removal_log import ParticipantRemovalLog
+from api.models.participant_waivers import ParticipantWaiver
 
 
 def _is_volunteer_role(value: str | None) -> bool:
@@ -58,6 +59,38 @@ class BatchAssignmentEvaluationIn(BaseModel):
 
 def _base_active_participant_query(db: DBSession):
     return db.query(Participant).filter(Participant.removed_at.is_(None))
+
+
+def _upsert_verified_waiver(
+    db: DBSession,
+    participant: Participant,
+    *,
+    source: str,
+    waiver_version: str | None,
+    note: str | None,
+    verified_by_user_id: str | None,
+):
+    waiver = participant.waiver
+    if waiver is None:
+        waiver = ParticipantWaiver(participant_id=participant.id)
+        db.add(waiver)
+
+    waiver.status = "verified"
+    waiver.source = source
+    waiver.waiver_version = (waiver_version or "").strip() or waiver.waiver_version
+    waiver.verified_at = datetime.utcnow()
+    waiver.verified_by_user_id = verified_by_user_id
+    waiver.notes = (note or "").strip() or None
+
+
+def _clear_verified_waiver(participant: Participant):
+    waiver = participant.waiver
+    if waiver is None:
+        return
+
+    waiver.status = "pending"
+    waiver.verified_at = None
+    waiver.verified_by_user_id = None
 
 
 def _derive_event_session_stats(db: DBSession, event_id: UUID):
@@ -328,6 +361,10 @@ async def update_participant(
         else:
             participant.is_waitlisted = False
 
+    waiver_source = updates.pop("waiver_source", None) or "staff_override"
+    waiver_version = updates.pop("waiver_version", None)
+    waiver_note = updates.pop("waiver_note", None)
+
     for field in [
         "first_name",
         "last_name",
@@ -367,6 +404,21 @@ async def update_participant(
         else:
             participant.checked_in = False
             participant.checked_in_at = None
+
+    if "waiver_verified" in updates:
+        current_user_id = str(getattr(_current_user, "id", "") or "") or None
+        if updates["waiver_verified"]:
+            participant.waiver_signed = True
+            _upsert_verified_waiver(
+                db,
+                participant,
+                source=waiver_source,
+                waiver_version=waiver_version,
+                note=waiver_note,
+                verified_by_user_id=current_user_id,
+            )
+        else:
+            _clear_verified_waiver(participant)
 
     try:
         db.commit()
@@ -470,6 +522,12 @@ def create_admin_participant(
         "priority": participant.priority,
         "waiver_signed": participant.waiver_signed,
         "waiver_verified": participant.waiver_verified,
+        "waiver_source": None,
+        "waiver_version": None,
+        "waiver_verified_at": None,
+        "waiver_verified_by_user_id": None,
+        "waiver_verified_by_email": None,
+        "waiver_notes": None,
         "event_title": event.title,
         "event_type": event.event_type,
         "session_name": target_session.name if target_session else None,
@@ -514,6 +572,16 @@ def participant_action(
 
     elif action.action == "verify_waiver":
         participant.waiver_verified = True
+        participant.waiver_signed = True
+        current_user_id = str(getattr(_current_user, "id", "") or "") or None
+        _upsert_verified_waiver(
+            db,
+            participant,
+            source=action.waiver_source or "staff_override",
+            waiver_version=action.waiver_version,
+            note=action.waiver_note,
+            verified_by_user_id=current_user_id,
+        )
 
     elif action.action == "move_to_waitlist":
         participant.is_waitlisted = True
@@ -665,7 +733,11 @@ def list_all_participants(
     _current_user = Depends(require_admin),
 ):
 
-    query = db.query(Participant).options(joinedload(Participant.event), joinedload(Participant.session)).filter(Participant.removed_at.is_(None))
+    query = db.query(Participant).options(
+        joinedload(Participant.event),
+        joinedload(Participant.session),
+        joinedload(Participant.waiver).joinedload(ParticipantWaiver.verifier),
+    ).filter(Participant.removed_at.is_(None))
 
     if search:
         search = f"%{search.lower()}%"
@@ -716,6 +788,16 @@ def list_all_participants(
             "is_waitlisted": p.is_waitlisted,
             "waiver_signed": p.waiver_signed,
             "waiver_verified": p.waiver_verified,
+            "waiver_source": (p.waiver.source if p.waiver else None),
+            "waiver_version": (p.waiver.waiver_version if p.waiver else None),
+            "waiver_verified_at": (p.waiver.verified_at if p.waiver else None),
+            "waiver_verified_by_user_id": (p.waiver.verified_by_user_id if p.waiver else None),
+            "waiver_verified_by_email": (
+                p.waiver.verifier.email
+                if p.waiver and p.waiver.verifier is not None
+                else None
+            ),
+            "waiver_notes": (p.waiver.notes if p.waiver else None),
             "event_title": p.event.title if p.event else None,
             "event_type": p.event.event_type if p.event else None,
             "session_name": p.session.name if p.session else None,

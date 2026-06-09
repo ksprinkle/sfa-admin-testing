@@ -48,6 +48,12 @@ class Participant(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     event = relationship("Event", back_populates="participants")
+    waiver = relationship(
+        "ParticipantWaiver",
+        back_populates="participant",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     notes = Column(String, nullable=True)
     
     __table_args__ = (

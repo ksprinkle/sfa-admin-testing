@@ -205,6 +205,9 @@ class ParticipantAction(BaseModel):
         "other",
     ]] = None
     removal_reason_note: Optional[str] = None
+    waiver_source: Optional[Literal["digital", "paper", "staff_override"]] = None
+    waiver_version: Optional[str] = None
+    waiver_note: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_remove_reason(self):
@@ -236,6 +239,12 @@ class AdminParticipantListOut(BaseModel):
     priority: int
     waiver_signed: bool
     waiver_verified: bool
+    waiver_source: Optional[str] = None
+    waiver_version: Optional[str] = None
+    waiver_verified_at: Optional[datetime] = None
+    waiver_verified_by_user_id: Optional[str] = None
+    waiver_verified_by_email: Optional[str] = None
+    waiver_notes: Optional[str] = None
     event_title: str | None = None
     event_type: Optional[str] = None
     session_name: Optional[str] = None
@@ -271,6 +280,9 @@ class ParticipantUpdate(BaseModel):
     priority: Optional[int] = None
     waiver_signed: Optional[bool] = None
     waiver_verified: Optional[bool] = None
+    waiver_source: Optional[Literal["digital", "paper", "staff_override"]] = None
+    waiver_version: Optional[str] = None
+    waiver_note: Optional[str] = None
     checked_in: Optional[bool] = None
     notes: Optional[str] = None
     session_id: Optional[UUID] = None
