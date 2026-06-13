@@ -245,6 +245,7 @@ class AdminParticipantListOut(BaseModel):
     waiver_verified_by_user_id: Optional[str] = None
     waiver_verified_by_email: Optional[str] = None
     waiver_notes: Optional[str] = None
+    derived_waiver_status: Optional[str] = None
     event_title: str | None = None
     event_type: Optional[str] = None
     session_name: Optional[str] = None

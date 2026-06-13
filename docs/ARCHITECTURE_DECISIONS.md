@@ -122,3 +122,43 @@ Rationale:
 - Assignment improvements
 - Capacity planning
 - Reporting
+
+## ADR-006: Phase 2.1 Waiver Lifecycle Engine
+Date: 2026-06-13
+Status: Accepted
+
+Decision:
+- Expand waiver domain status lifecycle to:
+  - `draft`
+  - `sent`
+  - `viewed`
+  - `signed`
+  - `archived`
+  - `superseded`
+- Preserve backward compatibility for legacy statuses by mapping:
+  - `pending` -> `draft`
+  - `verified` -> `signed`
+- Keep existing participant waiver booleans in place for stable check-in and participant workflows.
+
+Rationale:
+- Enables staged digital-waiver capabilities without breaking approved event-day behavior.
+
+## ADR-007: Phase 2.1 Waiver Versioning and Audit Event Structure
+Date: 2026-06-13
+Status: Accepted
+
+Decision:
+- Keep one active waiver row per participant (current architecture) and track waiver revision metadata on the waiver record.
+- Add lifecycle timestamps (`sent_at`, `viewed_at`, `signed_at`, `archived_at`, `superseded_at`) plus lifecycle update timestamp.
+- Add `waiver_audit_events` table for immutable event records including:
+  - event type
+  - from status
+  - to status
+  - actor user id
+  - source
+  - JSON details payload
+  - created timestamp
+- Define derived participant waiver status from waiver entity first, then participant compatibility booleans.
+
+Rationale:
+- Establishes legal and operational traceability required for later secure signing, delivery, and reporting milestones.

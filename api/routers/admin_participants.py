@@ -29,6 +29,12 @@ from api.services.assignment_evaluator import evaluate_assignment
 from api.services.session_recommender import recommend_sessions
 from api.models.participant_removal_log import ParticipantRemovalLog
 from api.models.participant_waivers import ParticipantWaiver
+from api.services.waiver_lifecycle import (
+    STATUS_DRAFT,
+    STATUS_SIGNED,
+    derive_participant_waiver_status,
+    transition_waiver_status,
+)
 
 
 def _is_volunteer_role(value: str | None) -> bool:
@@ -74,23 +80,50 @@ def _upsert_verified_waiver(
     if waiver is None:
         waiver = ParticipantWaiver(participant_id=participant.id)
         db.add(waiver)
+        db.flush()
 
-    waiver.status = "verified"
     waiver.source = source
     waiver.waiver_version = (waiver_version or "").strip() or waiver.waiver_version
+    waiver.current_revision = max(1, int(waiver.current_revision or 1))
     waiver.verified_at = datetime.utcnow()
+    waiver.signed_at = waiver.verified_at
     waiver.verified_by_user_id = verified_by_user_id
     waiver.notes = (note or "").strip() or None
 
+    transition_waiver_status(
+        db,
+        waiver,
+        to_status=STATUS_SIGNED,
+        actor_user_id=verified_by_user_id,
+        source=source,
+        event_type="waiver_verified",
+        details={
+            "waiver_version": waiver.waiver_version,
+            "note": waiver.notes,
+        },
+        occurred_at=waiver.verified_at,
+    )
 
-def _clear_verified_waiver(participant: Participant):
+
+def _clear_verified_waiver(db: DBSession, participant: Participant, *, actor_user_id: str | None):
     waiver = participant.waiver
     if waiver is None:
         return
 
-    waiver.status = "pending"
+    waiver.status = STATUS_DRAFT
     waiver.verified_at = None
     waiver.verified_by_user_id = None
+    waiver.signed_at = None
+
+    transition_waiver_status(
+        db,
+        waiver,
+        to_status=STATUS_DRAFT,
+        actor_user_id=actor_user_id,
+        source=waiver.source,
+        event_type="waiver_reset",
+        details={"reason": "admin_unverify"},
+    )
 
 
 def _derive_event_session_stats(db: DBSession, event_id: UUID):
@@ -418,7 +451,7 @@ async def update_participant(
                 verified_by_user_id=current_user_id,
             )
         else:
-            _clear_verified_waiver(participant)
+            _clear_verified_waiver(db, participant, actor_user_id=current_user_id)
 
     try:
         db.commit()
@@ -528,6 +561,11 @@ def create_admin_participant(
         "waiver_verified_by_user_id": None,
         "waiver_verified_by_email": None,
         "waiver_notes": None,
+        "derived_waiver_status": derive_participant_waiver_status(
+            waiver=None,
+            waiver_signed=bool(participant.waiver_signed),
+            waiver_verified=bool(participant.waiver_verified),
+        ),
         "event_title": event.title,
         "event_type": event.event_type,
         "session_name": target_session.name if target_session else None,
@@ -798,6 +836,11 @@ def list_all_participants(
                 else None
             ),
             "waiver_notes": (p.waiver.notes if p.waiver else None),
+            "derived_waiver_status": derive_participant_waiver_status(
+                waiver=p.waiver,
+                waiver_signed=bool(p.waiver_signed),
+                waiver_verified=bool(p.waiver_verified),
+            ),
             "event_title": p.event.title if p.event else None,
             "event_type": p.event.event_type if p.event else None,
             "session_name": p.session.name if p.session else None,

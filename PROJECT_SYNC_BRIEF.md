@@ -89,6 +89,35 @@ Current workspace status: local working tree contains additional uncommitted non
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
 
+## Session Delta (Pending Commit - June 13, Phase 2.1 Waiver Lifecycle Foundation) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Built on top of v1.0.0 baseline behavior.
+- No UI behavior changes.
+- No email/SMS delivery.
+- No PDF generation.
+- No signature-capture UI.
+
+Behavior summary:
+- Expanded waiver domain lifecycle support to `draft`, `sent`, `viewed`, `signed`, `archived`, `superseded` while preserving compatibility with legacy `pending` and `verified` values.
+- Added waiver lifecycle transition service with transition validation and audit-event write-through.
+- Added immutable waiver audit-event structure (`waiver_audit_events`) to track status changes, actor, source, and details.
+- Added derived participant waiver status computation from waiver entity + compatibility booleans.
+- Preserved existing participant check-in and waiver verification workflows.
+
+File touchpoints:
+- `api/models/participant_waivers.py`
+- `api/models/waiver_audit_events.py`
+- `api/models/__init__.py`
+- `api/services/waiver_lifecycle.py`
+- `api/routers/admin_participants.py`
+- `api/schemas/participants.py`
+- `alembic/versions/t1c9e3a7b2d4_add_waiver_lifecycle_and_audit_events.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PHASE2_IMPLEMENTATION_PLAN.md`
+
 ## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e
 
 Status: Committed
