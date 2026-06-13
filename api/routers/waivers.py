@@ -1,20 +1,27 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session as DBSession, joinedload
 
 from api.db.session import get_db
 from api.dependencies import require_admin
 from api.models.participants import Participant
-from api.models.participant_waivers import ParticipantWaiver
 from api.schemas.waivers import (
     WaiverCreateTokenIn,
     WaiverCreateTokenOut,
+    WaiverPdfArtifactOut,
     WaiverPublicSignIn,
     WaiverPublicSignOut,
     WaiverPublicViewOut,
 )
 from api.services.waiver_lifecycle import record_waiver_audit_event
+from api.services.waiver_pdf_archive import (
+    create_or_get_waiver_pdf_artifact,
+    get_latest_pdf_artifact_for_waiver,
+    get_waiver_with_context,
+    resolve_artifact_file_path,
+)
 from api.services.waiver_signing import (
     complete_public_signing,
     create_signing_token,
@@ -24,6 +31,96 @@ from api.services.waiver_signing import (
 )
 
 router = APIRouter(prefix="/waivers", tags=["Waivers"])
+
+
+@router.post("/{waiver_id}/pdf/generate", response_model=WaiverPdfArtifactOut)
+def generate_waiver_pdf_artifact(
+    waiver_id: UUID,
+    db: DBSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    waiver = get_waiver_with_context(db, waiver_id)
+    actor_user_id = str(getattr(current_user, "id", "") or "") or None
+
+    artifact, created = create_or_get_waiver_pdf_artifact(
+        db,
+        waiver=waiver,
+        actor_user_id=actor_user_id,
+    )
+    db.commit()
+    db.refresh(artifact)
+
+    response = {
+        "id": artifact.id,
+        "waiver_id": artifact.waiver_id,
+        "participant_id": artifact.participant_id,
+        "waiver_version": artifact.waiver_version,
+        "waiver_revision": artifact.waiver_revision,
+        "storage_path": artifact.storage_path,
+        "mime_type": artifact.mime_type,
+        "sha256_hash": artifact.sha256_hash,
+        "byte_size": artifact.byte_size,
+        "is_immutable": artifact.is_immutable,
+        "generated_at": artifact.generated_at,
+        "generated_by_user_id": artifact.generated_by_user_id,
+        "already_exists": not created,
+    }
+    return response
+
+
+@router.get("/{waiver_id}/pdf", response_model=WaiverPdfArtifactOut)
+def get_waiver_pdf_artifact_metadata(
+    waiver_id: UUID,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    artifact = get_latest_pdf_artifact_for_waiver(db, waiver_id)
+    return {
+        "id": artifact.id,
+        "waiver_id": artifact.waiver_id,
+        "participant_id": artifact.participant_id,
+        "waiver_version": artifact.waiver_version,
+        "waiver_revision": artifact.waiver_revision,
+        "storage_path": artifact.storage_path,
+        "mime_type": artifact.mime_type,
+        "sha256_hash": artifact.sha256_hash,
+        "byte_size": artifact.byte_size,
+        "is_immutable": artifact.is_immutable,
+        "generated_at": artifact.generated_at,
+        "generated_by_user_id": artifact.generated_by_user_id,
+        "already_exists": True,
+    }
+
+
+@router.get("/{waiver_id}/pdf/download")
+def download_waiver_pdf_artifact(
+    waiver_id: UUID,
+    db: DBSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    artifact = get_latest_pdf_artifact_for_waiver(db, waiver_id)
+    file_path = resolve_artifact_file_path(artifact)
+
+    waiver = get_waiver_with_context(db, waiver_id)
+    actor_user_id = str(getattr(current_user, "id", "") or "") or None
+    record_waiver_audit_event(
+        db,
+        waiver,
+        event_type="PDF_RETRIEVED",
+        actor_user_id=actor_user_id,
+        source="waiver_pdf_archive",
+        details={
+            "artifact_id": str(artifact.id),
+            "storage_path": artifact.storage_path,
+        },
+    )
+    db.commit()
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=artifact.mime_type,
+        filename=f"waiver-{waiver_id}-r{artifact.waiver_revision}.pdf",
+    )
 
 
 @router.post("/create-token", response_model=WaiverCreateTokenOut)

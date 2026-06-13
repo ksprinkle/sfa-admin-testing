@@ -187,3 +187,16 @@ Decision:
 
 Rationale:
 - Provides predictable operator/user behavior, hardens security boundaries, and preserves an auditable history.
+
+## ADR-010: Phase 2.4 Immutable Waiver PDF Artifacts
+Date: 2026-06-13
+Status: Accepted
+
+Decision:
+- Generate waiver PDFs only for completed signed waivers.
+- Store each PDF as an immutable archived artifact referenced to waiver and revision metadata.
+- Persist archive metadata including waiver id, participant id, waiver version/revision, storage path, generation timestamp, and SHA-256 hash.
+- Expose admin-authorized retrieval endpoints without changing signing workflow behavior.
+
+Rationale:
+- Keeps database waiver record as canonical source while enabling verifiable immutable legal snapshots.

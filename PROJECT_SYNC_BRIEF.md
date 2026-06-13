@@ -151,9 +151,9 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 
-## Session Delta (Pending Commit - June 13, Phase 2.3 Responsive Signing Interface) — <pending_commit>
+## Session Delta (Committed - June 13, Phase 2.3 Responsive Signing Interface) — 222a953
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Presentation layer only.
@@ -173,6 +173,37 @@ Behavior summary:
 
 File touchpoints:
 - `admin-app/public/waiver-signing.html`
+- `PHASE2_IMPLEMENTATION_PLAN.md`
+- `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 13, Phase 2.4 Waiver PDF Archive) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Backend/service layer for immutable artifact generation and retrieval only.
+- No signing workflow redesign.
+- No email/SMS delivery.
+- No dashboard/reporting additions.
+
+Behavior summary:
+- Added signed-only waiver PDF generation with immutable archive persistence.
+- Added waiver PDF artifact metadata model (`waiver_id`, `participant_id`, version/revision, timestamp, storage path, SHA-256, byte size).
+- Added admin-authorized endpoints for artifact generation, metadata retrieval, and PDF download.
+- Added audit events for generation/storage/retrieval (`PDF_GENERATED`, `PDF_STORED`, `PDF_RETRIEVED`).
+- Kept waiver database record as canonical source of truth.
+
+File touchpoints:
+- `api/models/waiver_pdf_artifacts.py`
+- `api/models/participant_waivers.py`
+- `api/models/__init__.py`
+- `api/main.py`
+- `api/services/waiver_pdf_archive.py`
+- `api/routers/waivers.py`
+- `api/schemas/waivers.py`
+- `alembic/versions/v5d2a1c8f4e7_add_waiver_pdf_artifacts.py`
+- `api/requirements.txt`
+- `docs/ARCHITECTURE_DECISIONS.md`
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 - `PROJECT_SYNC_BRIEF.md`
 

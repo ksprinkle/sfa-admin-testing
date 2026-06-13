@@ -12,6 +12,7 @@ import api.models.participant_waivers
 import api.models.participant_removal_log
 import api.models.waiver_audit_events
 import api.models.waiver_signing_tokens
+import api.models.waiver_pdf_artifacts
 import api.models.users
 import api.models.sessions
 import api.models.event_activity_log

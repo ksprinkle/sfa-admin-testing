@@ -89,12 +89,19 @@ Validation checklist:
 ### Phase 2.4 - PDF Generation
 
 Planned deliverables:
-- Immutable PDF generation
-- Storage and retrieval
-- Hash or checksum support
+- [x] Immutable PDF generation
+- [x] Storage and retrieval
+- [x] Hash or checksum support
 
 Planned commit:
 - feat(waiver): generate and archive signed waiver PDFs
+
+Validation checklist:
+- [ ] Diagnostics pass
+- [ ] Build/compile checks pass
+- [ ] Single scoped commit created
+- [ ] Working tree reviewed after commit
+- [ ] stash@{0} still present
 
 ### Phase 2.5 - Email and SMS Delivery
 

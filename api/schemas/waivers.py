@@ -40,3 +40,21 @@ class WaiverPublicSignOut(BaseModel):
     signed_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class WaiverPdfArtifactOut(BaseModel):
+    id: UUID
+    waiver_id: UUID
+    participant_id: UUID
+    waiver_version: str | None = None
+    waiver_revision: int
+    storage_path: str
+    mime_type: str
+    sha256_hash: str
+    byte_size: int
+    is_immutable: bool
+    generated_at: datetime
+    generated_by_user_id: str | None = None
+    already_exists: bool = False
+
+    model_config = ConfigDict(from_attributes=True)

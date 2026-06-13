@@ -65,6 +65,12 @@ class ParticipantWaiver(Base):
         cascade="all, delete-orphan",
         order_by="WaiverSigningToken.created_at.asc()",
     )
+    pdf_artifacts = relationship(
+        "WaiverPdfArtifact",
+        back_populates="waiver",
+        cascade="all, delete-orphan",
+        order_by="WaiverPdfArtifact.generated_at.asc()",
+    )
 
 
 # Domain-forward alias used in Phase 2 documentation and service APIs.
