@@ -8,7 +8,10 @@ from api.db.base import Base
 import api.models.events
 import api.models.event_templates
 import api.models.participants
+import api.models.participant_waivers
 import api.models.participant_removal_log
+import api.models.waiver_audit_events
+import api.models.waiver_signing_tokens
 import api.models.users
 import api.models.sessions
 import api.models.event_activity_log
@@ -25,6 +28,7 @@ from api.routers.auth import router as auth_router
 from api.routers.admin_events import router as admin_events_router
 from api.routers.admin_event_templates import router as admin_event_templates_router
 from api.routers.admin_participants import router as admin_participants_router
+from api.routers.waivers import router as waivers_router
 from api.ws_manager import router as ws_router
 from api.routers.feedback import router as feedback_router
 
@@ -55,6 +59,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(admin_events_router, prefix="/api")
 app.include_router(admin_event_templates_router, prefix="/api")
 app.include_router(admin_participants_router, prefix="/api")
+app.include_router(waivers_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
 

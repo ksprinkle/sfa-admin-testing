@@ -3,6 +3,7 @@ from .event_templates import EventTemplate
 from .participants import Participant
 from .participant_waivers import ParticipantWaiver
 from .waiver_audit_events import WaiverAuditEvent
+from .waiver_signing_tokens import WaiverSigningToken
 from .sessions import Session
 from .participant_removal_log import ParticipantRemovalLog
 from .event_activity_log import EventActivityLog

@@ -48,14 +48,21 @@ Validation checklist:
 ### Phase 2.2 - Secure Signing Workflow
 
 Planned deliverables:
-- Secure token generation
-- Public signing endpoint
-- Expiration handling
-- Validation
-- Replay protection
+- [x] Secure token generation
+- [x] Public signing endpoint
+- [x] Expiration handling
+- [x] Validation
+- [x] Replay protection
 
 Planned commit:
 - feat(waiver): add secure signing workflow
+
+Validation checklist:
+- [ ] Diagnostics pass
+- [ ] Compile/build checks pass
+- [ ] Single scoped commit created
+- [ ] Working tree reviewed after commit
+- [ ] stash@{0} still present
 
 ### Phase 2.3 - Mobile Signing UI
 

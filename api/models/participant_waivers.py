@@ -59,6 +59,12 @@ class ParticipantWaiver(Base):
         cascade="all, delete-orphan",
         order_by="WaiverAuditEvent.created_at.asc()",
     )
+    signing_tokens = relationship(
+        "WaiverSigningToken",
+        back_populates="waiver",
+        cascade="all, delete-orphan",
+        order_by="WaiverSigningToken.created_at.asc()",
+    )
 
 
 # Domain-forward alias used in Phase 2 documentation and service APIs.

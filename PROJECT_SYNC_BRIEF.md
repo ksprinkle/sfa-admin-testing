@@ -118,6 +118,39 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 
+## Session Delta (Pending Commit - June 13, Phase 2.2 Secure Signing Workflow) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- API/service layer only.
+- No PDF generation.
+- No email/SMS delivery.
+- No signature canvas.
+- No admin UI redesign.
+
+Behavior summary:
+- Added cryptographically random, opaque signing tokens with server-side hashed persistence.
+- Added token expiration with deterministic expired-link responses for public endpoints.
+- Added token-based public signing endpoints (`GET` + `POST`) without authentication.
+- Added server-side token validation and replay-safe idempotent sign submission behavior.
+- Added signing-token lifecycle persistence with statuses (`active`, `completed`, `expired`, `invalidated`).
+- Added append-only waiver audit events for token/signing operations (`TOKEN_CREATED`, `TOKEN_VIEWED`, `TOKEN_VALIDATED`, `SIGN_SUBMITTED`, `SIGN_COMPLETED`, `TOKEN_EXPIRED`, `INVALID_ACCESS`).
+- Preserved existing participant/admin workflows and existing admin waiver verification paths.
+
+File touchpoints:
+- `api/models/waiver_signing_tokens.py`
+- `api/services/waiver_signing.py`
+- `api/routers/waivers.py`
+- `api/schemas/waivers.py`
+- `api/services/waiver_lifecycle.py`
+- `api/models/participant_waivers.py`
+- `api/models/__init__.py`
+- `api/main.py`
+- `alembic/versions/u4a7d2c9e1f5_add_waiver_signing_tokens.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PHASE2_IMPLEMENTATION_PLAN.md`
+
 ## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e
 
 Status: Committed

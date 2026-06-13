@@ -120,3 +120,31 @@ def transition_waiver_status(
             details=details,
         )
     )
+
+
+def record_waiver_audit_event(
+    db: Session,
+    waiver: ParticipantWaiver,
+    *,
+    event_type: str,
+    actor_user_id: str | None,
+    source: str | None = None,
+    details: dict[str, Any] | None = None,
+    to_status: str | None = None,
+    from_status: str | None = None,
+) -> None:
+    current_status = canonicalize_waiver_status(waiver.status)
+    normalized_from = canonicalize_waiver_status(from_status) if from_status else current_status
+    normalized_to = canonicalize_waiver_status(to_status) if to_status else current_status
+
+    db.add(
+        WaiverAuditEvent(
+            waiver_id=waiver.id,
+            event_type=event_type,
+            from_status=normalized_from,
+            to_status=normalized_to,
+            actor_user_id=actor_user_id,
+            source=source,
+            details=details,
+        )
+    )

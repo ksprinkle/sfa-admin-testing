@@ -162,3 +162,28 @@ Decision:
 
 Rationale:
 - Establishes legal and operational traceability required for later secure signing, delivery, and reporting milestones.
+
+## ADR-008: Phase 2.2 Tokenized Public Signing Access
+Date: 2026-06-13
+Status: Accepted
+
+Decision:
+- Public signing is token-only and does not expose internal waiver IDs.
+- Signing tokens are cryptographically random, opaque, and stored server-side as hashes.
+- Tokens include issued and expiration timestamps and are time-limited.
+- Public access endpoints are limited to token-based GET/POST signing flow.
+
+Rationale:
+- Minimizes disclosure and enumeration risk while enabling no-auth guardian/participant signing.
+
+## ADR-009: Phase 2.2 Replay and Expiration Behavior
+Date: 2026-06-13
+Status: Accepted
+
+Decision:
+- Completed signing submissions are idempotent: repeated submits with same token return signed result rather than creating duplicates.
+- Expired tokens return deterministic user-facing response without internal details.
+- Significant token/signing actions append waiver audit events (for example: TOKEN_CREATED, TOKEN_VIEWED, TOKEN_VALIDATED, SIGN_SUBMITTED, SIGN_COMPLETED, TOKEN_EXPIRED, INVALID_ACCESS).
+
+Rationale:
+- Provides predictable operator/user behavior, hardens security boundaries, and preserves an auditable history.
