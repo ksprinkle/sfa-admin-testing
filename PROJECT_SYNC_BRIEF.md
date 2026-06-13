@@ -89,9 +89,9 @@ Current workspace status: local working tree contains additional uncommitted non
 Previous release-prep commit: be77f16
 Local release tag: v0.1.0
 
-## Session Delta (Pending Commit - June 13, Phase 2.1 Waiver Lifecycle Foundation) — <pending_commit>
+## Session Delta (Committed - June 13, Phase 2.1 Waiver Lifecycle Foundation) — 3c3bf91
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Built on top of v1.0.0 baseline behavior.
@@ -118,9 +118,9 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 
-## Session Delta (Pending Commit - June 13, Phase 2.2 Secure Signing Workflow) — <pending_commit>
+## Session Delta (Committed - June 13, Phase 2.2 Secure Signing Workflow) — 67966e2
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - API/service layer only.
@@ -150,6 +150,31 @@ File touchpoints:
 - `alembic/versions/u4a7d2c9e1f5_add_waiver_signing_tokens.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PHASE2_IMPLEMENTATION_PLAN.md`
+
+## Session Delta (Pending Commit - June 13, Phase 2.3 Responsive Signing Interface) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Presentation layer only.
+- Uses existing Phase 2.2 waiver token APIs.
+- No backend workflow redesign.
+- No PDF generation.
+- No email/SMS delivery.
+
+Behavior summary:
+- Added a standalone responsive signing page for phone, tablet, and desktop at `admin-app/public/waiver-signing.html`.
+- Added signature canvas support for touch, stylus, and mouse pointer input.
+- Added Undo/Redo/Clear signature controls with large touch targets.
+- Added typed-name fallback, required terms acceptance, and client-side validation.
+- Added deterministic UI handling for invalid/expired/already-signed token states using existing API responses.
+- Added temporary local draft persistence for partial form/signature state across refresh/orientation changes.
+- Added accessible focus indicators, keyboard-reachable controls, and assistive labels.
+
+File touchpoints:
+- `admin-app/public/waiver-signing.html`
+- `PHASE2_IMPLEMENTATION_PLAN.md`
+- `PROJECT_SYNC_BRIEF.md`
 
 ## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e
 

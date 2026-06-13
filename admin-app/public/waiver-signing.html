@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SFA Waiver Signing</title>
+  <style>
+    :root {
+      --bg: #f2f6f9;
+      --surface: #ffffff;
+      --surface-alt: #f8fbfd;
+      --text: #123049;
+      --muted: #5b7288;
+      --line: #ccdae5;
+      --brand: #0a6ea8;
+      --brand-strong: #0a537d;
+      --ok: #13603a;
+      --warn: #975200;
+      --err: #9d1f1f;
+      --focus: #1678b7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 680px at 102% -5%, #d7eaf8 0%, transparent 56%),
+        radial-gradient(1000px 540px at -10% 100%, #d9edf7 0%, transparent 50%),
+        var(--bg);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.4;
+    }
+
+    .shell {
+      width: min(980px, 100% - 24px);
+      margin: 0 auto;
+      padding: 14px 0 26px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 14px 34px rgba(17, 50, 79, 0.11);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+
+    .card-head {
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid #e3edf4;
+      background: linear-gradient(180deg, #fafdff 0%, #f6fafd 100%);
+    }
+
+    .card-body { padding: 16px; }
+
+    h1, h2, h3, p { margin: 0 0 10px; }
+    h1 { font-size: clamp(1.2rem, 2vw, 1.6rem); }
+    h2 { font-size: clamp(1rem, 1.7vw, 1.25rem); }
+
+    .muted { color: var(--muted); }
+
+    .row {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 860px) {
+      .two-col {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 14px;
+      }
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      border: 1px solid #aecdde;
+      background: #e9f5fc;
+      color: #0b628f;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 11px;
+      margin-top: 6px;
+    }
+
+    .status-panel {
+      border: 1px solid #c8dae8;
+      background: var(--surface-alt);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .status-panel.ok { border-color: #8ec6ad; background: #f1fbf5; color: var(--ok); }
+    .status-panel.warn { border-color: #ebc784; background: #fff8eb; color: var(--warn); }
+    .status-panel.err { border-color: #e6a6a6; background: #fff1f1; color: var(--err); }
+
+    .field {
+      margin-bottom: 11px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 12px;
+      font: inherit;
+      background: #fff;
+      color: var(--text);
+      min-height: 44px;
+    }
+
+    input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      accent-color: var(--brand);
+      margin: 1px 10px 0 0;
+      flex: 0 0 auto;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      font-weight: 600;
+      gap: 0;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #fff;
+      min-height: 52px;
+    }
+
+    .check-row span { margin-top: 1px; }
+
+    input:focus-visible,
+    textarea:focus-visible,
+    button:focus-visible,
+    a:focus-visible,
+    .canvas-wrap:focus-visible {
+      outline: 3px solid rgba(22, 120, 183, 0.25);
+      outline-offset: 2px;
+      border-color: var(--focus);
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr;
+      margin-top: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .actions {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .btn {
+      min-height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 11px 12px;
+      transition: 0.18s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+    .btn.primary {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+    }
+    .btn.primary:hover { background: var(--brand-strong); }
+    .btn.ghost { color: #0b5d8b; border-color: #9fc3d9; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .canvas-wrap {
+      border: 1px solid #aac8dc;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #fcfeff 0%, #f6fbff 100%);
+      box-shadow: inset 0 1px 0 #fff;
+      padding: 10px;
+    }
+
+    #signatureCanvas {
+      width: 100%;
+      height: min(260px, 38vh);
+      min-height: 190px;
+      border: 1px dashed #95b8d0;
+      border-radius: 10px;
+      background: #fff;
+      touch-action: none;
+      cursor: crosshair;
+      display: block;
+    }
+
+    .canvas-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .stack > * + * { margin-top: 12px; }
+
+    .hidden { display: none !important; }
+
+    .confirm {
+      text-align: center;
+      padding: 30px 16px 34px;
+    }
+
+    .confirm-mark {
+      display: inline-flex;
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(145deg, #1d8f59, #0f6b40);
+      box-shadow: 0 10px 26px rgba(19, 96, 58, 0.28);
+      margin-bottom: 14px;
+    }
+
+    .inline-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (orientation: landscape) and (max-height: 560px) {
+      #signatureCanvas {
+        height: 170px;
+        min-height: 150px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card" aria-labelledby="waiverTitle">
+      <header class="card-head">
+        <h1 id="waiverTitle">Surfers For Autism Waiver</h1>
+        <p class="muted" id="tokenSummary">Validating secure signing link...</p>
+        <div class="badge" id="tokenBadge" aria-live="polite">Secure link</div>
+      </header>
+      <div class="card-body">
+        <div id="loadingPanel" class="status-panel" role="status" aria-live="polite">
+          Loading waiver details...
+        </div>
+
+        <div id="terminalPanel" class="status-panel hidden" role="status" aria-live="polite"></div>
+
+        <div id="formPanel" class="hidden">
+          <div class="two-col">
+            <section class="card stack" style="margin:0; box-shadow:none; border-color:#d7e3ec;" aria-labelledby="waiverBodyHeading">
+              <div class="card-body">
+                <h2 id="waiverBodyHeading">Review and Accept</h2>
+                <p class="muted">Please review this waiver confirmation before signing.</p>
+                <div class="status-panel" style="margin-top:0;">
+                  <p><strong>Waiver acknowledgement</strong></p>
+                  <p class="muted" style="margin-bottom:8px;">
+                    By signing, you confirm that you are authorized to sign this waiver, you have reviewed the terms,
+                    and you agree to participate under the approved event safety rules.
+                  </p>
+                  <ul class="inline-list">
+                    <li>Signing link is unique and time-limited.</li>
+                    <li>Only one completion is required.</li>
+                    <li>Repeated submissions return the existing signed result.</li>
+                  </ul>
+                </div>
+
+                <div class="field">
+                  <label class="check-row" for="acceptedTerms">
+                    <input id="acceptedTerms" type="checkbox" />
+                    <span>I have read and accept the waiver terms.</span>
+                  </label>
+                </div>
+
+                <div class="field">
+                  <label for="signerName">Signer Name (typed fallback)</label>
+                  <input id="signerName" type="text" autocomplete="name" placeholder="Enter full name" />
+                </div>
+
+                <div class="field">
+                  <label for="relationship">Relationship to Participant (optional)</label>
+                  <input id="relationship" type="text" autocomplete="off" placeholder="Parent, Guardian, Self" />
+                </div>
+
+                <div class="field">
+                  <label for="waiverVersion">Waiver Version (optional)</label>
+                  <input id="waiverVersion" type="text" autocomplete="off" placeholder="e.g. 2026-v1" />
+                </div>
+              </div>
+            </section>
+
+            <section class="card stack" style="margin:0; box-shadow:none; border-color:#d7e3ec;" aria-labelledby="signatureHeading">
+              <div class="card-body">
+                <h2 id="signatureHeading">Signature</h2>
+                <p class="muted">Sign with finger, stylus, or mouse. Use typed-name fallback if needed.</p>
+
+                <div class="canvas-wrap" tabindex="0" aria-label="Signature drawing area container">
+                  <canvas id="signatureCanvas" aria-label="Signature canvas" role="img"></canvas>
+                  <div class="canvas-meta">
+                    <span id="signatureStateText">No signature captured yet.</span>
+                    <span id="autosaveText">Draft saved locally on this device.</span>
+                  </div>
+                </div>
+
+                <div class="actions" aria-label="Signature controls">
+                  <button id="undoButton" class="btn ghost" type="button">Undo</button>
+                  <button id="redoButton" class="btn ghost" type="button">Redo</button>
+                  <button id="clearButton" class="btn ghost" type="button">Clear</button>
+                </div>
+
+                <div class="actions" style="grid-template-columns:1fr; margin-top:10px;">
+                  <button id="submitButton" class="btn primary" type="button">Submit Waiver</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="formMessage" class="status-panel hidden" role="alert" aria-live="assertive"></div>
+        </div>
+
+        <div id="successPanel" class="confirm hidden" role="status" aria-live="polite">
+          <div class="confirm-mark" aria-hidden="true">✓</div>
+          <h2>Waiver successfully completed.</h2>
+          <p class="muted">Thank you. You may now close this page.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const DEFAULT_PROD_API_BASE = "https://sfa-admin-testing.onrender.com";
+
+      const loadingPanel = document.getElementById("loadingPanel");
+      const terminalPanel = document.getElementById("terminalPanel");
+      const formPanel = document.getElementById("formPanel");
+      const successPanel = document.getElementById("successPanel");
+      const formMessage = document.getElementById("formMessage");
+      const tokenSummary = document.getElementById("tokenSummary");
+      const tokenBadge = document.getElementById("tokenBadge");
+      const autosaveText = document.getElementById("autosaveText");
+
+      const acceptedTerms = document.getElementById("acceptedTerms");
+      const signerNameInput = document.getElementById("signerName");
+      const relationshipInput = document.getElementById("relationship");
+      const waiverVersionInput = document.getElementById("waiverVersion");
+
+      const canvas = document.getElementById("signatureCanvas");
+      const signatureStateText = document.getElementById("signatureStateText");
+      const undoButton = document.getElementById("undoButton");
+      const redoButton = document.getElementById("redoButton");
+      const clearButton = document.getElementById("clearButton");
+      const submitButton = document.getElementById("submitButton");
+
+      const context = canvas.getContext("2d");
+
+      let token = "";
+      let storageKey = "";
+      let tokenState = "loading";
+
+      let drawing = false;
+      let activePointerId = null;
+      let strokes = [];
+      let redoStack = [];
+
+      function isPrivateOrLoopbackHost(hostname) {
+        const host = String(hostname || "").toLowerCase();
+        if (!host) return true;
+        if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+        if (host.startsWith("10.")) return true;
+        if (host.startsWith("192.168.")) return true;
+        if (host.startsWith("169.254.")) return true;
+        if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
+        return false;
+      }
+
+      function getApiBase() {
+        const host = window.location.hostname;
+        if (isPrivateOrLoopbackHost(host)) {
+          return window.location.protocol + "//" + host + ":8000";
+        }
+        return DEFAULT_PROD_API_BASE;
+      }
+
+      const apiBase = getApiBase();
+
+      function getTokenFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const queryToken = String(params.get("token") || "").trim();
+        if (queryToken) return queryToken;
+
+        const hash = String(window.location.hash || "").replace(/^#/, "").trim();
+        if (hash) return hash;
+
+        const path = String(window.location.pathname || "");
+        const marker = "/waiver-sign/";
+        const idx = path.indexOf(marker);
+        if (idx >= 0) {
+          return decodeURIComponent(path.slice(idx + marker.length).split("/")[0]);
+        }
+
+        return "";
+      }
+
+      function setHidden(node, hidden) {
+        node.classList.toggle("hidden", !!hidden);
+      }
+
+      function showTerminal(message, tone) {
+        loadingPanel.textContent = "";
+        setHidden(loadingPanel, true);
+        setHidden(formPanel, true);
+        setHidden(successPanel, true);
+        setHidden(terminalPanel, false);
+        terminalPanel.className = "status-panel" + (tone ? " " + tone : "");
+        terminalPanel.textContent = message;
+      }
+
+      function showForm() {
+        setHidden(loadingPanel, true);
+        setHidden(terminalPanel, true);
+        setHidden(successPanel, true);
+        setHidden(formPanel, false);
+      }
+
+      function showSuccess() {
+        setHidden(loadingPanel, true);
+        setHidden(terminalPanel, true);
+        setHidden(formPanel, true);
+        setHidden(successPanel, false);
+      }
+
+      function setFormMessage(message, tone) {
+        if (!message) {
+          setHidden(formMessage, true);
+          formMessage.textContent = "";
+          formMessage.className = "status-panel hidden";
+          return;
+        }
+        setHidden(formMessage, false);
+        formMessage.className = "status-panel" + (tone ? " " + tone : "");
+        formMessage.textContent = message;
+      }
+
+      function clamp01(value) {
+        if (!Number.isFinite(value)) return 0;
+        if (value < 0) return 0;
+        if (value > 1) return 1;
+        return value;
+      }
+
+      function toNormalizedPoint(event) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / rect.width;
+        const y = (event.clientY - rect.top) / rect.height;
+        return { x: clamp01(x), y: clamp01(y) };
+      }
+
+      function hasSignature() {
+        return strokes.some(function (stroke) { return Array.isArray(stroke) && stroke.length > 0; });
+      }
+
+      function updateCanvasStatus() {
+        if (hasSignature()) {
+          signatureStateText.textContent = "Signature captured.";
+        } else {
+          signatureStateText.textContent = "No signature captured yet.";
+        }
+
+        undoButton.disabled = !strokes.length;
+        redoButton.disabled = !redoStack.length;
+        clearButton.disabled = !strokes.length;
+      }
+
+      function draw() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        if (!width || !height) return;
+
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.clearRect(0, 0, width, height);
+
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.strokeStyle = "#103b58";
+        context.lineWidth = 2.6;
+
+        strokes.forEach(function (stroke) {
+          if (!stroke.length) return;
+
+          context.beginPath();
+          const first = stroke[0];
+          context.moveTo(first.x * width, first.y * height);
+
+          for (let i = 1; i < stroke.length; i += 1) {
+            const point = stroke[i];
+            context.lineTo(point.x * width, point.y * height);
+          }
+
+          if (stroke.length === 1) {
+            context.lineTo(first.x * width + 0.1, first.y * height + 0.1);
+          }
+
+          context.stroke();
+        });
+
+        updateCanvasStatus();
+      }
+
+      function persistDraft() {
+        if (!storageKey) return;
+
+        const payload = {
+          accepted: !!acceptedTerms.checked,
+          signerName: signerNameInput.value || "",
+          relationship: relationshipInput.value || "",
+          waiverVersion: waiverVersionInput.value || "",
+          strokes: strokes,
+          redoStack: redoStack,
+          updatedAt: Date.now()
+        };
+
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(payload));
+          autosaveText.textContent = "Draft saved locally on this device.";
+        } catch (_err) {
+          autosaveText.textContent = "Local save unavailable on this browser.";
+        }
+      }
+
+      function restoreDraft() {
+        if (!storageKey) return;
+
+        try {
+          const raw = window.localStorage.getItem(storageKey);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object") return;
+
+          acceptedTerms.checked = !!parsed.accepted;
+          signerNameInput.value = String(parsed.signerName || "");
+          relationshipInput.value = String(parsed.relationship || "");
+          waiverVersionInput.value = String(parsed.waiverVersion || "");
+
+          const parsedStrokes = Array.isArray(parsed.strokes) ? parsed.strokes : [];
+          const parsedRedo = Array.isArray(parsed.redoStack) ? parsed.redoStack : [];
+
+          strokes = parsedStrokes
+            .filter(Array.isArray)
+            .map(function (stroke) {
+              return stroke
+                .filter(function (p) { return p && Number.isFinite(p.x) && Number.isFinite(p.y); })
+                .map(function (p) { return { x: clamp01(p.x), y: clamp01(p.y) }; });
+            });
+
+          redoStack = parsedRedo
+            .filter(Array.isArray)
+            .map(function (stroke) {
+              return stroke
+                .filter(function (p) { return p && Number.isFinite(p.x) && Number.isFinite(p.y); })
+                .map(function (p) { return { x: clamp01(p.x), y: clamp01(p.y) }; });
+            });
+
+          if (strokes.length || signerNameInput.value || acceptedTerms.checked) {
+            autosaveText.textContent = "Draft restored from this device.";
+          }
+        } catch (_err) {
+          autosaveText.textContent = "Draft restore unavailable on this browser.";
+        }
+      }
+
+      function clearPersistedDraft() {
+        if (!storageKey) return;
+        try {
+          window.localStorage.removeItem(storageKey);
+        } catch (_err) {}
+      }
+
+      function onPointerDown(event) {
+        if (event.button !== undefined && event.button !== 0) return;
+        drawing = true;
+        activePointerId = event.pointerId;
+        redoStack = [];
+
+        const point = toNormalizedPoint(event);
+        strokes.push([point]);
+
+        try { canvas.setPointerCapture(event.pointerId); } catch (_err) {}
+
+        draw();
+        persistDraft();
+        event.preventDefault();
+      }
+
+      function onPointerMove(event) {
+        if (!drawing) return;
+        if (activePointerId !== null && event.pointerId !== activePointerId) return;
+        if (!strokes.length) return;
+
+        strokes[strokes.length - 1].push(toNormalizedPoint(event));
+        draw();
+        persistDraft();
+        event.preventDefault();
+      }
+
+      function onPointerUp(event) {
+        if (!drawing) return;
+        if (activePointerId !== null && event.pointerId !== activePointerId) return;
+
+        drawing = false;
+        activePointerId = null;
+
+        try { canvas.releasePointerCapture(event.pointerId); } catch (_err) {}
+
+        draw();
+        persistDraft();
+        event.preventDefault();
+      }
+
+      function clearSignature() {
+        strokes = [];
+        redoStack = [];
+        draw();
+        persistDraft();
+      }
+
+      function undoSignature() {
+        if (!strokes.length) return;
+        redoStack.push(strokes.pop());
+        draw();
+        persistDraft();
+      }
+
+      function redoSignature() {
+        if (!redoStack.length) return;
+        strokes.push(redoStack.pop());
+        draw();
+        persistDraft();
+      }
+
+      function setSubmitting(submitting) {
+        submitButton.disabled = submitting;
+        submitButton.textContent = submitting ? "Submitting..." : "Submit Waiver";
+      }
+
+      function normalizeState(status) {
+        const s = String(status || "").toLowerCase();
+        if (s === "ready") return "ready";
+        if (s === "signed") return "signed";
+        if (s === "expired") return "expired";
+        return "invalid";
+      }
+
+      async function validateTokenAndLoad() {
+        tokenSummary.textContent = "Validating secure signing link...";
+        tokenBadge.textContent = "Secure link";
+
+        if (!token) {
+          tokenState = "invalid";
+          tokenSummary.textContent = "No token was provided.";
+          showTerminal("This waiver link is invalid.", "err");
+          return;
+        }
+
+        try {
+          const response = await fetch(apiBase + "/api/waivers/sign/" + encodeURIComponent(token), {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          });
+
+          if (!response.ok) {
+            tokenState = "invalid";
+            tokenSummary.textContent = "Could not validate signing link.";
+            showTerminal("This waiver link is invalid.", "err");
+            return;
+          }
+
+          const payload = await response.json();
+          const state = normalizeState(payload.status);
+          tokenState = state;
+
+          if (state === "expired") {
+            tokenSummary.textContent = "Signing link expired.";
+            tokenBadge.textContent = "Expired";
+            showTerminal("This waiver link has expired. Please request a new waiver.", "warn");
+            return;
+          }
+
+          if (state === "signed") {
+            tokenSummary.textContent = "Waiver already completed.";
+            tokenBadge.textContent = "Completed";
+            showTerminal("This waiver has already been completed.", "ok");
+            return;
+          }
+
+          if (state !== "ready") {
+            tokenSummary.textContent = "Signing link invalid.";
+            tokenBadge.textContent = "Invalid";
+            showTerminal("This waiver link is invalid.", "err");
+            return;
+          }
+
+          tokenSummary.textContent = "Secure link validated. Complete the waiver below.";
+          tokenBadge.textContent = "Ready to sign";
+          showForm();
+          restoreDraft();
+          draw();
+        } catch (_err) {
+          tokenState = "invalid";
+          tokenSummary.textContent = "Could not validate signing link.";
+          showTerminal("This waiver link is invalid.", "err");
+        }
+      }
+
+      function validateClientForm() {
+        if (tokenState !== "ready") {
+          return "This waiver link is not ready for signing.";
+        }
+
+        if (!acceptedTerms.checked) {
+          return "Please accept the waiver terms before submitting.";
+        }
+
+        const typedName = signerNameInput.value.trim();
+        const signedDrawn = hasSignature();
+
+        if (!typedName && !signedDrawn) {
+          return "Please provide a drawn signature or typed signer name.";
+        }
+
+        return "";
+      }
+
+      async function submitSigning() {
+        const validationMessage = validateClientForm();
+        if (validationMessage) {
+          setFormMessage(validationMessage, "err");
+          return;
+        }
+
+        setFormMessage("", "");
+        setSubmitting(true);
+
+        const body = {
+          accepted: true,
+          signer_name: signerNameInput.value.trim() || undefined,
+          relationship_to_participant: relationshipInput.value.trim() || undefined,
+          waiver_version: waiverVersionInput.value.trim() || undefined,
+        };
+
+        try {
+          const response = await fetch(apiBase + "/api/waivers/sign/" + encodeURIComponent(token), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+
+          let payload = null;
+          try {
+            payload = await response.json();
+          } catch (_parseErr) {
+            payload = null;
+          }
+
+          if (response.status === 400) {
+            setFormMessage("Please review required fields and try again.", "err");
+            return;
+          }
+
+          if (!response.ok || !payload) {
+            setFormMessage("Unable to submit waiver right now. Please try again.", "err");
+            return;
+          }
+
+          const state = normalizeState(payload.status);
+          if (state === "expired") {
+            tokenState = "expired";
+            showTerminal("This waiver link has expired. Please request a new waiver.", "warn");
+            return;
+          }
+
+          if (state === "invalid") {
+            tokenState = "invalid";
+            showTerminal("This waiver link is invalid.", "err");
+            return;
+          }
+
+          clearPersistedDraft();
+          showSuccess();
+        } catch (_err) {
+          setFormMessage("Network issue detected. Your draft remains saved on this device.", "warn");
+        } finally {
+          setSubmitting(false);
+        }
+      }
+
+      function wireEvents() {
+        [acceptedTerms, signerNameInput, relationshipInput, waiverVersionInput].forEach(function (node) {
+          node.addEventListener("input", persistDraft);
+          node.addEventListener("change", persistDraft);
+        });
+
+        canvas.addEventListener("pointerdown", onPointerDown);
+        canvas.addEventListener("pointermove", onPointerMove);
+        canvas.addEventListener("pointerup", onPointerUp);
+        canvas.addEventListener("pointercancel", onPointerUp);
+        canvas.addEventListener("pointerleave", onPointerUp);
+
+        clearButton.addEventListener("click", clearSignature);
+        undoButton.addEventListener("click", undoSignature);
+        redoButton.addEventListener("click", redoSignature);
+        submitButton.addEventListener("click", submitSigning);
+
+        window.addEventListener("resize", draw);
+        window.addEventListener("orientationchange", function () {
+          setTimeout(draw, 80);
+          persistDraft();
+        });
+      }
+
+      function init() {
+        token = getTokenFromUrl();
+        storageKey = token ? ("sfa-waiver-signing::" + token) : "";
+
+        wireEvents();
+        draw();
+
+        validateTokenAndLoad();
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
