@@ -18,6 +18,34 @@ def _detect_production_environment() -> bool:
     # Render sets this in production and preview services.
     return _is_truthy(os.getenv("RENDER", "false"))
 
+
+def _resolve_backend_secret_key(*, is_production: bool) -> str:
+    configured = os.getenv("BACKEND_SECRET_KEY", os.getenv("SECRET_KEY", "")).strip()
+    insecure_values = {
+        "dev-secret-key",
+        "dev-secret-key-local-only",
+        "secret",
+        "changeme",
+    }
+
+    if is_production:
+        if not configured:
+            raise ValueError(
+                "BACKEND_SECRET_KEY (or SECRET_KEY) is required in production. "
+                "Refusing to start without an explicit signing secret."
+            )
+
+        if configured.lower() in insecure_values or len(configured) < 32:
+            raise ValueError(
+                "Invalid production signing secret. Configure BACKEND_SECRET_KEY with a strong "
+                "value (minimum 32 characters, not a known development default)."
+            )
+
+        return configured
+
+    # Development policy: fallback is permitted only outside production.
+    return configured or "dev-secret-key-local-only"
+
 class Settings:
     DEBUG = _is_truthy(os.getenv("DEBUG", "false"))
     IS_PRODUCTION = _detect_production_environment()
@@ -63,7 +91,7 @@ class Settings:
         "http://127.0.0.1:5173",
     ]
 
-    BACKEND_SECRET_KEY = os.getenv("BACKEND_SECRET_KEY", os.getenv("SECRET_KEY", "dev-secret-key"))
+    BACKEND_SECRET_KEY = _resolve_backend_secret_key(is_production=IS_PRODUCTION)
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))
 
 settings = Settings()
