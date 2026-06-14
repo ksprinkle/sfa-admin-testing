@@ -154,8 +154,8 @@ def get_me(current_user = Depends(get_current_user)):
     return current_user
 
 #TODO: Add endpoint for users to update their own password and email, with appropriate validation and security checks.
-#DEV ENDPOINT TO PROMOTE CURRENT USER TO ADMIN - REMOVE BEFORE PRODUCTION
-if settings.DEBUG:
+# DEV endpoint is available only in non-production debug runs.
+if settings.DEV_ROUTES_ENABLED:
     @router.post("/dev/promote-me")
     def promote_me(
     db: Session = Depends(get_db),

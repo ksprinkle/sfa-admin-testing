@@ -18,7 +18,7 @@ All four blocker tickets complete, verified, and signed off, then end-to-end wor
 
 | Blocker | Status | Commit | Validated |
 | --- | --- | --- | --- |
-| RB-01 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
+| RB-01 | ☑ Complete | fix(release): harden production debug controls for RB-01 | ☑ |
 | RB-02 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
 | RB-03 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
 | RB-04 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |

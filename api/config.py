@@ -5,8 +5,30 @@ from pathlib import Path
 def _split_csv(value: str):
     return [item.strip() for item in value.split(",") if item.strip()]
 
+
+def _is_truthy(value: str) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _detect_production_environment() -> bool:
+    explicit_env = os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "")).strip().lower()
+    if explicit_env in {"prod", "production"}:
+        return True
+
+    # Render sets this in production and preview services.
+    return _is_truthy(os.getenv("RENDER", "false"))
+
 class Settings:
-    DEBUG = os.getenv("DEBUG", "true").lower() == "true"
+    DEBUG = _is_truthy(os.getenv("DEBUG", "false"))
+    IS_PRODUCTION = _detect_production_environment()
+    DEV_ROUTES_ENABLED = DEBUG and not IS_PRODUCTION
+
+    if IS_PRODUCTION and DEBUG:
+        raise ValueError(
+            "Unsafe configuration: DEBUG=true is not allowed when running in production environment. "
+            "Set DEBUG=false to start the application."
+        )
+
     _DEFAULT_SQLITE_PATH = Path(__file__).resolve().parent.parent / "sfa.db"
     _RAW_DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 

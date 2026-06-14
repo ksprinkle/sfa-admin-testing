@@ -65,11 +65,32 @@ app.include_router(waivers_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
 
+
+def _enforce_startup_guardrails() -> None:
+    if settings.IS_PRODUCTION and settings.DEBUG:
+        raise RuntimeError("Unsafe startup configuration: DEBUG cannot be enabled in production.")
+
+    if not settings.DEV_ROUTES_ENABLED:
+        dev_auth_routes = [
+            route.path
+            for route in app.routes
+            if route.path.startswith("/api/auth/dev/")
+        ]
+        if dev_auth_routes:
+            raise RuntimeError(
+                "Unsafe startup configuration: dev auth routes are registered in production mode: "
+                + ", ".join(dev_auth_routes)
+            )
+
+
+_enforce_startup_guardrails()
+
 # Root routes
 @app.get("/")
 def root():
     return {"status": "SFA backend running"}
 
-@app.get("/debug/routes")
-def list_routes():
-    return [route.path for route in app.routes]
+if settings.DEV_ROUTES_ENABLED:
+    @app.get("/debug/routes")
+    def list_routes():
+        return [route.path for route in app.routes]
