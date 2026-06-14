@@ -21,7 +21,7 @@ All four blocker tickets complete, verified, and signed off, then end-to-end wor
 | RB-01 | ☑ Complete | fix(release): harden production debug controls for RB-01 | ☑ |
 | RB-02 | ☑ Complete | fix(release): enforce production signing secret for RB-02 | ☑ |
 | RB-03 | ☑ Complete | fix(release): externalize canonical signing origin for RB-03 | ☑ |
-| RB-04 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
+| RB-04 | ☑ Complete | fix(release): add waiver pdf backup and restore runbook for RB-04 | ☑ |
 
 ## Evidence Template
 Use the standardized PR/checklist template at `.github/PULL_REQUEST_TEMPLATE.md` for every RB-01..RB-04 remediation PR.
@@ -97,6 +97,9 @@ Acceptance criteria:
 - Written runbook exists and is linked in release docs.
 - Backup and restore dry run completed and logged.
 - Recovery verification confirms both DB records and PDF artifacts are restorable together.
+
+Runbook:
+- `docs/releases/PHASE2_WAIVER_PDF_BACKUP_RESTORE_RUNBOOK_2026-06-13.md`
 
 ---
 
