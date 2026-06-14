@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from api.db.session import get_db
 from api.models.users import User
 from api.security import SECRET_KEY, ALGORITHM
+from api.services.authorization import PERMISSION_ADMIN_ACCESS, has_permission
 
 
 # This MUST match your login endpoint
@@ -35,6 +36,15 @@ def get_current_user(
 
 
 def require_admin(current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    if not has_permission(current_user, PERMISSION_ADMIN_ACCESS):
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+
+def require_permission(permission: str):
+    def _permission_dependency(current_user: User = Depends(get_current_user)):
+        if not has_permission(current_user, permission):
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return current_user
+
+    return _permission_dependency

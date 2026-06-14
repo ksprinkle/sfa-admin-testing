@@ -12,6 +12,7 @@ from api.schemas.users import UserResponse, UserRoleByEmailUpdateRequest
 from api.dependencies import require_admin
 from api.config import settings
 from api.services.admin_audit import record_admin_audit_event
+from api.services.authorization import ROLE_PARTICIPANT, is_supported_role
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -26,7 +27,7 @@ def register(email: str, password: str, db: Session = Depends(get_db)):
     user = User(
         email=email,
         hashed_password=hash_password(password),
-        role="participant"
+        role=ROLE_PARTICIPANT
     )
 
     db.add(user)
@@ -69,7 +70,7 @@ def update_user_role(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if new_role not in ["admin", "participant"]:
+    if not is_supported_role(new_role):
         raise HTTPException(status_code=400, detail="Invalid role")
 
     previous_role = user.role
@@ -132,7 +133,7 @@ def update_user_role_by_email(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if new_role not in ["admin", "participant"]:
+    if not is_supported_role(new_role):
         raise HTTPException(status_code=400, detail="Invalid role")
 
     previous_role = user.role
@@ -171,7 +172,7 @@ def update_user_role_by_email_body(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if new_role not in ["admin", "participant"]:
+    if not is_supported_role(new_role):
         raise HTTPException(status_code=400, detail="Invalid role")
 
     previous_role = user.role

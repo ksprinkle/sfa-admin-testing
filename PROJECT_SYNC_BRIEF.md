@@ -449,6 +449,36 @@ File touchpoints:
 - `alembic/versions/z1f4c7a9b2d6_add_admin_audit_events.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 4.3 Permissions Architecture) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Permissions architecture only.
+- No role-delegation workflow redesign.
+- No workflow automation scope.
+- No volunteer lifecycle scope.
+- No communications scope.
+- No event operations or analytics feature expansion.
+
+Behavior summary:
+- Added canonical authorization matrix service that defines supported roles and permission contracts in one source.
+- Refactored admin authorization checks to use permission-based evaluation while preserving existing admin access behavior.
+- Added permissions introspection endpoints for architecture visibility:
+  - admin role matrix
+  - current user effective permissions
+- Updated user-role mutation validation to use canonical supported-role checks instead of duplicated hardcoded role lists.
+
+File touchpoints:
+- `api/services/authorization.py`
+- `api/dependencies.py`
+- `api/routers/auth.py`
+- `api/routers/admin_permissions.py`
+- `api/schemas/permissions.py`
+- `api/main.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PROJECT_SYNC_BRIEF.md`
 - Added dedicated admin analytics endpoint for executive dashboard payload.
 - Reused existing projection/reporting layers where appropriate:
   - waiver reporting metrics

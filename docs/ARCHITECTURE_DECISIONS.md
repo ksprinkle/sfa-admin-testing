@@ -244,3 +244,21 @@ Rationale:
 - Establishes canonical audit ownership before broader Phase 4 features rely on governance evidence.
 - Prevents projection/reporting layers from becoming de facto audit systems of record.
 - Enables later phases to consume a stable, centralized administrative audit stream without retrofitting.
+
+## ADR-014: Phase 4.3 Permissions Architecture
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce a canonical authorization role and permission matrix in service-layer architecture (`api/services/authorization.py`).
+- Keep current runtime role set stable (`admin`, `participant`) while formalizing permission contracts for admin operations.
+- Refactor authorization dependency checks to consume permission decisions (`has_permission`) rather than hard-coded role comparisons.
+- Add explicit admin introspection endpoints for permissions architecture:
+  - `GET /api/admin/permissions/matrix`
+  - `GET /api/admin/permissions/me`
+- Keep permissions phase scope limited to architecture and enforcement primitives; no workflow automation, communications, volunteer lifecycle, or analytics expansion is included.
+
+Rationale:
+- Establishes a reusable authorization foundation before later Phase 4 capability expansion.
+- Reduces authorization drift by defining one canonical matrix and one enforcement path.
+- Preserves current behavior while enabling future fine-grained permissions without endpoint-by-endpoint rewrites.
