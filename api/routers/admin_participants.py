@@ -29,6 +29,8 @@ from api.services.assignment_evaluator import evaluate_assignment
 from api.services.session_recommender import recommend_sessions
 from api.models.participant_removal_log import ParticipantRemovalLog
 from api.models.participant_waivers import ParticipantWaiver
+from api.schemas.participant_timeline import ParticipantTimelineEventOut
+from api.services.participant_timeline import get_participant_timeline_events
 from api.services.waiver_lifecycle import (
     STATUS_DRAFT,
     STATUS_SIGNED,
@@ -334,6 +336,15 @@ def _build_event_lookup(db: DBSession, event_ids: set[str]) -> dict[str, dict[st
         }
         for event in events
     }
+
+
+@router.get("/{participant_id}/timeline", response_model=list[ParticipantTimelineEventOut])
+def get_participant_timeline(
+    participant_id: UUID,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    return get_participant_timeline_events(db, participant_id)
 
 
 @router.patch("/{participant_id}", response_model=ParticipantOut)

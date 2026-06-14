@@ -299,9 +299,9 @@ File touchpoints:
 - `admin-app/src/pages/Dashboard.jsx`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 3 Feature 2 PDF Preservation Provenance) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 3 Feature 2 PDF Preservation Provenance) — 09c6433
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - PDF preservation and provenance only.
@@ -331,6 +331,36 @@ File touchpoints:
 - `api/schemas/waivers.py`
 - `api/routers/waivers.py`
 - `alembic/versions/y7c1e5d9a2b4_add_template_provenance_to_pdf_artifacts.py`
+- `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 3 Feature 3 Participant Activity Timeline) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Read-only timeline aggregation only.
+- No participant workflow mutations.
+- No analytics/reporting/dashboard scope.
+- No manual timeline editing or persistence layer additions.
+
+Behavior summary:
+- Added canonical participant timeline event schema with stable enum-backed event types.
+- Added deterministic ordering support with `sort_key` for secondary ordering when timestamps collide.
+- Added read-only timeline aggregation service that projects events from existing domains:
+  - participant registration
+  - waiver template assignment context
+  - waiver signed
+  - PDF artifact generated
+  - PDF verified
+  - check-in completed
+- Added admin read-only timeline endpoint per participant.
+- Emitted `PDF_VERIFIED` into existing waiver audit stream to support canonical projection without introducing a new system of record.
+
+File touchpoints:
+- `api/schemas/participant_timeline.py`
+- `api/services/participant_timeline.py`
+- `api/routers/admin_participants.py`
+- `api/routers/waivers.py`
 - `PROJECT_SYNC_BRIEF.md`
 
 ## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e

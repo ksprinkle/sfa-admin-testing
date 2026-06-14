@@ -341,9 +341,29 @@ def download_waiver_pdf_artifact(
 def verify_waiver_pdf_artifact(
     waiver_id: UUID,
     db: DBSession = Depends(get_db),
-    _current_user=Depends(require_admin),
+    current_user=Depends(require_admin),
 ):
-    return verify_artifact_for_waiver(db, waiver_id)
+    verification = verify_artifact_for_waiver(db, waiver_id)
+    waiver = get_waiver_with_context(db, waiver_id)
+    actor_user_id = str(getattr(current_user, "id", "") or "") or None
+
+    record_waiver_audit_event(
+        db,
+        waiver,
+        event_type="PDF_VERIFIED",
+        actor_user_id=actor_user_id,
+        source="waiver_pdf_archive",
+        details={
+            "artifact_id": str(verification["artifact_id"]),
+            "artifact_status": verification["artifact_status"],
+            "integrity_status": verification["integrity_status"],
+            "provenance_status": verification["provenance_status"],
+            "storage_status": verification["storage_status"],
+        },
+    )
+    db.commit()
+
+    return verification
 
 
 @router.post("/create-token", response_model=WaiverCreateTokenOut)
