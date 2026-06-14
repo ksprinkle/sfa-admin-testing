@@ -419,9 +419,9 @@ Behavior summary:
   - `data_source`
 - Added read-only executive analytics projection service computed from canonical domain data.
 
-## Session Delta (Pending Commit - June 14, Phase 4.2 Governance and Audit Infrastructure) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 4.2 Governance and Audit Infrastructure) — 85433d5
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Governance and audit infrastructure only.
@@ -450,9 +450,9 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 4.3 Permissions Architecture) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 4.3 Permissions Architecture) — d895b9f
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Permissions architecture only.
