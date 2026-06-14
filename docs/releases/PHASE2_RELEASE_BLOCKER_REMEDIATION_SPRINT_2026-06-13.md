@@ -14,6 +14,18 @@ No feature work is permitted in this sprint.
 ## Sprint Exit Criteria
 All four blocker tickets complete, verified, and signed off, then end-to-end workflow revalidation executed.
 
+## Remediation Tracker
+
+| Blocker | Status | Commit | Validated |
+| --- | --- | --- | --- |
+| RB-01 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
+| RB-02 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
+| RB-03 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
+| RB-04 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
+
+## Evidence Template
+Use the standardized PR/checklist template at `.github/PULL_REQUEST_TEMPLATE.md` for every RB-01..RB-04 remediation PR.
+
 ---
 
 ## Ticket RB-01: Production-safe debug controls
