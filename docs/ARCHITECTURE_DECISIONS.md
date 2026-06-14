@@ -304,3 +304,23 @@ Rationale:
 - Establishes a single source of truth for volunteer lifecycle concerns without duplicating participant/event ownership.
 - Creates stable domain contracts that workflow automation and later phases can orchestrate rather than replace.
 - Preserves architecture-first sequencing by finalizing canonical volunteer domain boundaries before broader operational feature expansion.
+
+## ADR-017: Phase 4.6 Communications Platform Foundation
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce canonical communications domain entities:
+  - `communication_templates`
+  - `communication_messages`
+  - `communication_deliveries`
+- Introduce delivery abstraction interface with provider registry and default no-op provider for safe foundation execution.
+- Introduce communications platform service layer for template lifecycle, message creation, and delivery request orchestration.
+- Integrate communications administrative endpoints with canonical permissions (`communications.manage`).
+- Integrate significant communications actions with canonical administrative audit event recording.
+- Keep this phase strictly foundational; no reminder engines, campaign logic, marketing flows, dashboard expansion, event-ops features, or analytics features are introduced.
+
+Rationale:
+- Establishes canonical communications ownership before downstream operational feature expansion.
+- Preserves separation of concerns by keeping orchestration in services and provider abstraction layers rather than embedding delivery behavior in endpoints.
+- Ensures communications actions are permission-governed and auditable from the first foundation release.

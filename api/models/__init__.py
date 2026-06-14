@@ -13,6 +13,9 @@ from .automation_runs import AutomationRun
 from .volunteer_profiles import VolunteerProfile
 from .volunteer_availabilities import VolunteerAvailability
 from .volunteer_assignments import VolunteerAssignment
+from .communication_templates import CommunicationTemplate
+from .communication_messages import CommunicationMessage
+from .communication_deliveries import CommunicationDelivery
 from .sessions import Session
 from .participant_removal_log import ParticipantRemovalLog
 from .event_activity_log import EventActivityLog

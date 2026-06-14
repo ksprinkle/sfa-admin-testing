@@ -558,6 +558,40 @@ File touchpoints:
 - `alembic/versions/v4p5c3d9e1a7_add_volunteer_lifecycle_tables.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 4.6 Communications Platform Foundation) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Communications platform foundation only.
+- No reminder implementations.
+- No campaign or marketing workflow implementation.
+- No event operations implementation.
+- No executive analytics or dashboard expansion.
+- No unrelated bulk workflow additions.
+
+Behavior summary:
+- Added canonical communication template, message, and delivery models.
+- Added delivery abstraction interface and provider registry with default no-op provider.
+- Added communications platform service layer for template management, message creation, and delivery request orchestration.
+- Added permission-gated admin communications endpoints for template/message/delivery foundation operations.
+- Integrated communications operations with canonical permissions (`communications.manage`) and canonical audit events.
+
+File touchpoints:
+- `api/models/communication_templates.py`
+- `api/models/communication_messages.py`
+- `api/models/communication_deliveries.py`
+- `api/models/__init__.py`
+- `api/services/communication_delivery.py`
+- `api/services/communications_platform.py`
+- `api/services/authorization.py`
+- `api/schemas/communications.py`
+- `api/routers/admin_communications.py`
+- `api/main.py`
+- `alembic/versions/c4m6e8d1b3a9_add_communications_foundation_tables.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PROJECT_SYNC_BRIEF.md`
 - Added dedicated admin analytics endpoint for executive dashboard payload.
 - Reused existing projection/reporting layers where appropriate:
   - waiver reporting metrics
