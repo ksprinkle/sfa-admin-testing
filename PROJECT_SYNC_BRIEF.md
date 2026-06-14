@@ -363,9 +363,9 @@ File touchpoints:
 - `api/routers/waivers.py`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 3 Feature 4 Volunteer Dashboard Operational Projection) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 3 Feature 4 Volunteer Dashboard Operational Projection) — 07e17d6
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Read-only operational dashboard only.
@@ -397,6 +397,42 @@ File touchpoints:
 - `api/routers/admin_participants.py`
 - `admin-app/src/api/events.js`
 - `admin-app/src/pages/VolunteerDashboard.jsx`
+- `admin-app/src/App.jsx`
+- `admin-app/src/pages/Dashboard.jsx`
+- `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 3 Feature 5 Executive Analytics Dashboard) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Read-only analytics projection only.
+- No transactional writes or edits.
+- No stored counters or materialized summary tables.
+- No predictive analytics, forecasting, or scheduled reporting scope.
+
+Behavior summary:
+- Added executive analytics metric card schema with stable card contract:
+  - `metric_key`
+  - `value`
+  - `calculated_at`
+  - `data_source`
+- Added read-only executive analytics projection service computed from canonical domain data.
+- Added dedicated admin analytics endpoint for executive dashboard payload.
+- Reused existing projection/reporting layers where appropriate:
+  - waiver reporting metrics
+  - volunteer operational projection metrics
+- Added read-only admin executive dashboard UI with metric cards and source metadata.
+- Added cross-source consistency validation path for overlapping volunteer metrics.
+- Compliance-related executive metric explicitly reports `Not Tracked` when canonical data is unavailable.
+
+File touchpoints:
+- `api/schemas/executive_analytics.py`
+- `api/services/executive_analytics_projection.py`
+- `api/routers/admin_analytics.py`
+- `api/main.py`
+- `admin-app/src/api/events.js`
+- `admin-app/src/pages/ExecutiveDashboard.jsx`
 - `admin-app/src/App.jsx`
 - `admin-app/src/pages/Dashboard.jsx`
 - `PROJECT_SYNC_BRIEF.md`

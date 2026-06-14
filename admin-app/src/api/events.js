@@ -208,6 +208,17 @@ export async function fetchVolunteerDashboard(eventId = null) {
   return res.json()
 }
 
+export async function fetchExecutiveDashboard() {
+  const res = await apiFetch("/api/admin/analytics/executive-dashboard")
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to fetch executive dashboard")
+  }
+
+  return res.json()
+}
+
 export async function createAdminParticipant(payload) {
   const res = await apiFetch("/api/admin/participants/", {
     method: "POST",

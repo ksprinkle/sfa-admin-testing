@@ -440,6 +440,22 @@ useEffect(() => {
         </div>
       </button>
 
+      <button
+        type="button"
+        onClick={() => navigate("/executive-dashboard")}
+        className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 text-left shadow-sm transition hover:bg-blue-100/70"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-blue-900">Executive Analytics Dashboard</p>
+            <p className="mt-1 text-sm text-blue-800">Read-only analytics projection with metric keys, calculation timestamps, and canonical data sources.</p>
+          </div>
+          <span className="rounded-full border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-700">
+            Open /executive-dashboard
+          </span>
+        </div>
+      </button>
+
       {/* Overall Event Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <StatCard

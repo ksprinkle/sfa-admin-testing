@@ -15,6 +15,7 @@ import FeedbackReview from "./pages/FeedbackReview"
 import EventTemplates from "./pages/EventTemplates"
 import WaiverTemplates from "./pages/WaiverTemplates"
 import VolunteerDashboard from "./pages/VolunteerDashboard"
+import ExecutiveDashboard from "./pages/ExecutiveDashboard"
 import {
   clearAuthSession,
   fetchMyProfile,
@@ -150,6 +151,8 @@ function App() {
         return "Waiver Templates"
       case "/volunteer-dashboard":
         return "Volunteer Dashboard"
+      case "/executive-dashboard":
+        return "Executive Dashboard"
       default:
         if (location.pathname.startsWith("/event-templates")) {
           return "Event Templates"
@@ -159,6 +162,9 @@ function App() {
         }
         if (location.pathname.startsWith("/volunteer-dashboard")) {
           return "Volunteer Dashboard"
+        }
+        if (location.pathname.startsWith("/executive-dashboard")) {
+          return "Executive Dashboard"
         }
         return "Surfers Admin"
     }
@@ -198,6 +204,7 @@ function App() {
             <Route path="/event-templates" element={<EventTemplates />} />
             <Route path="/waiver-templates" element={<WaiverTemplates />} />
             <Route path="/volunteer-dashboard" element={<VolunteerDashboard />} />
+            <Route path="/executive-dashboard" element={<ExecutiveDashboard />} />
             <Route path="/feedback" element={<FeedbackReview />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
