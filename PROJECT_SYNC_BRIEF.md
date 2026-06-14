@@ -522,9 +522,9 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 4.5 Volunteer Lifecycle Foundation) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 4.5 Volunteer Lifecycle Foundation) — 89adf96
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Volunteer lifecycle domain foundation only.
