@@ -626,9 +626,9 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 4.8 Executive Analytics Projection Layer) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 4.8 Executive Analytics Projection Layer) — 2857c2b
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Executive analytics projection only.
