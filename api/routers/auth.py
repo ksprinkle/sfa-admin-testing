@@ -11,6 +11,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from api.schemas.users import UserResponse, UserRoleByEmailUpdateRequest
 from api.dependencies import require_admin
 from api.config import settings
+from api.services.admin_audit import record_admin_audit_event
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -71,7 +72,22 @@ def update_user_role(
     if new_role not in ["admin", "participant"]:
         raise HTTPException(status_code=400, detail="Invalid role")
 
+    previous_role = user.role
     user.role = new_role
+    record_admin_audit_event(
+        db,
+        domain="permissions",
+        action="user_role_updated",
+        actor_user_id=current_user.id,
+        target_type="user",
+        target_id=user.id,
+        target_display=user.email,
+        source="auth.admin.users.role",
+        details={
+            "previous_role": previous_role,
+            "new_role": new_role,
+        },
+    )
     db.commit()
     db.refresh(user)
 
@@ -119,7 +135,23 @@ def update_user_role_by_email(
     if new_role not in ["admin", "participant"]:
         raise HTTPException(status_code=400, detail="Invalid role")
 
+    previous_role = user.role
     user.role = new_role
+    record_admin_audit_event(
+        db,
+        domain="permissions",
+        action="user_role_updated",
+        actor_user_id=current_user.id,
+        target_type="user",
+        target_id=user.id,
+        target_display=user.email,
+        source="auth.admin.users.by_email.role",
+        details={
+            "previous_role": previous_role,
+            "new_role": new_role,
+            "lookup_email": normalized_email,
+        },
+    )
     db.commit()
     db.refresh(user)
 
@@ -142,7 +174,23 @@ def update_user_role_by_email_body(
     if new_role not in ["admin", "participant"]:
         raise HTTPException(status_code=400, detail="Invalid role")
 
+    previous_role = user.role
     user.role = new_role
+    record_admin_audit_event(
+        db,
+        domain="permissions",
+        action="user_role_updated",
+        actor_user_id=current_user.id,
+        target_type="user",
+        target_id=user.id,
+        target_display=user.email,
+        source="auth.admin.users.by_email.role_body",
+        details={
+            "previous_role": previous_role,
+            "new_role": new_role,
+            "lookup_email": normalized_email,
+        },
+    )
     db.commit()
     db.refresh(user)
 

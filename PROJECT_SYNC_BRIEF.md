@@ -418,6 +418,37 @@ Behavior summary:
   - `calculated_at`
   - `data_source`
 - Added read-only executive analytics projection service computed from canonical domain data.
+
+## Session Delta (Pending Commit - June 14, Phase 4.2 Governance and Audit Infrastructure) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Governance and audit infrastructure only.
+- No permissions model redesign.
+- No workflow automation implementation.
+- No volunteer lifecycle feature scope.
+- No communications platform scope.
+- No event operations/dashboard expansion beyond audit retrieval.
+
+Behavior summary:
+- Added canonical administrative audit model (`admin_audit_events`) for cross-domain governance event capture.
+- Added dedicated audit service interface for immutable write-through and filtered read access.
+- Added admin-authorized audit query endpoint with pagination and filters (`/api/admin/audit/events`).
+- Integrated admin user-role update actions as first producer so permission changes append audit events in the same transaction.
+- Preserved existing authentication and role-management behavior while adding governance traceability.
+
+File touchpoints:
+- `api/models/admin_audit_events.py`
+- `api/models/__init__.py`
+- `api/services/admin_audit.py`
+- `api/schemas/admin_audit.py`
+- `api/routers/admin_audit.py`
+- `api/routers/auth.py`
+- `api/main.py`
+- `alembic/versions/z1f4c7a9b2d6_add_admin_audit_events.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PROJECT_SYNC_BRIEF.md`
 - Added dedicated admin analytics endpoint for executive dashboard payload.
 - Reused existing projection/reporting layers where appropriate:
   - waiver reporting metrics

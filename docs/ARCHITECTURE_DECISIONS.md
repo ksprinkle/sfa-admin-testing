@@ -226,3 +226,21 @@ Decision:
 
 Rationale:
 - Improves operational visibility for event readiness and follow-up actions while preserving previously approved business logic and security boundaries.
+
+## ADR-013: Phase 4.2 Governance and Audit Infrastructure
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce `admin_audit_events` as the canonical cross-domain store for administrative governance events.
+- Define a dedicated audit service interface for write and read operations:
+  - `record_admin_audit_event(...)`
+  - `list_admin_audit_events(...)`
+- Expose admin-authorized read access via `GET /api/admin/audit/events` with scoped filters and pagination.
+- Integrate existing admin role-change actions as first consumers so permission changes emit immutable governance events in the same transaction.
+- Keep this phase scoped to audit infrastructure only; no permissions redesign, workflow automation, volunteer lifecycle, communications, or analytics expansion is included.
+
+Rationale:
+- Establishes canonical audit ownership before broader Phase 4 features rely on governance evidence.
+- Prevents projection/reporting layers from becoming de facto audit systems of record.
+- Enables later phases to consume a stable, centralized administrative audit stream without retrofitting.
