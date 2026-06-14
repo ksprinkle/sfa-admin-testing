@@ -262,3 +262,26 @@ Rationale:
 - Establishes a reusable authorization foundation before later Phase 4 capability expansion.
 - Reduces authorization drift by defining one canonical matrix and one enforcement path.
 - Preserves current behavior while enabling future fine-grained permissions without endpoint-by-endpoint rewrites.
+
+## ADR-015: Phase 4.4 Workflow Automation Foundation
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce canonical automation foundation entities:
+  - `automation_workflows` (workflow registration and trigger metadata)
+  - `automation_runs` (execution lifecycle records)
+- Introduce a central automation engine service that provides:
+  - workflow handler registration
+  - workflow definition creation and enable/disable controls
+  - execution model for workflow runs
+- Keep automation phase scoped to framework primitives only; no reminder, messaging, volunteer, event-ops, or analytics workflows are implemented in this phase.
+- Integrate automation APIs with canonical permissions and canonical audit infrastructure:
+  - permissions gate: `automation.manage`
+  - audit events on workflow create/enable changes and execution lifecycle
+- Establish a default no-op handler (`system.noop`) to validate engine plumbing without introducing domain behavior.
+
+Rationale:
+- Provides an orchestration layer that reacts to canonical state without becoming a competing system of record.
+- Ensures automation execution is permission-aware and auditable from first use.
+- Preserves roadmap sequencing by creating extensible primitives before feature-specific automation workloads.

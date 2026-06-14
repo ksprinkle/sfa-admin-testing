@@ -479,6 +479,48 @@ File touchpoints:
 - `api/main.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 4.4 Workflow Automation Foundation) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Automation framework primitives only.
+- No reminder feature implementation.
+- No email or SMS workflow implementation.
+- No volunteer scheduling logic.
+- No communications platform implementation.
+- No dashboard or analytics feature expansion.
+- No event operation workflow implementation.
+
+Behavior summary:
+- Added canonical workflow definition and run lifecycle models for automation orchestration.
+- Added automation engine service with:
+  - handler registration mechanism
+  - workflow registration and enable/disable controls
+  - execution model and run persistence
+- Added admin automation API surface for:
+  - workflow registration/listing
+  - workflow enable/disable
+  - workflow execution trigger
+  - workflow run listing
+  - handler registry visibility
+- Integrated automation management with canonical permissions via `automation.manage`.
+- Integrated automation actions with canonical audit events for governance traceability.
+- Added default `system.noop` handler to validate framework execution wiring without introducing business-feature automation.
+
+File touchpoints:
+- `api/models/automation_workflows.py`
+- `api/models/automation_runs.py`
+- `api/models/__init__.py`
+- `api/services/automation_engine.py`
+- `api/services/authorization.py`
+- `api/schemas/automation.py`
+- `api/routers/admin_automation.py`
+- `api/main.py`
+- `alembic/versions/p4a4f1d8c2b7_add_automation_foundation_tables.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PROJECT_SYNC_BRIEF.md`
 - Added dedicated admin analytics endpoint for executive dashboard payload.
 - Reused existing projection/reporting layers where appropriate:
   - waiver reporting metrics

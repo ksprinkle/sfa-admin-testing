@@ -15,6 +15,7 @@ PERMISSION_WAIVERS_MANAGE = "waivers.manage"
 PERMISSION_ANALYTICS_READ = "analytics.read"
 PERMISSION_AUDIT_READ = "audit.read"
 PERMISSION_PERMISSIONS_MANAGE = "permissions.manage"
+PERMISSION_AUTOMATION_MANAGE = "automation.manage"
 
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
@@ -27,6 +28,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_ANALYTICS_READ,
         PERMISSION_AUDIT_READ,
         PERMISSION_PERMISSIONS_MANAGE,
+        PERMISSION_AUTOMATION_MANAGE,
     },
 }
 
