@@ -200,3 +200,16 @@ Decision:
 
 Rationale:
 - Keeps database waiver record as canonical source while enabling verifiable immutable legal snapshots.
+
+## ADR-011: Phase 2.5 Waiver Delivery Orchestration
+Date: 2026-06-13
+Status: Accepted
+
+Decision:
+- Track waiver delivery attempts in a dedicated delivery model separate from waiver records.
+- Support email and SMS delivery methods with template rendering, resend attempts, and persisted status tracking.
+- Treat delivery service as a consumer of existing signing token and waiver infrastructure.
+- Keep waiver lifecycle and PDF archive logic unchanged during this phase.
+
+Rationale:
+- Enables retryable multi-channel delivery without mutating signed records and preserves clear audit history.

@@ -10,10 +10,19 @@ from api.models.participants import Participant
 from api.schemas.waivers import (
     WaiverCreateTokenIn,
     WaiverCreateTokenOut,
+    WaiverDeliveryCreateIn,
+    WaiverDeliveryOut,
+    WaiverDeliveryResendIn,
     WaiverPdfArtifactOut,
     WaiverPublicSignIn,
     WaiverPublicSignOut,
     WaiverPublicViewOut,
+)
+from api.services.waiver_delivery import (
+    create_delivery_attempt,
+    get_delivery_for_waiver,
+    get_waiver_for_delivery,
+    list_deliveries_for_waiver,
 )
 from api.services.waiver_lifecycle import record_waiver_audit_event
 from api.services.waiver_pdf_archive import (
@@ -31,6 +40,83 @@ from api.services.waiver_signing import (
 )
 
 router = APIRouter(prefix="/waivers", tags=["Waivers"])
+
+
+@router.post("/{waiver_id}/deliveries", response_model=WaiverDeliveryOut)
+def create_waiver_delivery(
+    waiver_id: UUID,
+    payload: WaiverDeliveryCreateIn,
+    db: DBSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    waiver = get_waiver_for_delivery(db, waiver_id)
+    actor_user_id = str(getattr(current_user, "id", "") or "") or None
+
+    delivery = create_delivery_attempt(
+        db,
+        waiver=waiver,
+        method=payload.method,
+        recipient=payload.recipient,
+        expires_in_minutes=payload.expires_in_minutes,
+        template_key=payload.template_key,
+        subject_template=payload.subject_template,
+        body_template=payload.body_template,
+        actor_user_id=actor_user_id,
+    )
+    db.commit()
+    db.refresh(delivery)
+    return delivery
+
+
+@router.post("/{waiver_id}/deliveries/{delivery_id}/resend", response_model=WaiverDeliveryOut)
+def resend_waiver_delivery(
+    waiver_id: UUID,
+    delivery_id: UUID,
+    payload: WaiverDeliveryResendIn,
+    db: DBSession = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    waiver = get_waiver_for_delivery(db, waiver_id)
+    previous = get_delivery_for_waiver(db, waiver_id=waiver_id, delivery_id=delivery_id)
+    actor_user_id = str(getattr(current_user, "id", "") or "") or None
+
+    delivery = create_delivery_attempt(
+        db,
+        waiver=waiver,
+        method=payload.method or previous.method,
+        recipient=(payload.recipient or previous.recipient),
+        expires_in_minutes=payload.expires_in_minutes,
+        template_key=payload.template_key or previous.template_key,
+        subject_template=payload.subject_template,
+        body_template=payload.body_template,
+        actor_user_id=actor_user_id,
+        resend_of=previous,
+        resend_reason=payload.resend_reason,
+    )
+    db.commit()
+    db.refresh(delivery)
+    return delivery
+
+
+@router.get("/{waiver_id}/deliveries", response_model=list[WaiverDeliveryOut])
+def list_waiver_deliveries(
+    waiver_id: UUID,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    _ = get_waiver_for_delivery(db, waiver_id)
+    return list_deliveries_for_waiver(db, waiver_id=waiver_id)
+
+
+@router.get("/{waiver_id}/deliveries/{delivery_id}", response_model=WaiverDeliveryOut)
+def get_waiver_delivery(
+    waiver_id: UUID,
+    delivery_id: UUID,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    _ = get_waiver_for_delivery(db, waiver_id)
+    return get_delivery_for_waiver(db, waiver_id=waiver_id, delivery_id=delivery_id)
 
 
 @router.post("/{waiver_id}/pdf/generate", response_model=WaiverPdfArtifactOut)

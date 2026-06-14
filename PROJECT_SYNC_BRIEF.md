@@ -176,9 +176,9 @@ File touchpoints:
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 13, Phase 2.4 Waiver PDF Archive) — <pending_commit>
+## Session Delta (Committed - June 13, Phase 2.4 Waiver PDF Archive) — 39cf963
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Backend/service layer for immutable artifact generation and retrieval only.
@@ -203,6 +203,36 @@ File touchpoints:
 - `api/schemas/waivers.py`
 - `alembic/versions/v5d2a1c8f4e7_add_waiver_pdf_artifacts.py`
 - `api/requirements.txt`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PHASE2_IMPLEMENTATION_PLAN.md`
+- `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 13, Phase 2.5 Waiver Delivery Services) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Delivery orchestration only.
+- No waiver lifecycle redesign.
+- No PDF generation changes.
+- No reporting/dashboard/analytics scope.
+
+Behavior summary:
+- Added dedicated waiver delivery tracking model for email/SMS attempts with status persistence.
+- Added template-supported delivery rendering for email subject/body and SMS body.
+- Added resend capability that creates a new delivery attempt and new secure token.
+- Added admin endpoints for delivery creation, resend, per-waiver list, and individual delivery retrieval.
+- Added delivery audit events (`DELIVERY_CREATED`, `EMAIL_SENT`, `SMS_SENT`, `DELIVERY_FAILED`, `DELIVERY_RETRIED`, `DELIVERY_COMPLETED`).
+
+File touchpoints:
+- `api/models/waiver_deliveries.py`
+- `api/models/participant_waivers.py`
+- `api/models/__init__.py`
+- `api/main.py`
+- `api/services/waiver_delivery.py`
+- `api/routers/waivers.py`
+- `api/schemas/waivers.py`
+- `alembic/versions/w6f3b2d8a9c1_add_waiver_deliveries.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 - `PROJECT_SYNC_BRIEF.md`

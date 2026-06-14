@@ -58,3 +58,46 @@ class WaiverPdfArtifactOut(BaseModel):
     already_exists: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class WaiverDeliveryCreateIn(BaseModel):
+    method: str = Field(default="email")
+    recipient: str
+    expires_in_minutes: int = Field(default=1440, ge=5, le=10080)
+    template_key: str = Field(default="default")
+    subject_template: str | None = None
+    body_template: str | None = None
+
+
+class WaiverDeliveryResendIn(BaseModel):
+    method: str | None = None
+    recipient: str | None = None
+    expires_in_minutes: int = Field(default=1440, ge=5, le=10080)
+    template_key: str | None = None
+    subject_template: str | None = None
+    body_template: str | None = None
+    resend_reason: str | None = None
+
+
+class WaiverDeliveryOut(BaseModel):
+    id: UUID
+    waiver_id: UUID
+    participant_id: UUID
+    resend_of_delivery_id: UUID | None = None
+    method: str
+    recipient: str
+    status: str
+    attempt_number: int
+    template_key: str
+    rendered_subject: str | None = None
+    rendered_body: str
+    signing_path: str
+    token_expires_at: datetime
+    provider_message_id: str | None = None
+    error_message: str | None = None
+    created_by_user_id: str | None = None
+    completed_at: datetime | None = None
+    delivery_metadata: dict | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

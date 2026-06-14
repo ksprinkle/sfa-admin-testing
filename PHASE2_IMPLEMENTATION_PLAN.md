@@ -106,13 +106,22 @@ Validation checklist:
 ### Phase 2.5 - Email and SMS Delivery
 
 Planned deliverables:
-- Email delivery
-- SMS delivery
-- Resend functionality
-- Delivery status tracking
+- [x] Email delivery
+- [x] SMS delivery
+- [x] Resend functionality
+- [x] Delivery status tracking
+- [x] Delivery audit events
+- [x] Template support
 
 Planned commit:
 - feat(waiver): add waiver delivery services
+
+Validation checklist:
+- [ ] Diagnostics pass
+- [ ] Build/compile checks pass
+- [ ] Single scoped commit created
+- [ ] Working tree reviewed after commit
+- [ ] stash@{0} still present
 
 ### Phase 2.6 - Reporting and Dashboard Integration
 
