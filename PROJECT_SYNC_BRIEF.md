@@ -593,9 +593,9 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 4.7 Event Operations Foundation) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 4.7 Event Operations Foundation) — 931bd3e
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Event operations foundation only.
