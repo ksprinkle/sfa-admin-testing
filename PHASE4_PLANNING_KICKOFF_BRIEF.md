@@ -1,90 +1,73 @@
 # Phase 4 Planning Kickoff Brief
 
-Date: 2026-06-14
-Purpose: Governance-safe transition from stabilized baseline to Phase 4 planning.
+## Purpose
+This document marks the transition from the stabilized v1.1.0 baseline into Phase 4 planning.
+It is a planning artifact only and authorizes no implementation work.
 
-## Baseline Lock
+## Baseline
+- Baseline Version: v1.1.0
+- Baseline Reference Commit: a8c25ed
+- Phase 3.5 documentation synchronization completed separately.
 
-- Baseline version: v1.1.0
-- Baseline implementation commit: a8c25ed
-- Stabilization docs commit: 2dae30b
-- Scope status: Phase 3 implementation complete and baselined
+This baseline is the implementation reference for all future planning until superseded by a later approved baseline.
 
-## Phase 4 Entry Rule
+## Phase 3 Summary
+Completed:
+- Feature 1 - Waiver Lifecycle Management
+- Feature 2 - PDF Generation and Permanent Storage
+- Feature 3 - Participant Activity Timeline
+- Feature 4 - Volunteer Dashboard Enhancements
+- Feature 5 - Executive Analytics Dashboard
 
-No Phase 4 implementation work is authorized until planning gate approval is complete.
+Architecture principles established during Phase 3 remain authoritative.
 
-Required sequence:
-1. Architecture planning
-2. Roadmap planning
-3. Dependency analysis
-4. Priority ranking
-5. Explicit approval to build
+## Governance Rules
+The following operating model remains in force:
+- Architecture-first planning
+- One logical feature per change set
+- Scoped implementation only
+- Targeted validation before completion
+- Repository hygiene verification
+- No scope expansion without explicit approval
+- Documentation updates when architecture or behavior changes
 
-Then execute with delivery discipline:
-1. One feature
-2. One scoped change set
-3. Validation
-4. Repository hygiene
-5. Review gate
+## Architectural Principles
+- Canonical domain data is the source of truth.
+- Projection layers compute read models.
+- Dashboards consume projections.
+- UI components do not become systems of record.
+- Business rules should exist in one canonical location and be reused rather than duplicated.
 
-## Protected Architecture Baseline
+## Phase 4 Initial Objective
+Phase 4 begins with planning rather than coding.
 
-Canonical Domain Data
-        |
-        |- Waiver Lifecycle
-        |- PDF Preservation
-        |- Participant Timeline
-        |- Volunteer Projection
-        |- Waiver Reporting
-        |- Event Summaries
-        |
-        v
-Executive Analytics Projection
-        |
-        v
-Read-only Administrative UI
+The first activity is a Roadmap and Architecture Planning Gate that will:
+1. Inventory current capabilities.
+2. Identify functional gaps and opportunities.
+3. Group work into coherent epics.
+4. Analyze dependencies.
+5. Recommend prioritization.
+6. Produce a proposed Phase 4 roadmap.
+7. Stop for approval before implementation.
 
-Enforcement constraints:
-- UI is not a system of record.
-- Projections are not canonical data.
-- Avoid duplicate business rules across layers unless justified and documented.
+## Roadmap Status Model
+- Proposed
+- Planned
+- In Progress
+- Complete
+- Deferred
 
-## Living Roadmap Status Model
+Deferred work should remain visible until explicitly removed or completed.
 
-- Proposed: candidate work
-- Planned: approved architecture and defined scope
-- In Progress: active feature under implementation
-- Complete: implemented and baselined
-- Deferred: intentionally postponed with visibility maintained
+## Out of Scope for this Brief
+This document:
+- Does not authorize implementation.
+- Does not modify architecture.
+- Does not reprioritize features.
+- Does not establish new requirements.
 
-## Deferred and Follow-up Visibility
+Its sole purpose is to provide a clean planning handoff from the Phase 3 baseline.
 
-Current deferred/follow-up items to keep visible during Phase 4 planning:
-- Future enhancements beyond current approved roadmap
-- ADR synchronization follow-up (separate docs-only audit trail)
-- Maintenance disposition for untracked waiver PDFs and storage runtime artifacts
-
-## Planning Session Inputs Checklist
-
-Before starting Phase 4 planning, confirm:
-- v1.1.0 baseline remains authoritative
-- No unapproved implementation work is mixed into planning
-- Deferred list is present and current
-- Candidate epics include explicit dependencies and non-goals
-- Acceptance criteria are testable and bounded
-
-## Out of Scope for This Brief
-
-- No code implementation
-- No schema changes
-- No endpoint behavior changes
-- No cleanup/retention decisions for maintenance artifacts
-
-## Expected Output of Next Conversation
-
-A Phase 4 planning package only:
-- Architecture proposal and constraints
-- Prioritized roadmap with dependencies
-- Scoped feature candidates with acceptance criteria
-- Explicit go/no-go recommendation for first implementation item
+## Next Conversation Recommendation
+The next conversation should be entirely devoted to the Phase 4 Roadmap and Architecture Planning Gate.
+Avoid coding until that planning gate is reviewed and approved.
