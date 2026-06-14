@@ -117,6 +117,20 @@ Expected result:
 - Functional readiness: PASS
 - Production readiness: GO (only if all blocker acceptance criteria pass)
 
+## Final Governance Artifact (Required)
+After post-sprint verification and before any Phase 3 planning, publish one final immutable release artifact:
+
+- `docs/releases/PHASE2_FINAL_RELEASE_BOARD_DECISION_YYYY-MM-DD.md`
+
+Use `docs/releases/PHASE2_FINAL_RELEASE_BOARD_DECISION_TEMPLATE.md` as the source template and include:
+
+- Baseline commit and engineering HEAD
+- Governance commits
+- RB-01..RB-04 status with commit hashes
+- Operational validation summary
+- Repository hygiene summary
+- Final GO/NO-GO decision and sign-off
+
 ## Sign-off
 - Engineering Lead: ____________________
 - Release Manager: ____________________
