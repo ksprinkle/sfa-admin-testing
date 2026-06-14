@@ -17,6 +17,7 @@ from api.services.waiver_lifecycle import (
     record_waiver_audit_event,
     transition_waiver_status,
 )
+from api.services.waiver_template_provenance import get_active_template_snapshot
 
 PUBLIC_SOURCE = "public_signing_link"
 
@@ -273,13 +274,23 @@ def complete_public_signing(
     waiver.verified_by_user_id = None
     waiver.waiver_version = (waiver_version or "").strip() or waiver.waiver_version
 
+    active_template_snapshot = get_active_template_snapshot(db)
+    if active_template_snapshot and not waiver.waiver_version:
+        waiver.waiver_version = f"v{active_template_snapshot.template_version}"
+
+    details = waiver.version_metadata or {}
+    details = dict(details)
+
+    if active_template_snapshot:
+        details["waiver_template_id"] = str(active_template_snapshot.template_id)
+        details["template_version"] = int(active_template_snapshot.template_version)
+        details["template_content_sha256"] = active_template_snapshot.template_content_sha256
+
     if signer_name:
-        details = waiver.version_metadata or {}
-        details = dict(details)
         details["public_signer_name"] = signer_name.strip()
         if relationship_to_participant:
             details["public_signer_relationship"] = relationship_to_participant.strip()
-        waiver.version_metadata = details
+    waiver.version_metadata = details
 
     transition_waiver_status(
         db,

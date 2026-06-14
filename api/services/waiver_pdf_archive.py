@@ -13,7 +13,12 @@ from sqlalchemy.orm import Session, joinedload
 
 from api.models.participant_waivers import ParticipantWaiver
 from api.models.waiver_pdf_artifacts import WaiverPdfArtifact
+from api.models.waiver_templates import WaiverTemplate
 from api.services.waiver_lifecycle import STATUS_SIGNED, record_waiver_audit_event
+from api.services.waiver_template_provenance import (
+    hash_template_content,
+    resolve_template_snapshot_for_waiver,
+)
 
 _STORAGE_ROOT = Path(__file__).resolve().parents[2] / "storage" / "waiver_pdfs"
 
@@ -27,7 +32,7 @@ def _safe_text(value: object) -> str:
     return text.strip() or "-"
 
 
-def _render_waiver_pdf_bytes(waiver: ParticipantWaiver) -> bytes:
+def _render_waiver_pdf_bytes(waiver: ParticipantWaiver, *, template_version: int | None) -> bytes:
     participant = waiver.participant
     if participant is None:
         raise HTTPException(status_code=404, detail="Waiver participant context not found")
@@ -51,6 +56,7 @@ def _render_waiver_pdf_bytes(waiver: ParticipantWaiver) -> bytes:
         ("Participant Email", participant.email),
         ("Waiver Status", waiver.status),
         ("Waiver Version", waiver.waiver_version or "unspecified"),
+        ("Template Version", f"v{template_version}" if template_version else "unknown"),
         ("Waiver Revision", waiver.current_revision),
         ("Waiver Source", waiver.source),
         ("Signed At", waiver.signed_at.isoformat() if waiver.signed_at else "unknown"),
@@ -126,12 +132,17 @@ def create_or_get_waiver_pdf_artifact(
     if existing is not None:
         return existing, False
 
-    payload = _render_waiver_pdf_bytes(waiver)
+    template_snapshot = resolve_template_snapshot_for_waiver(db, waiver)
+    if template_snapshot is None:
+        raise HTTPException(status_code=409, detail="No waiver template provenance available for this signed waiver")
+
+    payload = _render_waiver_pdf_bytes(waiver, template_version=template_snapshot.template_version)
     sha256_hash = hashlib.sha256(payload).hexdigest()
     byte_size = len(payload)
 
     artifact_id = uuid.uuid4()
-    relative_path = f"{waiver.id}/{revision}/{artifact_id}.pdf"
+    year_segment = _utcnow().strftime("%Y")
+    relative_path = f"artifacts/{year_segment}/{artifact_id}/artifact.pdf"
     absolute_path = _absolute_storage_path(relative_path)
     absolute_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -147,6 +158,9 @@ def create_or_get_waiver_pdf_artifact(
         participant_id=waiver.participant_id,
         waiver_version=waiver.waiver_version,
         waiver_revision=revision,
+        waiver_template_id=template_snapshot.template_id,
+        template_version=template_snapshot.template_version,
+        template_content_sha256=template_snapshot.template_content_sha256,
         storage_path=relative_path,
         mime_type="application/pdf",
         sha256_hash=sha256_hash,
@@ -165,6 +179,8 @@ def create_or_get_waiver_pdf_artifact(
         details={
             "artifact_id": str(artifact.id),
             "waiver_revision": revision,
+            "waiver_template_id": str(template_snapshot.template_id),
+            "template_version": template_snapshot.template_version,
         },
     )
     record_waiver_audit_event(
@@ -178,6 +194,7 @@ def create_or_get_waiver_pdf_artifact(
             "storage_path": relative_path,
             "sha256_hash": sha256_hash,
             "byte_size": byte_size,
+            "template_content_sha256": template_snapshot.template_content_sha256,
         },
     )
 
@@ -213,3 +230,60 @@ def resolve_artifact_file_path(artifact: WaiverPdfArtifact) -> Path:
     if not absolute_path.exists() or not absolute_path.is_file():
         raise HTTPException(status_code=404, detail="Waiver PDF file not found")
     return absolute_path
+
+
+def verify_artifact_for_waiver(db: Session, waiver_id) -> dict:
+    artifact = get_latest_pdf_artifact_for_waiver(db, waiver_id)
+
+    expected_sha256 = artifact.sha256_hash
+    actual_sha256 = None
+    storage_status = "FAIL"
+    integrity_status = "FAIL"
+
+    try:
+        file_path = resolve_artifact_file_path(artifact)
+        storage_status = "PASS"
+        actual_sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        integrity_status = "PASS" if actual_sha256 == expected_sha256 else "FAIL"
+    except HTTPException:
+        file_path = None
+
+    template = None
+    expected_template_content_sha256 = artifact.template_content_sha256
+    actual_template_content_sha256 = None
+    provenance_status = "FAIL"
+
+    if artifact.waiver_template_id:
+        template = db.query(WaiverTemplate).filter(WaiverTemplate.id == artifact.waiver_template_id).first()
+
+    if template is not None:
+        actual_template_content_sha256 = hash_template_content(template.content)
+        template_version_matches = artifact.template_version is not None and int(template.version) == int(artifact.template_version)
+        template_hash_matches = (
+            bool(expected_template_content_sha256)
+            and actual_template_content_sha256 == expected_template_content_sha256
+        )
+        provenance_status = "PASS" if template_version_matches and template_hash_matches else "FAIL"
+
+    artifact_status = "VALID" if all(
+        status == "PASS" for status in (storage_status, integrity_status, provenance_status)
+    ) else "INVALID"
+
+    return {
+        "artifact_id": artifact.id,
+        "waiver_id": artifact.waiver_id,
+        "participant_id": artifact.participant_id,
+        "waiver_template_id": artifact.waiver_template_id,
+        "template_version": artifact.template_version,
+        "storage_path": artifact.storage_path,
+        "integrity_status": integrity_status,
+        "provenance_status": provenance_status,
+        "storage_status": storage_status,
+        "artifact_status": artifact_status,
+        "expected_sha256": expected_sha256,
+        "actual_sha256": actual_sha256,
+        "expected_template_content_sha256": expected_template_content_sha256,
+        "actual_template_content_sha256": actual_template_content_sha256,
+        "generated_at": artifact.generated_at,
+        "file_missing": file_path is None,
+    }

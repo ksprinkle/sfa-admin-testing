@@ -48,6 +48,9 @@ class WaiverPdfArtifactOut(BaseModel):
     participant_id: UUID
     waiver_version: str | None = None
     waiver_revision: int
+    waiver_template_id: UUID | None = None
+    template_version: int | None = None
+    template_content_sha256: str | None = None
     storage_path: str
     mime_type: str
     sha256_hash: str
@@ -121,3 +124,22 @@ class WaiverAnalyticsEventOut(BaseModel):
     event_date: str
     event_type: str
     count: int
+
+
+class WaiverPdfVerificationOut(BaseModel):
+    artifact_id: UUID
+    waiver_id: UUID
+    participant_id: UUID
+    waiver_template_id: UUID | None = None
+    template_version: int | None = None
+    storage_path: str
+    integrity_status: str
+    provenance_status: str
+    storage_status: str
+    artifact_status: str
+    expected_sha256: str
+    actual_sha256: str | None = None
+    expected_template_content_sha256: str | None = None
+    actual_template_content_sha256: str | None = None
+    generated_at: datetime
+    file_missing: bool = False

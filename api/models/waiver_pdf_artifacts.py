@@ -27,6 +27,14 @@ class WaiverPdfArtifact(Base):
 
     waiver_version = Column(String, nullable=True)
     waiver_revision = Column(Integer, nullable=False, default=1)
+    waiver_template_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("waiver_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    template_version = Column(Integer, nullable=True)
+    template_content_sha256 = Column(String, nullable=True)
 
     storage_path = Column(String, nullable=False, unique=True)
     mime_type = Column(String, nullable=False, default="application/pdf")
@@ -42,6 +50,7 @@ class WaiverPdfArtifact(Base):
 
     waiver = relationship("ParticipantWaiver", back_populates="pdf_artifacts")
     participant = relationship("Participant")
+    waiver_template = relationship("WaiverTemplate")
     generated_by_user = relationship("User")
 
     __table_args__ = (

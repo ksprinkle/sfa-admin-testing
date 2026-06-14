@@ -264,9 +264,9 @@ File touchpoints:
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 3 Feature 1 Waiver Lifecycle Management) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 3 Feature 1 Waiver Lifecycle Management) — 0e412b6
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Template lifecycle management only.
@@ -297,6 +297,40 @@ File touchpoints:
 - `admin-app/src/pages/WaiverTemplates.jsx`
 - `admin-app/src/App.jsx`
 - `admin-app/src/pages/Dashboard.jsx`
+- `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 3 Feature 2 PDF Preservation Provenance) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- PDF preservation and provenance only.
+- No participant UX changes.
+- No email/SMS delivery changes.
+- No analytics/timeline/bulk export scope.
+
+Behavior summary:
+- Extended immutable waiver PDF artifacts with template provenance fields:
+  - `waiver_template_id`
+  - `template_version`
+  - `template_content_sha256`
+- Captured template provenance snapshot at signing completion for future archive defensibility.
+- Updated PDF artifact generation to bind each artifact to template provenance and use immutable unique storage paths.
+- Added deterministic artifact verification endpoint output covering independent checks:
+  - `integrity_status`
+  - `provenance_status`
+  - `storage_status`
+  - final `artifact_status`
+- Preserved non-overwrite behavior: generation returns existing artifact per waiver revision when present.
+
+File touchpoints:
+- `api/models/waiver_pdf_artifacts.py`
+- `api/services/waiver_template_provenance.py`
+- `api/services/waiver_signing.py`
+- `api/services/waiver_pdf_archive.py`
+- `api/schemas/waivers.py`
+- `api/routers/waivers.py`
+- `alembic/versions/y7c1e5d9a2b4_add_template_provenance_to_pdf_artifacts.py`
 - `PROJECT_SYNC_BRIEF.md`
 
 ## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e

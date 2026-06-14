@@ -20,6 +20,7 @@ from api.schemas.waivers import (
     WaiverDeliveryResendIn,
     WaiverAnalyticsEventOut,
     WaiverPdfArtifactOut,
+    WaiverPdfVerificationOut,
     WaiverPublicSignIn,
     WaiverPublicSignOut,
     WaiverPublicViewOut,
@@ -36,6 +37,7 @@ from api.services.waiver_pdf_archive import (
     get_latest_pdf_artifact_for_waiver,
     get_waiver_with_context,
     resolve_artifact_file_path,
+    verify_artifact_for_waiver,
 )
 from api.services.waiver_reporting import (
     get_analytics_event_rows,
@@ -262,6 +264,9 @@ def generate_waiver_pdf_artifact(
         "participant_id": artifact.participant_id,
         "waiver_version": artifact.waiver_version,
         "waiver_revision": artifact.waiver_revision,
+        "waiver_template_id": artifact.waiver_template_id,
+        "template_version": artifact.template_version,
+        "template_content_sha256": artifact.template_content_sha256,
         "storage_path": artifact.storage_path,
         "mime_type": artifact.mime_type,
         "sha256_hash": artifact.sha256_hash,
@@ -287,6 +292,9 @@ def get_waiver_pdf_artifact_metadata(
         "participant_id": artifact.participant_id,
         "waiver_version": artifact.waiver_version,
         "waiver_revision": artifact.waiver_revision,
+        "waiver_template_id": artifact.waiver_template_id,
+        "template_version": artifact.template_version,
+        "template_content_sha256": artifact.template_content_sha256,
         "storage_path": artifact.storage_path,
         "mime_type": artifact.mime_type,
         "sha256_hash": artifact.sha256_hash,
@@ -327,6 +335,15 @@ def download_waiver_pdf_artifact(
         media_type=artifact.mime_type,
         filename=f"waiver-{waiver_id}-r{artifact.waiver_revision}.pdf",
     )
+
+
+@router.get("/{waiver_id}/pdf/verify", response_model=WaiverPdfVerificationOut)
+def verify_waiver_pdf_artifact(
+    waiver_id: UUID,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    return verify_artifact_for_waiver(db, waiver_id)
 
 
 @router.post("/create-token", response_model=WaiverCreateTokenOut)
