@@ -270,6 +270,13 @@ class AdminEventSummary(BaseModel):
     waitlist_count: int
     checked_in_count: int
     waivers_missing: int
+    waivers_sent_count: int = 0
+    waivers_viewed_count: int = 0
+    waivers_signed_count: int = 0
+    expired_links_count: int = 0
+    email_deliveries_count: int = 0
+    sms_deliveries_count: int = 0
+    failed_deliveries_count: int = 0
     
     participant_capacity: Optional[int]
     participant_remaining: Optional[int]

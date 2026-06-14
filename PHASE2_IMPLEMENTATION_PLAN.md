@@ -126,12 +126,20 @@ Validation checklist:
 ### Phase 2.6 - Reporting and Dashboard Integration
 
 Planned deliverables:
-- Dashboard status indicators
-- Reporting hooks
-- Analytics events
+- [x] Dashboard status indicators
+- [x] Reporting hooks
+- [x] Analytics events
+- [x] Delivery metrics export (CSV)
 
 Planned commit:
 - feat(waiver): integrate waiver status into administration
+
+Validation checklist:
+- [ ] Diagnostics pass
+- [ ] Build/compile checks pass
+- [ ] Single scoped commit created
+- [ ] Working tree reviewed after commit
+- [ ] stash@{0} still present
 
 ## Session gates
 

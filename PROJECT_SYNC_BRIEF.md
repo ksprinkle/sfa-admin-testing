@@ -207,9 +207,9 @@ File touchpoints:
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 13, Phase 2.5 Waiver Delivery Services) — <pending_commit>
+## Session Delta (Committed - June 13, Phase 2.5 Waiver Delivery Services) — 7d90896
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Delivery orchestration only.
@@ -233,6 +233,33 @@ File touchpoints:
 - `api/routers/waivers.py`
 - `api/schemas/waivers.py`
 - `alembic/versions/w6f3b2d8a9c1_add_waiver_deliveries.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PHASE2_IMPLEMENTATION_PLAN.md`
+- `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 13, Phase 2.6 Waiver Observability and Reporting) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Observability and reporting only.
+- No waiver lifecycle redesign.
+- No token security changes.
+- No PDF generation flow changes.
+- No delivery orchestration behavior changes.
+
+Behavior summary:
+- Added admin-authorized waiver metrics endpoint with participant/waiver completion, token expiration, and delivery success/failure counters.
+- Added admin-authorized waiver analytics events endpoint aggregating waiver audit events by date and event type.
+- Added admin-authorized waiver delivery CSV export endpoint for operational reporting.
+- Extended admin event summary response with waiver and delivery counters for dashboard integration.
+
+File touchpoints:
+- `api/services/waiver_reporting.py`
+- `api/routers/waivers.py`
+- `api/schemas/waivers.py`
+- `api/routers/admin_events.py`
+- `api/schemas/events.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 - `PROJECT_SYNC_BRIEF.md`

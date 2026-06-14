@@ -1,7 +1,11 @@
+from datetime import datetime
 from uuid import UUID
+import csv
+import io
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session as DBSession, joinedload
 
 from api.db.session import get_db
@@ -10,9 +14,11 @@ from api.models.participants import Participant
 from api.schemas.waivers import (
     WaiverCreateTokenIn,
     WaiverCreateTokenOut,
+    WaiverDashboardMetricsOut,
     WaiverDeliveryCreateIn,
     WaiverDeliveryOut,
     WaiverDeliveryResendIn,
+    WaiverAnalyticsEventOut,
     WaiverPdfArtifactOut,
     WaiverPublicSignIn,
     WaiverPublicSignOut,
@@ -31,6 +37,11 @@ from api.services.waiver_pdf_archive import (
     get_waiver_with_context,
     resolve_artifact_file_path,
 )
+from api.services.waiver_reporting import (
+    get_analytics_event_rows,
+    get_dashboard_metrics,
+    get_delivery_rows_for_export,
+)
 from api.services.waiver_signing import (
     complete_public_signing,
     create_signing_token,
@@ -40,6 +51,115 @@ from api.services.waiver_signing import (
 )
 
 router = APIRouter(prefix="/waivers", tags=["Waivers"])
+
+
+@router.get("/reports/metrics", response_model=WaiverDashboardMetricsOut)
+def get_waiver_dashboard_metrics(
+    event_id: UUID | None = None,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    metrics = get_dashboard_metrics(db, event_id=event_id)
+    return {
+        "event_id": event_id,
+        "total_participants": metrics.total_participants,
+        "waivers_required": metrics.waivers_required,
+        "waivers_sent": metrics.waivers_sent,
+        "waivers_viewed": metrics.waivers_viewed,
+        "waivers_signed": metrics.waivers_signed,
+        "expired_links": metrics.expired_links,
+        "email_deliveries": metrics.email_deliveries,
+        "sms_deliveries": metrics.sms_deliveries,
+        "failed_deliveries": metrics.failed_deliveries,
+        "completion_rate": metrics.completion_rate,
+    }
+
+
+@router.get("/reports/analytics-events", response_model=list[WaiverAnalyticsEventOut])
+def get_waiver_analytics_events(
+    event_id: UUID | None = None,
+    days: int = 30,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    rows = get_analytics_event_rows(db, event_id=event_id, days=days)
+    return [
+        {
+            "event_date": str(getattr(row, "event_date", "")),
+            "event_type": str(getattr(row, "event_type", "")),
+            "count": int(getattr(row, "count", 0) or 0),
+        }
+        for row in rows
+    ]
+
+
+@router.get("/reports/deliveries/export.csv")
+def export_waiver_deliveries_csv(
+    event_id: UUID | None = None,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    rows = get_delivery_rows_for_export(db, event_id=event_id)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "delivery_id",
+            "waiver_id",
+            "participant_id",
+            "event_id",
+            "participant_first_name",
+            "participant_last_name",
+            "participant_email",
+            "method",
+            "recipient",
+            "status",
+            "attempt_number",
+            "template_key",
+            "provider_message_id",
+            "error_message",
+            "signing_path",
+            "token_expires_at",
+            "completed_at",
+            "created_at",
+        ]
+    )
+
+    for row in rows:
+        writer.writerow(
+            [
+                str(row.id),
+                str(row.waiver_id),
+                str(row.participant_id),
+                str(row.event_id),
+                row.first_name,
+                row.last_name,
+                row.email,
+                row.method,
+                row.recipient,
+                row.status,
+                row.attempt_number,
+                row.template_key,
+                row.provider_message_id,
+                row.error_message,
+                row.signing_path,
+                row.token_expires_at.isoformat() if row.token_expires_at else None,
+                row.completed_at.isoformat() if row.completed_at else None,
+                row.created_at.isoformat() if row.created_at else None,
+            ]
+        )
+
+    csv_text = output.getvalue()
+    output.close()
+
+    suffix = f"-event-{event_id}" if event_id else ""
+    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    return StreamingResponse(
+        iter([csv_text]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=waiver-deliveries{suffix}-{timestamp}.csv"},
+    )
 
 
 @router.post("/{waiver_id}/deliveries", response_model=WaiverDeliveryOut)

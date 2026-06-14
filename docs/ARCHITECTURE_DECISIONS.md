@@ -213,3 +213,16 @@ Decision:
 
 Rationale:
 - Enables retryable multi-channel delivery without mutating signed records and preserves clear audit history.
+
+## ADR-012: Phase 2.6 Waiver Observability and Reporting
+Date: 2026-06-13
+Status: Accepted
+
+Decision:
+- Add admin-authorized waiver observability endpoints for metrics, analytics event aggregation, and delivery CSV export.
+- Derive reporting metrics from existing waiver, token, delivery, and participant data models without introducing lifecycle or workflow mutations.
+- Extend admin event summary payload with waiver and delivery counters for dashboard integration.
+- Keep token signing, lifecycle transitions, PDF generation, and delivery orchestration behavior unchanged.
+
+Rationale:
+- Improves operational visibility for event readiness and follow-up actions while preserving previously approved business logic and security boundaries.

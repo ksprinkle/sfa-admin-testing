@@ -101,3 +101,23 @@ class WaiverDeliveryOut(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class WaiverDashboardMetricsOut(BaseModel):
+    event_id: UUID | None = None
+    total_participants: int
+    waivers_required: int
+    waivers_sent: int
+    waivers_viewed: int
+    waivers_signed: int
+    expired_links: int
+    email_deliveries: int
+    sms_deliveries: int
+    failed_deliveries: int
+    completion_rate: float
+
+
+class WaiverAnalyticsEventOut(BaseModel):
+    event_date: str
+    event_type: str
+    count: int

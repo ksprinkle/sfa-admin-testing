@@ -35,6 +35,7 @@ from api.services.session_service import DEFAULT_SESSION_CAPACITY
 from api.models.event_activity_log import EventActivityLog
 from api.models.participant_removal_log import ParticipantRemovalLog
 from api.services.session_projection import project_session_flow
+from api.services.waiver_reporting import get_dashboard_metrics
 
 router = APIRouter(
     prefix="/admin/events",
@@ -445,6 +446,8 @@ def event_summary(
     volunteer_remaining = None
     volunteer_fill_percent = None
 
+    waiver_metrics = get_dashboard_metrics(db, event_id=event_id)
+
     if event.participant_capacity:
         participant_remaining = max(
             event.participant_capacity - registered, 0
@@ -465,6 +468,13 @@ def event_summary(
         "waitlist_count": waitlisted,
         "checked_in_count": checked_in,
         "waivers_missing": waivers_missing,
+        "waivers_sent_count": waiver_metrics.waivers_sent,
+        "waivers_viewed_count": waiver_metrics.waivers_viewed,
+        "waivers_signed_count": waiver_metrics.waivers_signed,
+        "expired_links_count": waiver_metrics.expired_links,
+        "email_deliveries_count": waiver_metrics.email_deliveries,
+        "sms_deliveries_count": waiver_metrics.sms_deliveries,
+        "failed_deliveries_count": waiver_metrics.failed_deliveries,
 
         "participant_capacity": event.participant_capacity,
         "participant_remaining": participant_remaining,
