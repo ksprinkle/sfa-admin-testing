@@ -592,6 +592,39 @@ File touchpoints:
 - `alembic/versions/c4m6e8d1b3a9_add_communications_foundation_tables.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 4.7 Event Operations Foundation) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Event operations foundation only.
+- No executive analytics or KPI dashboard implementation.
+- No reporting projection expansion.
+- No reminder or campaign logic.
+- No communications feature expansion.
+- No unrelated UI enhancement work.
+
+Behavior summary:
+- Added canonical event operations entity with one authoritative operations record per event.
+- Added event operations status model (`operational_status`, `readiness_status`, `capacity_status`) and capacity/readiness data contract.
+- Added event operations domain service for:
+  - canonical refresh from event, participant, and volunteer assignment domains
+  - explicit operational status updates
+- Added permission-gated admin event operations endpoints for list/detail/refresh/status update workflows.
+- Integrated event operations actions with canonical permissions (`event_operations.manage`) and canonical audit event recording.
+
+File touchpoints:
+- `api/models/event_operations.py`
+- `api/models/__init__.py`
+- `api/services/event_operations.py`
+- `api/services/authorization.py`
+- `api/schemas/event_operations.py`
+- `api/routers/admin_event_operations.py`
+- `api/main.py`
+- `alembic/versions/e4o7a2c9d1b5_add_event_operations_table.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PROJECT_SYNC_BRIEF.md`
 - Added dedicated admin analytics endpoint for executive dashboard payload.
 - Reused existing projection/reporting layers where appropriate:
   - waiver reporting metrics

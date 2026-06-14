@@ -24,6 +24,7 @@ import api.models.volunteer_assignments
 import api.models.communication_templates
 import api.models.communication_messages
 import api.models.communication_deliveries
+import api.models.event_operations
 import api.models.users
 import api.models.sessions
 import api.models.event_activity_log
@@ -47,6 +48,7 @@ from api.routers.admin_permissions import router as admin_permissions_router
 from api.routers.admin_automation import router as admin_automation_router
 from api.routers.admin_volunteers import router as admin_volunteers_router
 from api.routers.admin_communications import router as admin_communications_router
+from api.routers.admin_event_operations import router as admin_event_operations_router
 from api.routers.waivers import router as waivers_router
 from api.ws_manager import router as ws_router
 from api.routers.feedback import router as feedback_router
@@ -87,6 +89,7 @@ app.include_router(admin_permissions_router, prefix="/api")
 app.include_router(admin_automation_router, prefix="/api")
 app.include_router(admin_volunteers_router, prefix="/api")
 app.include_router(admin_communications_router, prefix="/api")
+app.include_router(admin_event_operations_router, prefix="/api")
 app.include_router(waivers_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")

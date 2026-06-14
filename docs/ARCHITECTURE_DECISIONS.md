@@ -324,3 +324,28 @@ Rationale:
 - Establishes canonical communications ownership before downstream operational feature expansion.
 - Preserves separation of concerns by keeping orchestration in services and provider abstraction layers rather than embedding delivery behavior in endpoints.
 - Ensures communications actions are permission-governed and auditable from the first foundation release.
+
+## ADR-018: Phase 4.7 Event Operations Foundation
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce canonical event operations entity (`event_operations`) with one authoritative row per event.
+- Establish event operations status model:
+  - operational status
+  - readiness status
+  - capacity status
+- Establish canonical capacity/readiness data contract owned by event operations domain:
+  - participant capacity and count snapshots
+  - volunteer capacity and assignment count snapshots
+  - readiness score and blockers list
+- Add event operations domain service for:
+  - canonical refresh from existing event/participant/volunteer domains
+  - explicit operational status updates
+- Integrate event operations actions with canonical permissions (`event_operations.manage`) and canonical audit infrastructure.
+- Keep this phase strictly foundational; no executive analytics, dashboards, reporting projections, reminder/campaign logic, or unrelated UI work is introduced.
+
+Rationale:
+- Provides a single authoritative operational-state owner for each event.
+- Preserves separation of domains by consuming canonical event, participant, and volunteer data without duplicating ownership.
+- Establishes a stable operational foundation for Phase 4.8 executive analytics as a derived consumer rather than a new source of truth.
