@@ -1,289 +1,102 @@
-ARCHITECTURE.md
-# Surfers For Autism – System Architecture
-
-This document describes the structure and data flow of the Surfers For Autism admin platform.
-
----
-
-# System Overview
+# Surfers For Autism - Architecture (Phase 3 Baseline)
 
-
-Frontend (React PWA)
-│
-│ REST API
-▼
-Backend (FastAPI)
-│
-│ ORM
-▼
-Database (SQLite / Postgres future)
+This document describes the implemented architecture at the Phase 3 baseline candidate for v1.1.0.
 
+## System Shape
 
----
-
-# Backend Structure
-
-
-backend/api
-│
-├── models
-│ ├── events.py
-│ ├── participants.py
-│ └── users.py
-│
-├── schemas
-│ ├── events.py
-│ └── participants.py
-│
-├── crud
-│ ├── events.py
-│ └── participants.py
-│
-├── routers
-│ ├── events.py
-│ ├── admin_events.py
-│ └── auth.py
-│
-├── dependencies.py
-├── security.py
-├── db
-│ ├── base.py
-│ └── session.py
-│
-└── main.py
+Admin UI (React/Vite)
+-> Read-only and operational API calls
+-> FastAPI services and routers
+-> SQLAlchemy models over canonical domain tables
+-> SQLite (local dev) / PostgreSQL (production)
 
+## Architectural Layering
 
----
+Canonical Domain Data
+        |
+        |- Waiver Lifecycle
+        |- PDF Preservation
+        |- Participant Timeline
+        |- Volunteer Projection
+        |- Waiver Reporting
+        |- Event Summaries
+        |
+        v
+Executive Analytics Projection
+        |
+        v
+Read-only Administrative UI
 
-# Frontend Structure
+## Canonical Domain Data (System of Record)
 
+Canonical data is persisted in domain models and tables (participants, events, sessions, waiver entities, audit events, PDF artifacts, and related records).
 
-frontend/admin-app/src
-│
-├── api
-│ └── events.js
-│
-├── components
-│ ├── BottomNav.jsx
-│ ├── TopBar.jsx
-│ └── ParticipantTable.jsx
-│
-├── pages
-│ ├── Dashboard.jsx
-│ ├── Events.jsx
-│ ├── EventDetail.jsx
-│ ├── CheckIn.jsx
-│ ├── Participants.jsx
-│ ├── CreateEvent.jsx
-│ └── EditEvent.jsx
-│
-└── App.jsx
+Rules:
+- Canonical domain models are the source of truth.
+- Projection services do not become systems of record.
+- Read-only dashboards do not persist computed results.
 
+## Phase 3 Implemented Capability Areas
 
----
+### 1) Waiver Lifecycle
 
-# Core Data Model
+- Bounded context: waiver templates with states draft, active, archived.
+- Immutability: active and archived templates are read-only.
+- Single active template enforcement with lineage through supersedes_template_id.
 
-## Event
+Primary implementation surfaces:
+- api/models/waiver_templates.py
+- api/services/waiver_template_lifecycle.py
+- api/routers/admin_waiver_templates.py
 
+### 2) Immutable PDF Preservation and Provenance
 
-id
-title
-slug
-event_type
-status
-start_date
-end_date
-location
-participant_capacity
-volunteer_capacity
+- Signed waiver PDF artifacts are immutable.
+- Artifact metadata includes template linkage and content hash provenance.
+- Verification reports integrity, provenance, and storage status.
 
+Primary implementation surfaces:
+- api/models/waiver_pdf_artifacts.py
+- api/services/waiver_pdf_archive.py
+- api/services/waiver_template_provenance.py
+- api/routers/waivers.py
 
-Relationships:
+### 3) Participant Timeline Projection (Read-Only)
 
+- Timeline is a projection built from canonical participant/waiver/audit/artifact data.
+- Deterministic ordering via event timestamp + sort key.
+- Stable event contract includes PDF_VERIFIED.
 
-Event
-└── Participants
+Primary implementation surfaces:
+- api/services/participant_timeline.py
+- api/schemas/participant_timeline.py
+- api/routers/admin_participants.py
 
+### 4) Volunteer Operational Projection (Read-Only)
 
----
+- Volunteer status is computed, never persisted.
+- Locked precedence: ACTION_REQUIRED > INCOMPLETE > CHECKED_IN > READY.
+- Compliance explicitly reports Not Tracked when unsupported.
 
-## Participant
+Primary implementation surfaces:
+- api/services/volunteer_dashboard_projection.py
+- api/schemas/volunteer_dashboard.py
+- api/routers/admin_participants.py
 
+### 5) Executive Analytics Projection (Read-Only)
 
-id
-event_id
-first_name
-last_name
-email
-role
-is_minor
-is_waitlisted
-checked_in
-checked_in_at
-created_at
+- Executive metrics are projection outputs derived from canonical data and existing projections.
+- No stored counters or materialized analytics tables introduced.
+- Metrics expose data source metadata and not-tracked flags where applicable.
 
+Primary implementation surfaces:
+- api/services/executive_analytics_projection.py
+- api/schemas/executive_analytics.py
+- api/routers/admin_analytics.py
 
-Future fields planned:
+## Governance Model
 
-
-waiver_signed
-waiver_verified
-waiver_signed_at
-
-
----
-
-# Event Lifecycle
-
-
-Create Event
-↓
-Open Registration
-↓
-Participants Register
-↓
-Capacity Reached → Waitlist
-↓
-Event Day
-↓
-Participant Check-In
-
-
----
-
-# Waitlist Logic
-
-
-capacity reached
-↓
-new participants waitlisted
-↓
-participant cancels
-↓
-first waitlisted promoted
-
-
-Handled in backend CRUD logic.
-
----
-
-# Event Check-In Flow
-
-
-Admin Dashboard
-↓
-Select Event
-↓
-Start Check-In Mode
-↓
-Search participant
-↓
-Select participant
-↓
-Check in
-
-
-Backend endpoint:
-
-
-PATCH /admin/events/{event_id}/participants/{participant_id}/checkin
-
-
----
-
-# Authentication Flow
-
-
-Login
-↓
-JWT token issued
-↓
-Stored in localStorage
-↓
-Sent in Authorization header
-
-
-Header format:
-
-
-Authorization: Bearer <token>
-
-
----
-
-# API Flow Example
-
-
-React CheckIn.jsx
-↓
-api/events.js
-↓
-PATCH /admin/events/{event_id}/participants/{participant_id}/checkin
-↓
-FastAPI Router
-↓
-SQLAlchemy update
-↓
-Database commit
-
-
----
-
-# Future Architecture Additions
-
-## Digital Waivers
-
-
-Participant registers
-↓
-Waiver signed digitally
-↓
-waiver_verified = true
-↓
-Check-in allowed
-
-
----
-
-## QR Code Check-In
-
-
-Registration
-↓
-QR code generated
-↓
-Event staff scans QR
-↓
-Participant auto-selected
-↓
-Check-in
-
-
----
-
-## Equipment Tracking
-
-
-Participant
-↓
-Assigned volunteer
-↓
-Assigned surfboard
-↓
-Assigned wetsuit
-
-
----
-
-# Long-Term Vision
-
-The system will evolve into a full **event operations platform** including:
-
-
-event planning
-registration
-waiver management
-volunteer coordination
-equipment tracking
-live dashboards
+- PROJECT_SYNC_BRIEF.md is implementation truth.
+- ROADMAP_INTENT.md is planning-only unless commit-backed.
+- Scope is enforced one approved feature at a time.
+- Stabilization gates verify baseline integrity before new phase work.
