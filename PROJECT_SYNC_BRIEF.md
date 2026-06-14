@@ -559,9 +559,9 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 4.6 Communications Platform Foundation) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 4.6 Communications Platform Foundation) — 32382f8
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Communications platform foundation only.
