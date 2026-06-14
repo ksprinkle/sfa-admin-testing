@@ -53,9 +53,11 @@ The first activity is a Roadmap and Architecture Planning Gate that will:
 ## Roadmap Status Model
 - Proposed
 - Planned
+- Approved
 - In Progress
 - Complete
 - Deferred
+- Blocked
 
 Deferred work should remain visible until explicitly removed or completed.
 
@@ -71,3 +73,6 @@ Its sole purpose is to provide a clean planning handoff from the Phase 3 baselin
 ## Next Conversation Recommendation
 The next conversation should be entirely devoted to the Phase 4 Roadmap and Architecture Planning Gate.
 Avoid coding until that planning gate is reviewed and approved.
+
+Current planning gate artifact:
+- `PHASE4_ROADMAP_ARCHITECTURE_PLANNING_GATE.md` (planning only, pending approval)
