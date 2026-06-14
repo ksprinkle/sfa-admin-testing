@@ -20,7 +20,7 @@ All four blocker tickets complete, verified, and signed off, then end-to-end wor
 | --- | --- | --- | --- |
 | RB-01 | ☑ Complete | fix(release): harden production debug controls for RB-01 | ☑ |
 | RB-02 | ☑ Complete | fix(release): enforce production signing secret for RB-02 | ☑ |
-| RB-03 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
+| RB-03 | ☑ Complete | fix(release): externalize canonical signing origin for RB-03 | ☑ |
 | RB-04 | ☐ Pending / ☑ Complete |  | ☐ / ☑ |
 
 ## Evidence Template

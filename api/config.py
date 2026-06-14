@@ -46,6 +46,38 @@ def _resolve_backend_secret_key(*, is_production: bool) -> str:
     # Development policy: fallback is permitted only outside production.
     return configured or "dev-secret-key-local-only"
 
+
+def _normalize_origin(value: str) -> str:
+    origin = (value or "").strip().rstrip("/")
+    if not origin:
+        return ""
+
+    if not (origin.startswith("http://") or origin.startswith("https://")):
+        raise ValueError(
+            "CANONICAL_SIGNING_ORIGIN must include protocol (http:// or https://)."
+        )
+
+    return origin
+
+
+def _resolve_canonical_signing_origin(*, is_production: bool) -> str:
+    configured = _normalize_origin(os.getenv("CANONICAL_SIGNING_ORIGIN", ""))
+    if configured:
+        return configured
+
+    # Render provides a public external URL that can be used as canonical origin.
+    render_external = _normalize_origin(os.getenv("RENDER_EXTERNAL_URL", ""))
+    if render_external:
+        return render_external
+
+    if is_production:
+        raise ValueError(
+            "CANONICAL_SIGNING_ORIGIN (or RENDER_EXTERNAL_URL) is required in production to build public signing URLs."
+        )
+
+    # Development fallback for local backend runs.
+    return "http://127.0.0.1:8000"
+
 class Settings:
     DEBUG = _is_truthy(os.getenv("DEBUG", "false"))
     IS_PRODUCTION = _detect_production_environment()
@@ -91,6 +123,7 @@ class Settings:
         "http://127.0.0.1:5173",
     ]
 
+    CANONICAL_SIGNING_ORIGIN = _resolve_canonical_signing_origin(is_production=IS_PRODUCTION)
     BACKEND_SECRET_KEY = _resolve_backend_secret_key(is_production=IS_PRODUCTION)
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))
 

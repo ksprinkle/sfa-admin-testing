@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from api.models.participants import Participant
 from api.models.participant_waivers import ParticipantWaiver
 from api.models.waiver_deliveries import WaiverDelivery
+from api.config import settings
 from api.services.waiver_lifecycle import record_waiver_audit_event
 from api.services.waiver_signing import create_signing_token
 
@@ -46,8 +47,7 @@ def _normalize_delivery_method(method: str) -> str:
 
 
 def _resolve_signing_origin() -> str:
-    # Keep deterministic until environment-level public URL config is added.
-    return "https://sfa-admin-testing.onrender.com"
+    return settings.CANONICAL_SIGNING_ORIGIN
 
 
 def _build_signing_url(signing_path: str) -> str:
