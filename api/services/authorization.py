@@ -16,6 +16,7 @@ PERMISSION_ANALYTICS_READ = "analytics.read"
 PERMISSION_AUDIT_READ = "audit.read"
 PERMISSION_PERMISSIONS_MANAGE = "permissions.manage"
 PERMISSION_AUTOMATION_MANAGE = "automation.manage"
+PERMISSION_VOLUNTEERS_MANAGE = "volunteers.manage"
 
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
@@ -29,6 +30,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_AUDIT_READ,
         PERMISSION_PERMISSIONS_MANAGE,
         PERMISSION_AUTOMATION_MANAGE,
+        PERMISSION_VOLUNTEERS_MANAGE,
     },
 }
 

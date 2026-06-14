@@ -521,6 +521,43 @@ File touchpoints:
 - `alembic/versions/p4a4f1d8c2b7_add_automation_foundation_tables.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 4.5 Volunteer Lifecycle Foundation) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Volunteer lifecycle domain foundation only.
+- No reminder workflows.
+- No email/SMS or communications platform scope.
+- No event-day operations tooling scope.
+- No dashboard or analytics enhancements.
+- No bulk automation workflow expansion.
+
+Behavior summary:
+- Added canonical volunteer profile model as authoritative volunteer lifecycle source.
+- Added canonical volunteer availability and volunteer assignment models.
+- Added volunteer lifecycle domain service for:
+  - profile creation and lifecycle status transitions
+  - availability record creation and retrieval
+  - assignment creation/listing/cancellation
+- Added admin volunteer API endpoints for profile, lifecycle, availability, and assignment operations.
+- Integrated volunteer lifecycle actions with canonical permissions (`volunteers.manage`).
+- Integrated significant volunteer lifecycle actions with canonical administrative audit events.
+
+File touchpoints:
+- `api/models/volunteer_profiles.py`
+- `api/models/volunteer_availabilities.py`
+- `api/models/volunteer_assignments.py`
+- `api/models/__init__.py`
+- `api/services/volunteer_lifecycle.py`
+- `api/services/authorization.py`
+- `api/schemas/volunteer_lifecycle.py`
+- `api/routers/admin_volunteers.py`
+- `api/main.py`
+- `alembic/versions/v4p5c3d9e1a7_add_volunteer_lifecycle_tables.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PROJECT_SYNC_BRIEF.md`
 - Added dedicated admin analytics endpoint for executive dashboard payload.
 - Reused existing projection/reporting layers where appropriate:
   - waiver reporting metrics

@@ -285,3 +285,22 @@ Rationale:
 - Provides an orchestration layer that reacts to canonical state without becoming a competing system of record.
 - Ensures automation execution is permission-aware and auditable from first use.
 - Preserves roadmap sequencing by creating extensible primitives before feature-specific automation workloads.
+
+## ADR-016: Phase 4.5 Volunteer Lifecycle Foundation
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce canonical volunteer lifecycle domain entities:
+  - `volunteer_profiles` as the authoritative volunteer identity and lifecycle owner
+  - `volunteer_availabilities` as canonical availability records
+  - `volunteer_assignments` as canonical assignment records to events/sessions
+- Add volunteer lifecycle service layer for profile lifecycle transitions, availability operations, and assignment lifecycle operations.
+- Integrate volunteer domain operations with canonical permission enforcement (`volunteers.manage`).
+- Integrate significant volunteer administrative actions with canonical audit event recording.
+- Keep this phase strictly domain-foundation scoped; no reminders, communications, dashboard/analytics expansions, or event-ops UI behavior are added.
+
+Rationale:
+- Establishes a single source of truth for volunteer lifecycle concerns without duplicating participant/event ownership.
+- Creates stable domain contracts that workflow automation and later phases can orchestrate rather than replace.
+- Preserves architecture-first sequencing by finalizing canonical volunteer domain boundaries before broader operational feature expansion.

@@ -10,6 +10,9 @@ from .waiver_templates import WaiverTemplate
 from .admin_audit_events import AdminAuditEvent
 from .automation_workflows import AutomationWorkflow
 from .automation_runs import AutomationRun
+from .volunteer_profiles import VolunteerProfile
+from .volunteer_availabilities import VolunteerAvailability
+from .volunteer_assignments import VolunteerAssignment
 from .sessions import Session
 from .participant_removal_log import ParticipantRemovalLog
 from .event_activity_log import EventActivityLog
