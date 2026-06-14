@@ -625,6 +625,36 @@ File touchpoints:
 - `alembic/versions/e4o7a2c9d1b5_add_event_operations_table.py`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 4.8 Executive Analytics Projection Layer) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Executive analytics projection only.
+- No new canonical business entities.
+- No workflow automation enhancements.
+- No communications or event operations domain expansion.
+- No reminder/campaign feature implementation.
+- No unrelated UI redesign scope.
+
+Behavior summary:
+- Expanded executive analytics projection to aggregate read-only metrics from canonical domains:
+  - participants
+  - event operations
+  - volunteer profiles
+  - communications
+  - automation
+  - admin audit events
+- Added read-only executive summary aggregation endpoint for domain-level metrics.
+- Added derived KPI/summary calculations without introducing independent business-state ownership.
+
+File touchpoints:
+- `api/services/executive_analytics_projection.py`
+- `api/schemas/executive_analytics.py`
+- `api/routers/admin_analytics.py`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `PROJECT_SYNC_BRIEF.md`
 - Added dedicated admin analytics endpoint for executive dashboard payload.
 - Reused existing projection/reporting layers where appropriate:
   - waiver reporting metrics

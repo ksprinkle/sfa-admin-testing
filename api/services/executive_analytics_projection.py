@@ -1,14 +1,27 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from api.models.admin_audit_events import AdminAuditEvent
+from api.models.automation_runs import AutomationRun
+from api.models.automation_workflows import AutomationWorkflow
+from api.models.communication_deliveries import CommunicationDelivery
+from api.models.communication_messages import CommunicationMessage
+from api.models.communication_templates import CommunicationTemplate
+from api.models.event_operations import EventOperation
 from api.models.events import Event
 from api.models.participants import Participant
 from api.models.sessions import Session as EventSession
-from api.schemas.executive_analytics import ExecutiveAnalyticsOut, ExecutiveMetricCardOut
+from api.models.volunteer_profiles import VolunteerProfile
+from api.schemas.executive_analytics import (
+    ExecutiveAnalyticsOut,
+    ExecutiveDomainAggregateOut,
+    ExecutiveMetricCardOut,
+    ExecutiveSummaryOut,
+)
 from api.services.volunteer_dashboard_projection import get_volunteer_dashboard_projection
 from api.services.waiver_reporting import get_dashboard_metrics
 
@@ -242,4 +255,284 @@ def get_executive_analytics_projection(db: Session) -> ExecutiveAnalyticsOut:
         )
     )
 
+    event_ops_total = int(db.query(func.count(EventOperation.id)).scalar() or 0)
+    event_ops_ready = int(
+        db.query(func.count(EventOperation.id))
+        .filter(EventOperation.readiness_status == EventOperation.READINESS_STATUS_READY)
+        .scalar()
+        or 0
+    )
+    event_ops_at_risk = int(
+        db.query(func.count(EventOperation.id))
+        .filter(EventOperation.operational_status == EventOperation.OPERATIONAL_STATUS_AT_RISK)
+        .scalar()
+        or 0
+    )
+    cards.append(
+        _card(
+            metric_key="event_operations_total",
+            label="Event Operations Records",
+            value=event_ops_total,
+            calculated_at=calculated_at,
+            data_source="event_operations",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="event_operations_ready",
+            label="Event Operations Ready",
+            value=event_ops_ready,
+            calculated_at=calculated_at,
+            data_source="event_operations",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="event_operations_at_risk",
+            label="Event Operations At Risk",
+            value=event_ops_at_risk,
+            calculated_at=calculated_at,
+            data_source="event_operations",
+        )
+    )
+
+    communication_templates_total = int(db.query(func.count(CommunicationTemplate.id)).scalar() or 0)
+    communication_messages_total = int(db.query(func.count(CommunicationMessage.id)).scalar() or 0)
+    communication_deliveries_total = int(db.query(func.count(CommunicationDelivery.id)).scalar() or 0)
+    communication_deliveries_failed = int(
+        db.query(func.count(CommunicationDelivery.id))
+        .filter(CommunicationDelivery.status == CommunicationDelivery.STATUS_FAILED)
+        .scalar()
+        or 0
+    )
+    cards.append(
+        _card(
+            metric_key="communications_templates_total",
+            label="Communication Templates",
+            value=communication_templates_total,
+            calculated_at=calculated_at,
+            data_source="communication_templates",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="communications_messages_total",
+            label="Communication Messages",
+            value=communication_messages_total,
+            calculated_at=calculated_at,
+            data_source="communication_messages",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="communications_deliveries_total",
+            label="Communication Deliveries",
+            value=communication_deliveries_total,
+            calculated_at=calculated_at,
+            data_source="communication_deliveries",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="communications_deliveries_failed",
+            label="Communication Deliveries Failed",
+            value=communication_deliveries_failed,
+            calculated_at=calculated_at,
+            data_source="communication_deliveries",
+        )
+    )
+
+    automation_workflows_total = int(db.query(func.count(AutomationWorkflow.id)).scalar() or 0)
+    automation_workflows_enabled = int(
+        db.query(func.count(AutomationWorkflow.id))
+        .filter(AutomationWorkflow.is_enabled.is_(True))
+        .scalar()
+        or 0
+    )
+    automation_runs_total = int(db.query(func.count(AutomationRun.id)).scalar() or 0)
+    automation_runs_failed = int(
+        db.query(func.count(AutomationRun.id))
+        .filter(AutomationRun.status == AutomationRun.STATUS_FAILED)
+        .scalar()
+        or 0
+    )
+    cards.append(
+        _card(
+            metric_key="automation_workflows_total",
+            label="Automation Workflows",
+            value=automation_workflows_total,
+            calculated_at=calculated_at,
+            data_source="automation_workflows",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="automation_workflows_enabled",
+            label="Automation Workflows Enabled",
+            value=automation_workflows_enabled,
+            calculated_at=calculated_at,
+            data_source="automation_workflows",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="automation_runs_total",
+            label="Automation Runs",
+            value=automation_runs_total,
+            calculated_at=calculated_at,
+            data_source="automation_runs",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="automation_runs_failed",
+            label="Automation Runs Failed",
+            value=automation_runs_failed,
+            calculated_at=calculated_at,
+            data_source="automation_runs",
+        )
+    )
+
+    volunteers_canonical_total = int(db.query(func.count(VolunteerProfile.id)).scalar() or 0)
+    volunteers_canonical_active = int(
+        db.query(func.count(VolunteerProfile.id))
+        .filter(VolunteerProfile.lifecycle_status == VolunteerProfile.STATUS_ACTIVE)
+        .scalar()
+        or 0
+    )
+    cards.append(
+        _card(
+            metric_key="volunteer_profiles_total",
+            label="Volunteer Profiles",
+            value=volunteers_canonical_total,
+            calculated_at=calculated_at,
+            data_source="volunteer_profiles",
+        )
+    )
+    cards.append(
+        _card(
+            metric_key="volunteer_profiles_active",
+            label="Volunteer Profiles Active",
+            value=volunteers_canonical_active,
+            calculated_at=calculated_at,
+            data_source="volunteer_profiles",
+        )
+    )
+
+    audit_cutoff = calculated_at - timedelta(days=7)
+    audit_events_last_7_days = int(
+        db.query(func.count(AdminAuditEvent.id))
+        .filter(AdminAuditEvent.created_at >= audit_cutoff)
+        .scalar()
+        or 0
+    )
+    cards.append(
+        _card(
+            metric_key="admin_audit_events_last_7_days",
+            label="Admin Audit Events (7d)",
+            value=audit_events_last_7_days,
+            calculated_at=calculated_at,
+            data_source="admin_audit_events",
+        )
+    )
+
     return ExecutiveAnalyticsOut(generated_at=calculated_at, cards=cards)
+
+
+def get_executive_summary_projection(db: Session) -> ExecutiveSummaryOut:
+    calculated_at = _utcnow()
+
+    event_ops_total = int(db.query(func.count(EventOperation.id)).scalar() or 0)
+    event_ops_ready = int(
+        db.query(func.count(EventOperation.id))
+        .filter(EventOperation.readiness_status == EventOperation.READINESS_STATUS_READY)
+        .scalar()
+        or 0
+    )
+    event_ops_at_risk = int(
+        db.query(func.count(EventOperation.id))
+        .filter(EventOperation.operational_status == EventOperation.OPERATIONAL_STATUS_AT_RISK)
+        .scalar()
+        or 0
+    )
+
+    deliveries_total = int(db.query(func.count(CommunicationDelivery.id)).scalar() or 0)
+    deliveries_accepted = int(
+        db.query(func.count(CommunicationDelivery.id))
+        .filter(CommunicationDelivery.status == CommunicationDelivery.STATUS_ACCEPTED)
+        .scalar()
+        or 0
+    )
+    deliveries_failed = int(
+        db.query(func.count(CommunicationDelivery.id))
+        .filter(CommunicationDelivery.status == CommunicationDelivery.STATUS_FAILED)
+        .scalar()
+        or 0
+    )
+    deliveries_success_rate = (
+        round((deliveries_accepted / deliveries_total) * 100, 2)
+        if deliveries_total > 0
+        else 0.0
+    )
+
+    automation_runs_total = int(db.query(func.count(AutomationRun.id)).scalar() or 0)
+    automation_runs_failed = int(
+        db.query(func.count(AutomationRun.id))
+        .filter(AutomationRun.status == AutomationRun.STATUS_FAILED)
+        .scalar()
+        or 0
+    )
+    automation_failure_rate = (
+        round((automation_runs_failed / automation_runs_total) * 100, 2)
+        if automation_runs_total > 0
+        else 0.0
+    )
+
+    participants_total = int(_base_participant_query(db).count() or 0)
+    participants_checked_in = int(_base_participant_query(db).filter(Participant.checked_in.is_(True)).count() or 0)
+    participant_check_in_rate = (
+        round((participants_checked_in / participants_total) * 100, 2)
+        if participants_total > 0
+        else 0.0
+    )
+
+    aggregates = [
+        ExecutiveDomainAggregateOut(
+            domain="event_operations",
+            metrics={
+                "total": event_ops_total,
+                "ready": event_ops_ready,
+                "at_risk": event_ops_at_risk,
+            },
+            calculated_at=calculated_at,
+        ),
+        ExecutiveDomainAggregateOut(
+            domain="communications",
+            metrics={
+                "deliveries_total": deliveries_total,
+                "deliveries_failed": deliveries_failed,
+                "deliveries_success_rate_percentage": deliveries_success_rate,
+            },
+            calculated_at=calculated_at,
+        ),
+        ExecutiveDomainAggregateOut(
+            domain="automation",
+            metrics={
+                "runs_total": automation_runs_total,
+                "runs_failed": automation_runs_failed,
+                "failure_rate_percentage": automation_failure_rate,
+            },
+            calculated_at=calculated_at,
+        ),
+        ExecutiveDomainAggregateOut(
+            domain="participants",
+            metrics={
+                "total": participants_total,
+                "checked_in": participants_checked_in,
+                "check_in_rate_percentage": participant_check_in_rate,
+            },
+            calculated_at=calculated_at,
+        ),
+    ]
+
+    return ExecutiveSummaryOut(generated_at=calculated_at, aggregates=aggregates)

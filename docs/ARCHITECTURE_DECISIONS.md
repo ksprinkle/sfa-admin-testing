@@ -349,3 +349,23 @@ Rationale:
 - Provides a single authoritative operational-state owner for each event.
 - Preserves separation of domains by consuming canonical event, participant, and volunteer data without duplicating ownership.
 - Establishes a stable operational foundation for Phase 4.8 executive analytics as a derived consumer rather than a new source of truth.
+
+## ADR-019: Phase 4.8 Executive Analytics Projection Layer
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Expand executive analytics as a read-only projection and aggregation layer over existing canonical domains.
+- Add derived KPI and summary aggregation outputs that consume canonical models only, including:
+  - participants
+  - event operations
+  - volunteer profiles
+  - communications messages/deliveries/templates
+  - automation workflows/runs
+  - administrative audit events
+- Add read-only executive summary endpoint for domain-level aggregate metrics.
+- Introduce no new canonical business entities and no workflow/orchestration/domain mutation behavior in analytics layer.
+
+Rationale:
+- Preserves core architectural invariant that analytics consume canonical domain truth and never become a source of business truth.
+- Provides executive-level visibility while maintaining strict domain separation and reuse of existing governance foundations.

@@ -15,3 +15,14 @@ class ExecutiveMetricCardOut(BaseModel):
 class ExecutiveAnalyticsOut(BaseModel):
     generated_at: datetime
     cards: list[ExecutiveMetricCardOut]
+
+
+class ExecutiveDomainAggregateOut(BaseModel):
+    domain: str
+    metrics: dict[str, int | float | str]
+    calculated_at: datetime
+
+
+class ExecutiveSummaryOut(BaseModel):
+    generated_at: datetime
+    aggregates: list[ExecutiveDomainAggregateOut]
