@@ -264,6 +264,41 @@ File touchpoints:
 - `PHASE2_IMPLEMENTATION_PLAN.md`
 - `PROJECT_SYNC_BRIEF.md`
 
+## Session Delta (Pending Commit - June 14, Phase 3 Feature 1 Waiver Lifecycle Management) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Template lifecycle management only.
+- No participant-linkage implementation.
+- No PDF generation changes.
+- No digital-signing workflow changes.
+- No delivery orchestration changes.
+- No timeline or analytics feature changes.
+
+Behavior summary:
+- Added a new `waiver_templates` bounded context with lifecycle states `draft`, `active`, `archived`.
+- Added strict immutability guardrails: only Draft templates are editable; Active/Archived templates are read-only.
+- Added no-delete lifecycle policy in app behavior (archive path only).
+- Added single Active template enforcement and activation flow that auto-archives prior Active template.
+- Added explicit lineage field `supersedes_template_id` for version ancestry.
+- Added admin API and admin UI for create/list/update draft, preview, activate, and archive draft actions.
+
+File touchpoints:
+- `api/models/waiver_templates.py`
+- `api/models/__init__.py`
+- `api/main.py`
+- `api/init_db.py`
+- `api/schemas/waiver_templates.py`
+- `api/services/waiver_template_lifecycle.py`
+- `api/routers/admin_waiver_templates.py`
+- `alembic/versions/x2d4b8c9f1a3_add_waiver_templates_table.py`
+- `admin-app/src/api/waiverTemplates.js`
+- `admin-app/src/pages/WaiverTemplates.jsx`
+- `admin-app/src/App.jsx`
+- `admin-app/src/pages/Dashboard.jsx`
+- `PROJECT_SYNC_BRIEF.md`
+
 ## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e
 
 Status: Committed

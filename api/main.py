@@ -14,6 +14,7 @@ import api.models.waiver_audit_events
 import api.models.waiver_signing_tokens
 import api.models.waiver_pdf_artifacts
 import api.models.waiver_deliveries
+import api.models.waiver_templates
 import api.models.users
 import api.models.sessions
 import api.models.event_activity_log
@@ -29,6 +30,7 @@ from api.routers.events import public_router as public_events_router
 from api.routers.auth import router as auth_router
 from api.routers.admin_events import router as admin_events_router
 from api.routers.admin_event_templates import router as admin_event_templates_router
+from api.routers.admin_waiver_templates import router as admin_waiver_templates_router
 from api.routers.admin_participants import router as admin_participants_router
 from api.routers.waivers import router as waivers_router
 from api.ws_manager import router as ws_router
@@ -60,6 +62,7 @@ app.include_router(public_events_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(admin_events_router, prefix="/api")
 app.include_router(admin_event_templates_router, prefix="/api")
+app.include_router(admin_waiver_templates_router, prefix="/api")
 app.include_router(admin_participants_router, prefix="/api")
 app.include_router(waivers_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")

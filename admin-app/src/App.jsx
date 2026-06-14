@@ -13,6 +13,7 @@ import CheckIn from "./pages/CheckIn"
 import FastAssign from "./pages/FastAssign"
 import FeedbackReview from "./pages/FeedbackReview"
 import EventTemplates from "./pages/EventTemplates"
+import WaiverTemplates from "./pages/WaiverTemplates"
 import {
   clearAuthSession,
   fetchMyProfile,
@@ -144,9 +145,14 @@ function App() {
         return "Event Templates"
       case "/feedback":
         return "Feedback"
+      case "/waiver-templates":
+        return "Waiver Templates"
       default:
         if (location.pathname.startsWith("/event-templates")) {
           return "Event Templates"
+        }
+        if (location.pathname.startsWith("/waiver-templates")) {
+          return "Waiver Templates"
         }
         return "Surfers Admin"
     }
@@ -184,6 +190,7 @@ function App() {
 
             <Route path="/participants" element={<Participants />} />
             <Route path="/event-templates" element={<EventTemplates />} />
+            <Route path="/waiver-templates" element={<WaiverTemplates />} />
             <Route path="/feedback" element={<FeedbackReview />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>

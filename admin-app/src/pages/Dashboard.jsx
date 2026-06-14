@@ -408,6 +408,22 @@ useEffect(() => {
         </div>
       </button>
 
+      <button
+        type="button"
+        onClick={() => navigate("/waiver-templates")}
+        className="w-full rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 text-left shadow-sm transition hover:bg-sky-100/70"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-sky-900">Manage Waiver Templates</p>
+            <p className="mt-1 text-sm text-sky-800">Create draft versions, preview content, and activate one immutable Active waiver.</p>
+          </div>
+          <span className="rounded-full border border-sky-300 bg-white px-2 py-1 text-xs font-semibold text-sky-700">
+            Open /waiver-templates
+          </span>
+        </div>
+      </button>
+
       {/* Overall Event Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <StatCard
