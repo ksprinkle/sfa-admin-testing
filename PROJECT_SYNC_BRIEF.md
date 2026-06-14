@@ -333,9 +333,9 @@ File touchpoints:
 - `alembic/versions/y7c1e5d9a2b4_add_template_provenance_to_pdf_artifacts.py`
 - `PROJECT_SYNC_BRIEF.md`
 
-## Session Delta (Pending Commit - June 14, Phase 3 Feature 3 Participant Activity Timeline) — <pending_commit>
+## Session Delta (Committed - June 14, Phase 3 Feature 3 Participant Activity Timeline) — 66d71fc
 
-Status: Pending commit
+Status: Committed
 
 Scope guardrails:
 - Read-only timeline aggregation only.
@@ -361,6 +361,44 @@ File touchpoints:
 - `api/services/participant_timeline.py`
 - `api/routers/admin_participants.py`
 - `api/routers/waivers.py`
+- `PROJECT_SYNC_BRIEF.md`
+
+## Session Delta (Pending Commit - June 14, Phase 3 Feature 4 Volunteer Dashboard Operational Projection) — <pending_commit>
+
+Status: Pending commit
+
+Scope guardrails:
+- Read-only operational dashboard only.
+- No persisted volunteer status fields.
+- No analytics, trends, charts, or KPI scope.
+- No editing from dashboard surface.
+
+Behavior summary:
+- Added volunteer dashboard projection schema with stable computed status enum:
+  - `ACTION_REQUIRED`
+  - `INCOMPLETE`
+  - `CHECKED_IN`
+  - `READY`
+- Added read-only volunteer dashboard projection service computed from canonical participant/event/session/waiver data.
+- Locked deterministic status precedence in projection logic:
+  - `ACTION_REQUIRED`
+  - `INCOMPLETE`
+  - `CHECKED_IN`
+  - `READY`
+- Added deterministic `sort_key` output for stable ordering and idempotent repeated reads.
+- Added admin read-only API endpoint for volunteer dashboard projection.
+- Added read-only admin UI page and dashboard navigation entry for operational volunteer monitoring.
+- Compliance state is explicit and non-fabricated when canonical data is unavailable:
+  - `Compliance: Not Tracked`
+
+File touchpoints:
+- `api/schemas/volunteer_dashboard.py`
+- `api/services/volunteer_dashboard_projection.py`
+- `api/routers/admin_participants.py`
+- `admin-app/src/api/events.js`
+- `admin-app/src/pages/VolunteerDashboard.jsx`
+- `admin-app/src/App.jsx`
+- `admin-app/src/pages/Dashboard.jsx`
 - `PROJECT_SYNC_BRIEF.md`
 
 ## Session Delta (Committed - June 7, URL Normalization Refactor) — b22d05e

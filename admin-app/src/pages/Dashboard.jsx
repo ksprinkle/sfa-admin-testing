@@ -424,6 +424,22 @@ useEffect(() => {
         </div>
       </button>
 
+      <button
+        type="button"
+        onClick={() => navigate("/volunteer-dashboard")}
+        className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-left shadow-sm transition hover:bg-emerald-100/70"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-emerald-900">Volunteer Operational Dashboard</p>
+            <p className="mt-1 text-sm text-emerald-800">Read-only current state projection for assignment, check-in, documents, and action-required status.</p>
+          </div>
+          <span className="rounded-full border border-emerald-300 bg-white px-2 py-1 text-xs font-semibold text-emerald-700">
+            Open /volunteer-dashboard
+          </span>
+        </div>
+      </button>
+
       {/* Overall Event Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <StatCard

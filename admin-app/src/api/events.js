@@ -196,6 +196,18 @@ export async function fetchAllParticipants() {
   return res.json()
 }
 
+export async function fetchVolunteerDashboard(eventId = null) {
+  const query = eventId ? `?event_id=${encodeURIComponent(String(eventId))}` : ""
+  const res = await apiFetch(`/api/admin/participants/volunteer-dashboard${query}`)
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to fetch volunteer dashboard")
+  }
+
+  return res.json()
+}
+
 export async function createAdminParticipant(payload) {
   const res = await apiFetch("/api/admin/participants/", {
     method: "POST",

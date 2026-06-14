@@ -30,7 +30,9 @@ from api.services.session_recommender import recommend_sessions
 from api.models.participant_removal_log import ParticipantRemovalLog
 from api.models.participant_waivers import ParticipantWaiver
 from api.schemas.participant_timeline import ParticipantTimelineEventOut
+from api.schemas.volunteer_dashboard import VolunteerDashboardProjectionOut
 from api.services.participant_timeline import get_participant_timeline_events
+from api.services.volunteer_dashboard_projection import get_volunteer_dashboard_projection
 from api.services.waiver_lifecycle import (
     STATUS_DRAFT,
     STATUS_SIGNED,
@@ -345,6 +347,15 @@ def get_participant_timeline(
     _current_user=Depends(require_admin),
 ):
     return get_participant_timeline_events(db, participant_id)
+
+
+@router.get("/volunteer-dashboard", response_model=VolunteerDashboardProjectionOut)
+def get_volunteer_dashboard(
+    event_id: UUID | None = None,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    return get_volunteer_dashboard_projection(db, event_id=event_id)
 
 
 @router.patch("/{participant_id}", response_model=ParticipantOut)
