@@ -121,9 +121,9 @@ File touchpoints:
 
 Canonical baseline: `v1.5.0-phase5.3-delivery-pipeline` (tagged at 4b6acd3)
 
-## Session Delta (In Progress - June 15, Phase 5.4 Message Template & Rendering Foundation) — <pending_commit>
+## Session Delta (Committed - June 15, Phase 5.4 Message Template & Rendering Foundation) — 98abfcc
 
-Status: Complete locally; commit pending
+Status: Committed
 
 Scope guardrails:
 - Channel-neutral template domain model and rendering foundation only.
@@ -156,8 +156,7 @@ File touchpoints:
 - `PROJECT_SYNC_BRIEF.md`
 - `docs/ARCHITECTURE_DECISIONS.md`
 
-Baseline recommendation:
-- Recommend `v1.6.0-phase5.4-message-template-rendering` after commit and governance review.
+Canonical baseline: `v1.6.0-phase5.4-message-template-rendering` (tagged at 98abfcc)
 
 Deferred Work Register (carried forward):
 - Email provider implementation

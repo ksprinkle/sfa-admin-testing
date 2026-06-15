@@ -190,7 +190,7 @@ Canonical Baseline:
 `v1.5.0-phase5.3-delivery-pipeline` (4b6acd3)
 
 Next logical milestone:
-- Begin Phase 5.4 Architecture & Roadmap Planning Gate. No implementation until approval.
+- Begin Phase 5.5 Architecture & Roadmap Planning Gate. No implementation until approval.
 
 🧠 Why This Roadmap Is Correct (quick context)
 
