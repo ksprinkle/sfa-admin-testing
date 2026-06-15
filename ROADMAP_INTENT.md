@@ -157,12 +157,12 @@ Completed:
 - Phase 5.2 Reminder Execution Engine (committed)
 
 Approved for Build:
-- Phase 5.3 Notification Delivery Pipeline Foundation
+- Phase 5.4 (to be determined at next Planning Gate)
 
 Roadmap Statuses:
 - Reminder Architecture Foundation: Complete
 - Reminder Execution Engine: Complete
-- Notification Delivery Pipeline: In Progress
+- Notification Delivery Pipeline: Complete
 - Communications Platform: Planned
 - Event Operations: Planned
 - Executive Analytics: Planned
@@ -171,18 +171,26 @@ Roadmap Statuses:
 Deferred Work Register:
 - Email provider implementation
 - SMS provider implementation
-- Push notification provider implementation
+- Push notification provider
 - Campaign management
+- Message templating
 - Bulk messaging
+- Advanced retry policies
+- Delivery analytics
 - Event operations enhancements
 - Volunteer workflow improvements
 - Administrative automation
+- Executive reporting enhancements
 - Executive dashboards
+- Cross-module communication workflows
 - Cross-module integration
 - Workflow optimization
 
+Canonical Baseline:
+`v1.5.0-phase5.3-delivery-pipeline` (4b6acd3)
+
 Next logical milestone:
-- Complete Phase 5.3 Notification Delivery Pipeline Foundation, validate the scoped architecture, then reassess the next planning gate from the updated baseline.
+- Begin Phase 5.4 Architecture & Roadmap Planning Gate. No implementation until approval.
 
 🧠 Why This Roadmap Is Correct (quick context)
 

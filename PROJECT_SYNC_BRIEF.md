@@ -82,9 +82,9 @@ Behavior summary:
 
 Canonical baseline: `v1.4.0-phase5.2-execution-engine` (tagged at a01d72e)
 
-## Session Delta (In Progress - June 15, Phase 5.3 Notification Delivery Pipeline Foundation) — <pending_commit>
+## Session Delta (Committed - June 15, Phase 5.3 Notification Delivery Pipeline Foundation) — 4b6acd3
 
-Status: Complete locally; commit pending
+Status: Committed
 
 Scope guardrails:
 - Notification delivery pipeline foundation only.
@@ -119,8 +119,19 @@ File touchpoints:
 - `PROJECT_SYNC_BRIEF.md`
 - `docs/ARCHITECTURE_DECISIONS.md`
 
-Baseline recommendation:
-- Recommend `v1.5.0-phase5.3-delivery-pipeline` after commit and governance review.
+Canonical baseline: `v1.5.0-phase5.3-delivery-pipeline` (tagged at 4b6acd3)
+
+Deferred Work Register (carried forward):
+- Email provider implementation
+- SMS provider implementation
+- Push notification provider
+- Campaign management
+- Message templating
+- Bulk messaging
+- Advanced retry policies
+- Delivery analytics
+- Executive reporting enhancements
+- Cross-module communication workflows
 
 ## Protected Working Behavior (Copy/Paste)
 
