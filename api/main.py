@@ -29,6 +29,8 @@ import api.models.reminder_audit_events
 import api.models.reminder_execution_queue
 import api.models.notification_delivery_attempts
 import api.models.notification_delivery_events
+import api.models.message_templates
+import api.models.message_template_versions
 import api.models.event_operations
 import api.models.users
 import api.models.sessions

@@ -420,3 +420,24 @@ Rationale:
 - Provides the shared transport layer that all future delivery channels consume, preventing each channel from embedding its own retry, idempotency, and audit behavior.
 - Maintains the established governance pattern of separating decision (execution engine) from delivery (pipeline) from channel (future providers).
 - Preserves auditability by recording every lifecycle transition as an append-only event before any real provider exists.
+
+## ADR-022: Phase 5.4 Message Template and Rendering Foundation
+Date: 2026-06-15
+Status: Accepted
+
+Decision:
+- Introduce a channel-neutral message template domain with two durable tables:
+  - `message_templates` — canonical template identity, category, supported channels, and active version pointer.
+  - `message_template_versions` — immutable published content versions with subject/body patterns, variable declarations, and rendering hints.
+- Enforce immutability of published versions: once published, a version's content cannot be modified; new versions must be created instead.
+- Define a `{{variable_name}}` placeholder syntax with declared variable definitions that include required/optional classification and description.
+- Introduce a `render_template` service function that validates and substitutes variables, producing a channel-neutral `RenderedMessage` object.
+- Validate at publish time: undeclared placeholders in patterns cause a 422 and block publication.
+- Validate at render time: missing required variables, unsupported channels, and unpublished versions all raise before the delivery pipeline is reached.
+- The `RenderedMessage` object (subject, body, resolved variables, rendering metadata) is the contract consumed by the delivery pipeline and eventually by future provider adapters.
+- Introduce no email, SMS, push, or provider-specific formatting logic.
+
+Rationale:
+- Prevents each future delivery channel from embedding its own template and variable substitution logic.
+- Establishes a single validated rendering contract so the delivery pipeline and providers receive consistently structured messages.
+- Preserves historical integrity by keeping published versions immutable, enabling reliable audit and reproducibility of previously sent notifications.

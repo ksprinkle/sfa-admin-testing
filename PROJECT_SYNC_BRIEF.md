@@ -121,6 +121,44 @@ File touchpoints:
 
 Canonical baseline: `v1.5.0-phase5.3-delivery-pipeline` (tagged at 4b6acd3)
 
+## Session Delta (In Progress - June 15, Phase 5.4 Message Template & Rendering Foundation) — <pending_commit>
+
+Status: Complete locally; commit pending
+
+Scope guardrails:
+- Channel-neutral template domain model and rendering foundation only.
+- No email, SMS, push, or provider-specific logic.
+- No campaign management or bulk messaging.
+- No dashboard or UI changes.
+- No unrelated refactoring.
+
+Behavior summary:
+- Added `message_templates` model: canonical template identity, category, supported channels, active version pointer.
+- Added `message_template_versions` model: immutable published content versions with subject/body patterns, declared variable definitions, and rendering hints.
+- Added `message_template_rendering` service with create_template, create_template_version, publish_template_version, retire_template_version, render_template, list helpers.
+- Added `{{variable}}` placeholder syntax with declared variable definitions (required/optional, description).
+- Added validation at publish time: undeclared placeholders block publication (422).
+- Added validation at render time: missing required variables, unsupported channels, and unpublished versions all raise before delivery pipeline is reached.
+- Added channel-neutral `RenderedMessage` dataclass as the pipeline delivery contract.
+- Added migration u4e2b8f1d3c9 chained from Phase 5.3.
+
+Validation evidence:
+- 12 behavioral assertions passed (create, duplicate-key guard, versioning, unpublished render guard, publish, render, missing-var guard, unsupported-channel guard, undeclared-placeholder publish guard, retire, version listing, template listing).
+- All six static-analysis checks clean.
+
+File touchpoints:
+- `api/models/message_templates.py`
+- `api/models/message_template_versions.py`
+- `api/services/message_template_rendering.py`
+- `alembic/versions/u4e2b8f1d3c9_add_message_template_rendering.py`
+- `api/models/__init__.py`
+- `api/main.py`
+- `PROJECT_SYNC_BRIEF.md`
+- `docs/ARCHITECTURE_DECISIONS.md`
+
+Baseline recommendation:
+- Recommend `v1.6.0-phase5.4-message-template-rendering` after commit and governance review.
+
 Deferred Work Register (carried forward):
 - Email provider implementation
 - SMS provider implementation

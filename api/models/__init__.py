@@ -21,6 +21,8 @@ from .reminder_audit_events import ReminderAuditEvent
 from .reminder_execution_queue import ReminderExecutionQueueItem
 from .notification_delivery_attempts import NotificationDeliveryAttempt
 from .notification_delivery_events import NotificationDeliveryEvent
+from .message_templates import MessageTemplate
+from .message_template_versions import MessageTemplateVersion
 from .event_operations import EventOperation
 from .sessions import Session
 from .participant_removal_log import ParticipantRemovalLog
