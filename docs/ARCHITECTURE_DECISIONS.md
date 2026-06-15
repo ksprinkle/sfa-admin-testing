@@ -400,3 +400,23 @@ Rationale:
 - Establishes the missing runtime layer between reminder configuration and future delivery channels.
 - Preserves auditability by making reminder execution decisions observable rather than implicit.
 - Avoids duplicating eligibility, retry, and idempotency behavior across providers or downstream consumers.
+
+## ADR-021: Phase 5.3 Notification Delivery Pipeline Foundation
+Date: 2026-06-15
+Status: Accepted
+
+Decision:
+- Introduce a canonical notification delivery pipeline with two durable tables:
+  - `notification_delivery_attempts` — one row per logical delivery, serving as the execution system of record.
+  - `notification_delivery_events` — append-only event log for pipeline lifecycle transitions.
+- Enforce idempotency via `delivery_key` unique constraint so the pipeline can be called repeatedly without creating duplicate deliveries.
+- Keep the pipeline domain-agnostic through a `source_domain` / `source_id` reference pattern so reminder, volunteer, event, and admin sources all share the same transport layer.
+- Maintain the provider abstraction from Phase 5.1 (`NotificationProvider` Protocol / registry) as the sole integration point for future email, SMS, and push providers.
+- Include an `execution_queue_item_id` foreign key so reminder execution queue items can be traced directly to their delivery attempts.
+- Record audit events for: queued, duplicate suppressed, started, succeeded, retry scheduled, failed, and cancelled.
+- Introduce no provider-specific logic; the pipeline orchestrates provider calls but does not embed email, SMS, or push behavior.
+
+Rationale:
+- Provides the shared transport layer that all future delivery channels consume, preventing each channel from embedding its own retry, idempotency, and audit behavior.
+- Maintains the established governance pattern of separating decision (execution engine) from delivery (pipeline) from channel (future providers).
+- Preserves auditability by recording every lifecycle transition as an append-only event before any real provider exists.

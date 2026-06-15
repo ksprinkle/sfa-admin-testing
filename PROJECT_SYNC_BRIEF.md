@@ -61,9 +61,9 @@ Success criteria: <list>.
 Start from branch <name>, commit <hash>.
 Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with results and commit evidence.
 
-## Session Delta (Completed - June 14, Phase 5.2 Reminder Execution Engine) — <pending_commit>
+## Session Delta (Completed - June 14, Phase 5.2 Reminder Execution Engine) — a01d72e
 
-Status: Complete locally; commit pending
+Status: Committed
 
 Scope guardrails:
 - Reminder execution workflow only.
@@ -80,22 +80,47 @@ Behavior summary:
 - Added retry-state handling that distinguishes transient retry scheduling from terminal failure.
 - Preserved the separation between decision, execution, and future delivery providers.
 
+Canonical baseline: `v1.4.0-phase5.2-execution-engine` (tagged at a01d72e)
+
+## Session Delta (In Progress - June 15, Phase 5.3 Notification Delivery Pipeline Foundation) — <pending_commit>
+
+Status: Complete locally; commit pending
+
+Scope guardrails:
+- Notification delivery pipeline foundation only.
+- Delivery domain model, provider abstraction layer, delivery queue lifecycle, retry architecture, and audit event recording.
+- No email/SMS/push provider implementation.
+- No campaign management or bulk messaging.
+- No dashboard or UI changes.
+- No unrelated refactoring.
+
+Behavior summary:
+- Added `notification_delivery_attempts` model as the durable execution system of record for all notification deliveries.
+- Added `notification_delivery_events` model as the append-only audit event log for pipeline lifecycle transitions.
+- Added `notification_pipeline` service with queue_notification_delivery, process_delivery_attempt, cancel_delivery_attempt, process_due_deliveries, and list helpers.
+- Added delivery-key idempotency so the pipeline cannot create duplicate delivery attempts for the same logical notification.
+- Added source_domain / source_id reference pattern so reminder, volunteer, event, and admin sources share the same transport layer.
+- Added execution_queue_item_id FK linking reminder execution queue items to their delivery attempts.
+- Added audit events for: queued, duplicate_suppressed, started, succeeded, retry_scheduled, failed, cancelled.
+- Preserved the NotificationProvider Protocol / registry from Phase 5.1 as the sole integration point for future providers.
+
 Validation evidence:
-- `import api.main` completed successfully under local development settings.
-- SQLite smoke validation confirmed eligible queueing, duplicate suppression, inactive reminder skipping, retry scheduling, and terminal failure recording.
-- Audit coverage confirmed the expected execution lifecycle event types.
+- All seven required audit event types confirmed in SQLite smoke run.
+- Duplicate suppression, delivery success, retry scheduling, terminal failure, and cancellation all validated.
+- `import api.main` completed successfully.
 
 File touchpoints:
-- `api/models/reminder_execution_queue.py`
-- `api/services/reminder_execution.py`
-- `alembic/versions/s5d2e7b1c4a8_add_reminder_execution_queue.py`
+- `api/models/notification_delivery_attempts.py`
+- `api/models/notification_delivery_events.py`
+- `api/services/notification_pipeline.py`
+- `alembic/versions/t3f1a9d6c2e4_add_notification_delivery_pipeline.py`
 - `api/models/__init__.py`
 - `api/main.py`
 - `PROJECT_SYNC_BRIEF.md`
 - `docs/ARCHITECTURE_DECISIONS.md`
 
 Baseline recommendation:
-- Recommend a new canonical architectural baseline after commit and repository hygiene completion: `v1.4.0-phase5.2-execution-engine`.
+- Recommend `v1.5.0-phase5.3-delivery-pipeline` after commit and governance review.
 
 ## Protected Working Behavior (Copy/Paste)
 

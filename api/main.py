@@ -27,6 +27,8 @@ import api.models.communication_deliveries
 import api.models.reminder_definitions
 import api.models.reminder_audit_events
 import api.models.reminder_execution_queue
+import api.models.notification_delivery_attempts
+import api.models.notification_delivery_events
 import api.models.event_operations
 import api.models.users
 import api.models.sessions
