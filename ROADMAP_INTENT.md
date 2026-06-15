@@ -147,6 +147,43 @@ Summary of planning changes:
 Reason:
 Recent sessions prioritized deploy/runtime reliability and reproducible environments.
 
+9) Phase 5 Roadmap Update
+
+Canonical Baseline:
+`v1.4.0-phase5.2-execution-engine`
+
+Completed:
+- Phase 5.1 Reminder & Notification Architecture Foundation (committed)
+- Phase 5.2 Reminder Execution Engine (committed)
+
+Approved for Build:
+- Phase 5.3 Notification Delivery Pipeline Foundation
+
+Roadmap Statuses:
+- Reminder Architecture Foundation: Complete
+- Reminder Execution Engine: Complete
+- Notification Delivery Pipeline: In Progress
+- Communications Platform: Planned
+- Event Operations: Planned
+- Executive Analytics: Planned
+- Platform Integration: Deferred until upstream modules mature
+
+Deferred Work Register:
+- Email provider implementation
+- SMS provider implementation
+- Push notification provider implementation
+- Campaign management
+- Bulk messaging
+- Event operations enhancements
+- Volunteer workflow improvements
+- Administrative automation
+- Executive dashboards
+- Cross-module integration
+- Workflow optimization
+
+Next logical milestone:
+- Complete Phase 5.3 Notification Delivery Pipeline Foundation, validate the scoped architecture, then reassess the next planning gate from the updated baseline.
+
 🧠 Why This Roadmap Is Correct (quick context)
 
 This roadmap does not add new features.

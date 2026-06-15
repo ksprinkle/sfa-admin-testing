@@ -258,6 +258,21 @@ Decision:
   - `GET /api/admin/permissions/me`
 - Keep permissions phase scope limited to architecture and enforcement primitives; no workflow automation, communications, volunteer lifecycle, or analytics expansion is included.
 
+## ADR-015: Phase 5.1 Reminder and Notification Foundation
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce reminder foundation models as a separate reminder domain, with `reminder_definitions` as the canonical stored configuration and `reminder_audit_events` as the append-only change log.
+- Define service-layer scheduling and notification interfaces instead of coupling reminder logic to a specific delivery backend.
+- Keep reminder business rules, scheduling, and delivery concerns separate so future email, SMS, and push implementations can be swapped without redesigning the reminder domain.
+- Use noop defaults and provider/scheduler registries as the initial integration surface for future implementations.
+
+Rationale:
+- Establishes a stable architecture for Operational Automation before any concrete reminder delivery workflow is added.
+- Preserves the existing communications layer while creating a reminder-specific domain boundary for future growth.
+- Prevents provider or scheduling decisions from leaking into business logic.
+
 Rationale:
 - Establishes a reusable authorization foundation before later Phase 4 capability expansion.
 - Reduces authorization drift by defining one canonical matrix and one enforcement path.
@@ -369,3 +384,19 @@ Decision:
 Rationale:
 - Preserves core architectural invariant that analytics consume canonical domain truth and never become a source of business truth.
 - Provides executive-level visibility while maintaining strict domain separation and reuse of existing governance foundations.
+
+## ADR-020: Phase 5.2 Reminder Execution Engine
+Date: 2026-06-14
+Status: Accepted
+
+Decision:
+- Introduce a canonical reminder execution engine that evaluates reminder eligibility, generates queue items, and records execution lifecycle transitions.
+- Keep reminder execution separate from delivery providers so the engine owns decision and orchestration behavior while future email, SMS, and push providers remain delivery-only.
+- Use a durable queue item table as the execution system of record, with execution keys enforcing idempotency and preventing duplicate processing.
+- Record append-only reminder audit events for execution evaluation, queueing, skips, duplicate suppression, start, retry scheduling, success, and terminal failure.
+- Implement retry handling inside the engine with explicit terminal failure when retry limits are exhausted.
+
+Rationale:
+- Establishes the missing runtime layer between reminder configuration and future delivery channels.
+- Preserves auditability by making reminder execution decisions observable rather than implicit.
+- Avoids duplicating eligibility, retry, and idempotency behavior across providers or downstream consumers.

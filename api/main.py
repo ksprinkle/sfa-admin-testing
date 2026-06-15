@@ -24,6 +24,9 @@ import api.models.volunteer_assignments
 import api.models.communication_templates
 import api.models.communication_messages
 import api.models.communication_deliveries
+import api.models.reminder_definitions
+import api.models.reminder_audit_events
+import api.models.reminder_execution_queue
 import api.models.event_operations
 import api.models.users
 import api.models.sessions

@@ -61,6 +61,42 @@ Success criteria: <list>.
 Start from branch <name>, commit <hash>.
 Implement now with minimal safe changes, then update PROJECT_SYNC_BRIEF.md with results and commit evidence.
 
+## Session Delta (Completed - June 14, Phase 5.2 Reminder Execution Engine) — <pending_commit>
+
+Status: Complete locally; commit pending
+
+Scope guardrails:
+- Reminder execution workflow only.
+- Eligibility evaluation, queue generation, idempotency safeguards, audit event creation, and retry/error handling only.
+- No email/SMS/push provider implementation.
+- No campaign management or bulk messaging.
+- No unrelated UI or architectural changes.
+
+Behavior summary:
+- Added a durable reminder execution queue model for canonical execution lifecycle tracking.
+- Added execution engine service logic that deterministically evaluates reminder eligibility.
+- Added queue generation with duplicate suppression via an execution key.
+- Added audit events for evaluation, queueing, skips, duplicate suppression, execution start, retry scheduling, and terminal failure.
+- Added retry-state handling that distinguishes transient retry scheduling from terminal failure.
+- Preserved the separation between decision, execution, and future delivery providers.
+
+Validation evidence:
+- `import api.main` completed successfully under local development settings.
+- SQLite smoke validation confirmed eligible queueing, duplicate suppression, inactive reminder skipping, retry scheduling, and terminal failure recording.
+- Audit coverage confirmed the expected execution lifecycle event types.
+
+File touchpoints:
+- `api/models/reminder_execution_queue.py`
+- `api/services/reminder_execution.py`
+- `alembic/versions/s5d2e7b1c4a8_add_reminder_execution_queue.py`
+- `api/models/__init__.py`
+- `api/main.py`
+- `PROJECT_SYNC_BRIEF.md`
+- `docs/ARCHITECTURE_DECISIONS.md`
+
+Baseline recommendation:
+- Recommend a new canonical architectural baseline after commit and repository hygiene completion: `v1.4.0-phase5.2-execution-engine`.
+
 ## Protected Working Behavior (Copy/Paste)
 
 Paste this into ChatGPT before asking for planning or code suggestions when the goal is to preserve current approved behavior.

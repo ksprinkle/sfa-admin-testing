@@ -16,6 +16,9 @@ from .volunteer_assignments import VolunteerAssignment
 from .communication_templates import CommunicationTemplate
 from .communication_messages import CommunicationMessage
 from .communication_deliveries import CommunicationDelivery
+from .reminder_definitions import ReminderDefinition
+from .reminder_audit_events import ReminderAuditEvent
+from .reminder_execution_queue import ReminderExecutionQueueItem
 from .event_operations import EventOperation
 from .sessions import Session
 from .participant_removal_log import ParticipantRemovalLog
