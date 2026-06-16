@@ -150,7 +150,7 @@ Recent sessions prioritized deploy/runtime reliability and reproducible environm
 9) Phase 5 Roadmap Update
 
 Canonical Baseline:
-`v1.6.1-phase5.5-email-provider-foundation`
+`PWA v5.8 baseline: ReminderExecutionPipeline orchestration`
 
 Completed:
 - Phase 5.1 Reminder & Notification Architecture Foundation (committed)
@@ -158,9 +158,12 @@ Completed:
 - Phase 5.3 Notification Delivery Pipeline Foundation (committed)
 - Phase 5.4 Message Template & Rendering Foundation (committed)
 - Phase 5.5 Email Provider Foundation (committed)
+- Phase 5.6 Provider Resolution Architecture (committed)
+- Phase 5.7 Retry Strategy Abstraction (committed)
+- Phase 5.8 Reminder Execution Pipeline Orchestration (committed)
 
 Approved for Build:
-- Phase 5.6 (to be determined at next Planning Gate)
+- Phase 5.9 (to be determined at next Planning Gate)
 
 Roadmap Statuses:
 - Reminder Architecture Foundation: Complete
@@ -192,7 +195,7 @@ Completed and removed from deferred work register:
 - Message templating
 
 Next logical milestone:
-- Begin Phase 5.6 Architecture & Roadmap Planning Gate. No implementation until approval.
+- Begin Phase 5.9 Architecture & Roadmap Planning Gate. No implementation until approval.
 
 🧠 Why This Roadmap Is Correct (quick context)
 

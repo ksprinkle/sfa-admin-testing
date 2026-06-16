@@ -462,3 +462,25 @@ Rationale:
 - Prevents each future delivery channel from embedding its own template and variable substitution logic.
 - Establishes a single validated rendering contract so the delivery pipeline and providers receive consistently structured messages.
 - Preserves historical integrity by keeping published versions immutable, enabling reliable audit and reproducibility of previously sent notifications.
+
+## ADR-024: Phase 5.8 Reminder Execution Pipeline Orchestration
+Date: 2026-06-15
+Status: Accepted
+
+Decision:
+- Introduce `ReminderExecutionPipeline` as the canonical orchestration boundary for reminder execution lifecycle coordination.
+- Define explicit orchestration stages for reminder execution flow:
+  - evaluate eligibility
+  - build execution plan
+  - render payload
+  - record evaluation/queue/skip/duplicate outcomes
+  - coordinate dispatch lifecycle
+- Preserve existing public entry points as compatibility wrappers that delegate to the pipeline.
+- Keep provider selection, retry policy, and provider implementations outside the pipeline boundary.
+- Keep reminder business eligibility rules and execution-state semantics unchanged.
+
+Rationale:
+- Creates a single execution seam with minimal implementation risk while preserving external behavior.
+- Builds directly on prior Phase 5.6 (provider resolution) and Phase 5.7 (retry strategy) without coupling concerns.
+- Improves maintainability by centralizing orchestration and stage sequencing in one component.
+- Preserves governance discipline by delivering one architectural increment only.

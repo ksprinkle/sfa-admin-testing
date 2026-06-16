@@ -196,6 +196,56 @@ File touchpoints:
 
 Canonical baseline: `v1.6.1-phase5.5-email-provider-foundation` (tagged at fa6899384305f292e756e11bbb29e9052690d55e)
 
+## Session Delta (Committed - June 15, Phase 5.8 Reminder Execution Pipeline Orchestration)
+
+Status: Committed
+
+Planning gate status:
+- Canonical baseline reviewed.
+- Platform capabilities inventoried.
+- Living roadmap reviewed.
+- Deferred architectural work assessed.
+- Dependencies and sequencing analyzed.
+- Exactly one architectural increment selected and approved before implementation.
+
+Scope guardrails:
+- Reminder execution pipeline orchestration only.
+- No broad cross-domain interface normalization.
+- No provider interface modifications.
+- No retry strategy redesign.
+- No business rule rewrites.
+- No unrelated refactoring.
+
+Behavior summary:
+- Added `ReminderExecutionPipeline` as the orchestration boundary for reminder execution lifecycle coordination.
+- Added explicit pipeline stage seams for eligibility evaluation, execution-plan building, payload rendering, outcome recording, and dispatch lifecycle coordination.
+- Preserved existing reminder business rules and queue-item state transitions.
+- Preserved provider-selection and retry abstractions as independent architectural concerns introduced in Phases 5.6 and 5.7.
+- Preserved existing public entry points as compatibility wrappers that delegate into the pipeline.
+
+Architectural responsibilities:
+- Pipeline owns orchestration, sequencing, context propagation, lifecycle coordination, and outcome recording.
+- Provider resolver remains responsible for provider selection.
+- Retry strategy remains responsible for retry policy.
+- Provider implementations remain single-attempt transport adapters.
+- Eligibility logic remains owned by reminder business rules.
+
+Validation evidence:
+- File diagnostics reported no errors in `api/services/reminder_execution.py`.
+- Import smoke test succeeded for:
+  - `ReminderExecutionPipeline`
+  - `queue_eligible_reminders`
+  - `dispatch_reminder_execution`
+
+File touchpoints:
+- `api/services/reminder_execution.py`
+- `PROJECT_SYNC_BRIEF.md`
+- `ROADMAP_INTENT.md`
+- `docs/ARCHITECTURE_DECISIONS.md`
+
+Canonical baseline (Phase 5.8 closeout note):
+- **PWA v5.8 Baseline:** Introduced `ReminderExecutionPipeline` as the canonical orchestration layer for reminder execution. Existing public APIs remain compatibility wrappers; provider resolution and retry strategy remain independent architectural concerns established in Phases 5.6 and 5.7.
+
 Deferred Work Register (carried forward):
 - SMS provider implementation
 - Push notification provider
