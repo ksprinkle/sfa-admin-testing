@@ -158,7 +158,7 @@ File touchpoints:
 
 Canonical baseline: `v1.6.0-phase5.4-message-template-rendering` (tagged at 98abfcc)
 
-## Session Delta (Committed - June 15, Phase 5.5 Email Provider Foundation) — pending
+## Session Delta (Committed - June 15, Phase 5.5 Email Provider Foundation) — 2a9ceb0
 
 Status: Committed
 
@@ -194,7 +194,7 @@ File touchpoints:
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `ROADMAP_INTENT.md`
 
-Canonical baseline: `v1.6.1-phase5.5-email-provider-foundation` (to be tagged after commit)
+Canonical baseline: `v1.6.1-phase5.5-email-provider-foundation` (tagged at 2a9ceb0)
 
 Deferred Work Register (carried forward):
 - SMS provider implementation
