@@ -123,6 +123,19 @@ class Settings:
         "http://127.0.0.1:5173",
     ]
 
+    # Email provider selection stays in configuration, not business logic.
+    EMAIL_PROVIDER_KEY = os.getenv("EMAIL_PROVIDER_KEY", "email.noop")
+    EMAIL_DEFAULT_SENDER = os.getenv("EMAIL_DEFAULT_SENDER", "no-reply@example.com")
+    SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+    SMTP_FROM_ADDRESS = os.getenv("SMTP_FROM_ADDRESS", EMAIL_DEFAULT_SENDER)
+    SMTP_USE_TLS = _is_truthy(os.getenv("SMTP_USE_TLS", "true"))
+    SMTP_USE_SSL = _is_truthy(os.getenv("SMTP_USE_SSL", "false"))
+    SMTP_REQUIRE_AUTH = _is_truthy(os.getenv("SMTP_REQUIRE_AUTH", "true"))
+    SMTP_TIMEOUT_SECONDS = float(os.getenv("SMTP_TIMEOUT_SECONDS", "10"))
+
     CANONICAL_SIGNING_ORIGIN = _resolve_canonical_signing_origin(is_production=IS_PRODUCTION)
     BACKEND_SECRET_KEY = _resolve_backend_secret_key(is_production=IS_PRODUCTION)
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))

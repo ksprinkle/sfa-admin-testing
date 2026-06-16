@@ -158,8 +158,45 @@ File touchpoints:
 
 Canonical baseline: `v1.6.0-phase5.4-message-template-rendering` (tagged at 98abfcc)
 
+## Session Delta (Committed - June 15, Phase 5.5 Email Provider Foundation) — pending
+
+Status: Committed
+
+Scope guardrails:
+- Email provider foundation only.
+- Hardened `EmailRequest` and `DeliveryResult` contracts.
+- Provider registry with `email.noop` and `email.smtp` implementations.
+- Configuration-driven provider defaults and SMTP transport mapping.
+- Compatibility bridge from rendered messages into the delivery queue.
+- No SMS, push, campaign, analytics, or business-logic branching by provider.
+- No unrelated refactoring.
+
+Behavior summary:
+- Hardened the email contract around a stable `EmailRequest` model with to/cc/bcc, sender, reply_to, subject, html/text bodies, attachments, headers, and metadata.
+- Standardized provider outcomes through `DeliveryResult` and `DeliveryStatus` values: success, rejected, failed, temporary_failure.
+- Added configuration-driven email provider defaults in `api.config`.
+- Registered `email.noop` and `email.smtp` through a provider registry without provider-specific branching in application code.
+- Added SMTP transport mapping for successful delivery, invalid recipient rejection, authentication failure, temporary connection failure, and configuration failure.
+- Preserved the existing rendered-message queue bridge so business code continues to use the provider interface only.
+
+Validation evidence:
+- Startup import under `DEBUG=true` completed successfully.
+- Provider registry resolved `['email.noop', 'email.smtp']`.
+- Noop provider returned standardized success for a minimal request.
+- SMTP provider mapping validated for success, invalid recipient rejection, authentication failure, temporary timeout, and configuration failure via mocked transport.
+
+File touchpoints:
+- `api/config.py`
+- `api/main.py`
+- `api/services/email_delivery.py`
+- `PHASE5_5_MESSAGE_TEMPLATE_RENDERING_PLAN.md`
+- `PROJECT_SYNC_BRIEF.md`
+- `docs/ARCHITECTURE_DECISIONS.md`
+- `ROADMAP_INTENT.md`
+
+Canonical baseline: `v1.6.1-phase5.5-email-provider-foundation` (to be tagged after commit)
+
 Deferred Work Register (carried forward):
-- Email provider implementation
 - SMS provider implementation
 - Push notification provider
 - Campaign management
@@ -169,6 +206,9 @@ Deferred Work Register (carried forward):
 - Delivery analytics
 - Executive reporting enhancements
 - Cross-module communication workflows
+
+Completed and removed from deferred work register:
+- Email provider implementation
 
 ## Protected Working Behavior (Copy/Paste)
 

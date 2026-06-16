@@ -418,6 +418,27 @@ Decision:
 
 Rationale:
 - Provides the shared transport layer that all future delivery channels consume, preventing each channel from embedding its own retry, idempotency, and audit behavior.
+
+## ADR-022: Phase 5.5 Email Provider Foundation
+Date: 2026-06-15
+Status: Accepted
+
+Decision:
+- Introduce a hardened email-provider contract with `EmailRequest` and `DeliveryResult` as the public integration boundary.
+- Standardize provider outcomes through `DeliveryStatus` values:
+  - `success`
+  - `rejected`
+  - `failed`
+  - `temporary_failure`
+- Keep provider selection configuration-driven through `EMAIL_PROVIDER_KEY` while preserving a noop default for safe startup behavior.
+- Register `email.noop` and `email.smtp` behind the same provider registry so application code remains provider-agnostic.
+- Map SMTP behavior inside the adapter only, including recipient validation, authentication failure, temporary connection failure, and configuration failure.
+- Preserve the rendered-message queue bridge so existing delivery orchestration continues to consume the provider interface rather than branching on provider type.
+
+Rationale:
+- Freezes the provider contract before adding more transport implementations.
+- Ensures email transports can be swapped without changing business logic or queue orchestration.
+- Preserves governance discipline by completing the email foundation as one scoped architectural increment.
 - Maintains the established governance pattern of separating decision (execution engine) from delivery (pipeline) from channel (future providers).
 - Preserves auditability by recording every lifecycle transition as an append-only event before any real provider exists.
 
