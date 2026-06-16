@@ -58,6 +58,28 @@ class ReminderDispatchOutcome:
     retry_after_seconds: int | None = None
 
 
+class DispatchJobStatus:
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+@dataclass
+class DispatchJob:
+    id: str
+    provider: str
+    payload: dict[str, Any]
+    priority: int
+    attempts: int
+    created_at: datetime
+    status: str
+    execution_item_id: UUID
+    error_message: str | None = None
+    result: dict[str, Any] | None = None
+
+
 DispatchCallback = Callable[[ReminderExecutionQueueItem], ReminderDispatchOutcome]
 
 
@@ -584,75 +606,51 @@ class ReminderExecutionPipeline:
             evaluations=evaluations,
         )
 
-    def dispatch(
+    def _resolve_provider_for_dispatch_job(self, queue_item: ReminderExecutionQueueItem) -> str:
+        payload = queue_item.execution_payload or {}
+        execution = payload.get("execution") or {}
+        evaluation_context = execution.get("evaluation_context") or {}
+        provider_key = evaluation_context.get("provider_key") or evaluation_context.get("email_provider") or "email.noop"
+        normalized = _normalize_text(provider_key, fallback="email.noop")
+        return normalized or "email.noop"
+
+    def create_dispatch_job(
         self,
         *,
         execution_item_id: UUID,
         actor_user_id: str | None,
-        dispatch_callback: DispatchCallback,
-        source: str = "reminder.execution_pipeline.dispatch",
-    ) -> ReminderExecutionQueueItem:
-        queue_item = mark_reminder_execution_started(
+        source: str = "reminder.execution_pipeline.dispatch_job",
+    ) -> DispatchJob:
+        queue_item = _load_queue_item(self.db, execution_item_id)
+        provider = self._resolve_provider_for_dispatch_job(queue_item)
+
+        dispatch_job = DispatchJob(
+            id=f"dispatch:{queue_item.id}",
+            provider=provider,
+            payload=dict(queue_item.execution_payload or {}),
+            priority=100,
+            attempts=0,
+            created_at=_now_utc_naive(),
+            status=DispatchJobStatus.PENDING,
+            execution_item_id=queue_item.id,
+        )
+
+        record_reminder_audit_event(
             self.db,
-            execution_item_id=execution_item_id,
+            reminder_id=queue_item.reminder_id,
+            event_type="reminder_dispatch_job_created",
             actor_user_id=actor_user_id,
             source=source,
+            details={
+                "dispatch_job_id": dispatch_job.id,
+                "execution_item_id": str(queue_item.id),
+                "provider": dispatch_job.provider,
+                "priority": dispatch_job.priority,
+                "status": dispatch_job.status,
+            },
         )
-        try:
-            dispatch_outcome = dispatch_callback(queue_item)
-        except Exception as exc:
-            dispatch_outcome = ReminderDispatchOutcome(succeeded=False, error_message=str(exc))
-
-        if dispatch_outcome.succeeded:
-            return self.record_result(
-                execution_item_id=execution_item_id,
-                actor_user_id=actor_user_id,
-                result=dispatch_outcome.result,
-                source=source,
-            )
-
-        return self.apply_retry_strategy(
-            execution_item_id=execution_item_id,
-            actor_user_id=actor_user_id,
-            error_message=dispatch_outcome.error_message or "Reminder execution dispatch failed",
-            retry_after_seconds=dispatch_outcome.retry_after_seconds,
-            source=source,
-        )
-
-    def apply_retry_strategy(
-        self,
-        *,
-        execution_item_id: UUID,
-        actor_user_id: str | None,
-        error_message: str,
-        retry_after_seconds: int | None = None,
-        source: str = "reminder.execution_pipeline.retry",
-    ) -> ReminderExecutionQueueItem:
-        return mark_reminder_execution_failed(
-            self.db,
-            execution_item_id=execution_item_id,
-            actor_user_id=actor_user_id,
-            error_message=error_message,
-            retry_after_seconds=retry_after_seconds,
-            source=source,
-        )
-
-    def record_result(
-        self,
-        *,
-        execution_item_id: UUID,
-        actor_user_id: str | None,
-        result: dict[str, Any] | None = None,
-        source: str = "reminder.execution_pipeline.result",
-    ) -> ReminderExecutionQueueItem:
-        return mark_reminder_execution_succeeded(
-            self.db,
-            execution_item_id=execution_item_id,
-            actor_user_id=actor_user_id,
-            result=result,
-            source=source,
-        )
-
+        self.db.commit()
+        return dispatch_job
 
 def queue_eligible_reminders(
     db: Session,
@@ -684,12 +682,167 @@ def dispatch_reminder_execution(
     dispatch_callback: DispatchCallback,
     source: str = "reminder.execution_pipeline.dispatch",
 ) -> ReminderExecutionQueueItem:
-    return ReminderExecutionPipeline(db).dispatch(
+    pipeline = ReminderExecutionPipeline(db)
+    dispatch_job = pipeline.create_dispatch_job(
         execution_item_id=execution_item_id,
+        actor_user_id=actor_user_id,
+        source=source,
+    )
+    dispatcher = ReminderDispatcher(db)
+    return dispatcher.execute_job(
+        dispatch_job=dispatch_job,
         actor_user_id=actor_user_id,
         dispatch_callback=dispatch_callback,
         source=source,
     )
+
+
+def create_dispatch_job(
+    db: Session,
+    *,
+    execution_item_id: UUID,
+    actor_user_id: str | None,
+    source: str = "reminder.execution_pipeline.dispatch_job",
+) -> DispatchJob:
+    return ReminderExecutionPipeline(db).create_dispatch_job(
+        execution_item_id=execution_item_id,
+        actor_user_id=actor_user_id,
+        source=source,
+    )
+
+
+class ReminderDispatcher:
+    """Executes dispatch jobs and owns dispatch-job lifecycle transitions."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def execute_job(
+        self,
+        *,
+        dispatch_job: DispatchJob,
+        actor_user_id: str | None,
+        dispatch_callback: DispatchCallback,
+        source: str = "reminder.dispatcher",
+    ) -> ReminderExecutionQueueItem:
+        if dispatch_job.status != DispatchJobStatus.PENDING:
+            raise HTTPException(status_code=409, detail="Dispatch job is not runnable")
+
+        dispatch_job.status = DispatchJobStatus.RUNNING
+        dispatch_job.attempts += 1
+
+        queue_item = _load_queue_item(self.db, dispatch_job.execution_item_id)
+        record_reminder_audit_event(
+            self.db,
+            reminder_id=queue_item.reminder_id,
+            event_type="reminder_dispatch_job_running",
+            actor_user_id=actor_user_id,
+            source=source,
+            details={
+                "dispatch_job_id": dispatch_job.id,
+                "execution_item_id": str(dispatch_job.execution_item_id),
+                "provider": dispatch_job.provider,
+                "attempts": dispatch_job.attempts,
+                "status": dispatch_job.status,
+            },
+        )
+        self.db.commit()
+
+        started_item = mark_reminder_execution_started(
+            self.db,
+            execution_item_id=dispatch_job.execution_item_id,
+            actor_user_id=actor_user_id,
+            source=source,
+        )
+
+        try:
+            dispatch_outcome = dispatch_callback(started_item)
+        except Exception as exc:
+            dispatch_outcome = ReminderDispatchOutcome(succeeded=False, error_message=str(exc))
+
+        if dispatch_outcome.succeeded:
+            dispatch_job.status = DispatchJobStatus.SUCCEEDED
+            dispatch_job.result = dispatch_outcome.result
+            result_item = mark_reminder_execution_succeeded(
+                self.db,
+                execution_item_id=dispatch_job.execution_item_id,
+                actor_user_id=actor_user_id,
+                result=dispatch_outcome.result,
+                source=source,
+            )
+            record_reminder_audit_event(
+                self.db,
+                reminder_id=result_item.reminder_id,
+                event_type="reminder_dispatch_job_succeeded",
+                actor_user_id=actor_user_id,
+                source=source,
+                details={
+                    "dispatch_job_id": dispatch_job.id,
+                    "execution_item_id": str(dispatch_job.execution_item_id),
+                    "attempts": dispatch_job.attempts,
+                    "status": dispatch_job.status,
+                },
+            )
+            self.db.commit()
+            return result_item
+
+        dispatch_job.status = DispatchJobStatus.FAILED
+        dispatch_job.error_message = dispatch_outcome.error_message or "Reminder execution dispatch failed"
+        failed_item = mark_reminder_execution_failed(
+            self.db,
+            execution_item_id=dispatch_job.execution_item_id,
+            actor_user_id=actor_user_id,
+            error_message=dispatch_job.error_message,
+            retry_after_seconds=dispatch_outcome.retry_after_seconds,
+            source=source,
+        )
+        record_reminder_audit_event(
+            self.db,
+            reminder_id=failed_item.reminder_id,
+            event_type="reminder_dispatch_job_failed",
+            actor_user_id=actor_user_id,
+            source=source,
+            details={
+                "dispatch_job_id": dispatch_job.id,
+                "execution_item_id": str(dispatch_job.execution_item_id),
+                "attempts": dispatch_job.attempts,
+                "status": dispatch_job.status,
+                "error_message": dispatch_job.error_message,
+            },
+        )
+        self.db.commit()
+        return failed_item
+
+    def cancel_job(
+        self,
+        *,
+        dispatch_job: DispatchJob,
+        actor_user_id: str | None,
+        reason: str | None = None,
+        source: str = "reminder.dispatcher",
+    ) -> DispatchJob:
+        if dispatch_job.status in {DispatchJobStatus.SUCCEEDED, DispatchJobStatus.FAILED, DispatchJobStatus.CANCELLED}:
+            raise HTTPException(status_code=409, detail="Dispatch job is in terminal state")
+
+        dispatch_job.status = DispatchJobStatus.CANCELLED
+        dispatch_job.error_message = (reason or "Dispatch cancelled").strip() or "Dispatch cancelled"
+
+        queue_item = _load_queue_item(self.db, dispatch_job.execution_item_id)
+        record_reminder_audit_event(
+            self.db,
+            reminder_id=queue_item.reminder_id,
+            event_type="reminder_dispatch_job_cancelled",
+            actor_user_id=actor_user_id,
+            source=source,
+            details={
+                "dispatch_job_id": dispatch_job.id,
+                "execution_item_id": str(dispatch_job.execution_item_id),
+                "status": dispatch_job.status,
+                "reason": dispatch_job.error_message,
+            },
+        )
+        self.db.commit()
+        return dispatch_job
 
 
 def _load_queue_item(db: Session, execution_item_id: UUID) -> ReminderExecutionQueueItem:

@@ -484,3 +484,27 @@ Rationale:
 - Builds directly on prior Phase 5.6 (provider resolution) and Phase 5.7 (retry strategy) without coupling concerns.
 - Improves maintainability by centralizing orchestration and stage sequencing in one component.
 - Preserves governance discipline by delivering one architectural increment only.
+
+## ADR-025: Phase 5.9 Async Dispatch Architecture
+Date: 2026-06-15
+Status: Accepted
+
+Decision:
+- Introduce `DispatchJob` as the canonical dispatch unit with lifecycle states: `pending`, `running`, `succeeded`, `failed`, `cancelled`.
+- Keep `ReminderExecutionPipeline` responsible for orchestration stages through dispatch-job creation only:
+  - eligibility evaluation
+  - payload rendering
+  - provider resolution
+  - dispatch job creation
+- Introduce `ReminderDispatcher` execution boundary responsible for:
+  - dispatch-job execution
+  - retry strategy invocation
+  - failure/result handling
+  - lifecycle status progression
+- Preserve backward compatibility by keeping existing public dispatch entry points as wrappers around pipeline job creation plus dispatcher execution.
+- Introduce no provider-specific or infrastructure-specific commitments in this phase.
+
+Rationale:
+- Decouples reminder orchestration from delivery execution while preserving established architectural boundaries.
+- Builds directly on prior Phase 5.6 (provider resolver), Phase 5.7 (retry strategy), and Phase 5.8 (orchestration seam).
+- Reduces implementation risk by introducing one logical execution boundary without expanding into queue-backend, distributed-worker, or failover concerns.

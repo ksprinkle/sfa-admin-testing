@@ -246,6 +246,45 @@ File touchpoints:
 Canonical baseline (Phase 5.8 closeout note):
 - **PWA v5.8 Baseline:** Introduced `ReminderExecutionPipeline` as the canonical orchestration layer for reminder execution. Existing public APIs remain compatibility wrappers; provider resolution and retry strategy remain independent architectural concerns established in Phases 5.6 and 5.7.
 
+## Session Delta (Committed - June 15, Phase 5.9 Async Dispatch Architecture)
+
+Status: Committed
+
+Planning/authorization status:
+- Planning gate approved with one architectural increment.
+- Implementation authorization approved.
+- Scope constrained to async dispatch architecture only.
+
+Scope guardrails:
+- Introduce `DispatchJob` abstraction and dispatcher boundary only.
+- Preserve provider resolver boundary (Phase 5.6).
+- Preserve retry strategy boundary (Phase 5.7).
+- Preserve reminder orchestration boundary (Phase 5.8).
+- No provider-specific implementation, queue backend selection, distributed workers, failover, circuit breakers, tracing, or dashboards.
+
+Behavior summary:
+- Added canonical `DispatchJob` abstraction with lifecycle states: pending, running, succeeded, failed, cancelled.
+- Updated `ReminderExecutionPipeline` so pipeline responsibilities terminate at dispatch-job creation.
+- Added explicit provider-resolution step for dispatch jobs without embedding provider-specific logic.
+- Added `ReminderDispatcher` boundary that owns dispatch execution, retry invocation, failure/result handling, and lifecycle updates.
+- Preserved compatibility through existing `dispatch_reminder_execution(...)` entry point, now delegating to pipeline job creation + dispatcher execution.
+
+Validation evidence:
+- File diagnostics reported no errors in `api/services/reminder_execution.py`.
+- Import smoke test succeeded for:
+  - `DispatchJob`
+  - `DispatchJobStatus`
+  - `ReminderDispatcher`
+  - `ReminderExecutionPipeline`
+  - `create_dispatch_job`
+  - `dispatch_reminder_execution`
+
+File touchpoints:
+- `api/services/reminder_execution.py`
+- `PROJECT_SYNC_BRIEF.md`
+- `ROADMAP_INTENT.md`
+- `docs/ARCHITECTURE_DECISIONS.md`
+
 Deferred Work Register (carried forward):
 - SMS provider implementation
 - Push notification provider
