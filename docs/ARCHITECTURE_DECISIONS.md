@@ -419,7 +419,7 @@ Decision:
 Rationale:
 - Provides the shared transport layer that all future delivery channels consume, preventing each channel from embedding its own retry, idempotency, and audit behavior.
 
-## ADR-022: Phase 5.5 Email Provider Foundation
+## ADR-023: Phase 5.5 Email Provider Foundation
 Date: 2026-06-15
 Status: Accepted
 
