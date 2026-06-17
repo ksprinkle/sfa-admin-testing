@@ -198,6 +198,22 @@ Completed and removed from deferred work register:
 Next logical milestone:
 - Begin Phase 6 Architecture & Roadmap Planning Gate. No implementation until approval.
 
+10) Phase 6 Planning Baseline
+
+Status:
+- Phase 6 specification and design baseline established.
+- Planning closeout in progress (commit/tag checkpoint pending).
+
+Authoritative planning document:
+- `PHASE6_SPECIFICATION_AND_DESIGN.md`
+
+Next executable work item:
+- Phase 6 Increment 1: Execution Pipeline Foundation
+	- Requires dedicated increment design review and explicit implementation approval before code changes.
+
+Scope reminder:
+- Phase 6 proceeds incrementally: one reviewed and validated increment at a time.
+
 🧠 Why This Roadmap Is Correct (quick context)
 
 This roadmap does not add new features.

@@ -508,3 +508,19 @@ Rationale:
 - Decouples reminder orchestration from delivery execution while preserving established architectural boundaries.
 - Builds directly on prior Phase 5.6 (provider resolver), Phase 5.7 (retry strategy), and Phase 5.8 (orchestration seam).
 - Reduces implementation risk by introducing one logical execution boundary without expanding into queue-backend, distributed-worker, or failover concerns.
+
+## ADR-026: Phase 6 Incremental Execution Governance Baseline
+Date: 2026-06-17
+Status: Accepted
+
+Decision:
+- Establish `PHASE6_SPECIFICATION_AND_DESIGN.md` as the authoritative planning and design baseline for Phase 6.
+- Execute Phase 6 through sequential increments, with one approved increment implemented at a time.
+- Require each increment to follow the governance workflow: design -> review -> implementation -> validation -> closeout.
+- Designate Phase 6 Increment 1 (`Execution Pipeline Foundation`) as the next executable work item, pending explicit design-review approval.
+- Introduce no new implementation behavior in this planning-baseline decision.
+
+Rationale:
+- Preserves governance discipline established in Phases 5.6 through 5.9.
+- Prevents scope expansion by forcing one increment per approved change set.
+- Creates a stable planning reference before Phase 6 code changes begin.

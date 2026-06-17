@@ -285,6 +285,31 @@ File touchpoints:
 - `ROADMAP_INTENT.md`
 - `docs/ARCHITECTURE_DECISIONS.md`
 
+## Session Delta (Planning Closeout - June 17, Phase 6 Specification Baseline)
+
+Status: Planning baseline established
+
+Planning scope:
+- Phase 6 planning activity completed with no implementation changes.
+- Phase 6 specification/design document created as the authoritative planning reference.
+- Increment strategy defined to enforce one reviewed increment at a time.
+
+Authoritative planning document:
+- `PHASE6_SPECIFICATION_AND_DESIGN.md`
+
+Next executable work item:
+- Phase 6 - Increment 1: Execution Pipeline Foundation (design review required before implementation).
+
+Governance constraints:
+- No Phase 6 implementation starts before Increment 1 design review and explicit approval.
+- Continue one architectural increment per change set with validation and closeout checkpoints.
+
+File touchpoints:
+- `PHASE6_SPECIFICATION_AND_DESIGN.md`
+- `PROJECT_SYNC_BRIEF.md`
+- `ROADMAP_INTENT.md`
+- `docs/ARCHITECTURE_DECISIONS.md`
+
 Deferred Work Register (carried forward):
 - SMS provider implementation
 - Push notification provider
