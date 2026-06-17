@@ -10,6 +10,17 @@ from sqlalchemy.orm import Session
 
 from api.models.reminder_definitions import ReminderDefinition
 from api.models.reminder_execution_queue import ReminderExecutionQueueItem
+from api.services.execution_pipeline import (
+    ExecutionContext,
+    ExecutionPipeline,
+    PipelineResultStatus,
+)
+from api.services.execution_pipeline_stages import (
+    DispatchExecutionStage,
+    RecordResultStage,
+    ResolveProviderStage,
+    ValidateExecutionStage,
+)
 from api.services.reminders import record_reminder_audit_event
 
 
@@ -56,14 +67,6 @@ class ReminderDispatchOutcome:
     result: dict[str, Any] | None = None
     error_message: str | None = None
     retry_after_seconds: int | None = None
-
-
-class DispatchJobStatus:
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -631,7 +634,7 @@ class ReminderExecutionPipeline:
             priority=100,
             attempts=0,
             created_at=_now_utc_naive(),
-            status=DispatchJobStatus.PENDING,
+            status="pending",
             execution_item_id=queue_item.id,
         )
 
@@ -688,13 +691,97 @@ def dispatch_reminder_execution(
         actor_user_id=actor_user_id,
         source=source,
     )
+
+    execution_context = ExecutionContext(
+        reminder_id=None,
+        execution_id=str(dispatch_job.execution_item_id),
+        channel="email",
+        provider_name=dispatch_job.provider,
+        execution_state=dispatch_job.status,
+        metadata={
+            "db": db,
+            "dispatch_job": dispatch_job,
+            "dispatch_callback": dispatch_callback,
+            "actor_user_id": actor_user_id,
+            "source": source,
+        },
+    )
+
+    execution_pipeline = ExecutionPipeline(
+        stages=[
+            ValidateExecutionStage(required_fields=("execution_id",)),
+            ResolveProviderStage(resolver=_resolve_provider_for_execution_context),
+            DispatchExecutionStage(dispatcher=_dispatch_execution_context),
+            RecordResultStage(),
+        ]
+    )
+    result = execution_pipeline.execute(execution_context)
+
+    queue_item = result.context.metadata.get("execution_item")
+    if isinstance(queue_item, ReminderExecutionQueueItem):
+        return queue_item
+
+    if result.status == PipelineResultStatus.SKIPPED:
+        raise HTTPException(status_code=409, detail="Execution was skipped by execution pipeline")
+    raise HTTPException(status_code=500, detail=result.context.error_message or "Reminder dispatch pipeline failed")
+
+
+def _resolve_provider_for_execution_context(context: ExecutionContext) -> str:
+    provider_name = (context.provider_name or "").strip().lower()
+    if provider_name:
+        return provider_name
+
+    dispatch_job = context.metadata.get("dispatch_job")
+    if isinstance(dispatch_job, DispatchJob):
+        return dispatch_job.provider
+
+    raise ValueError("No provider available on execution context")
+
+
+def _dispatch_execution_context(context: ExecutionContext) -> ExecutionContext:
+    db = context.metadata.get("db")
+    dispatch_job = context.metadata.get("dispatch_job")
+    dispatch_callback = context.metadata.get("dispatch_callback")
+    actor_user_id = context.metadata.get("actor_user_id")
+    source = context.metadata.get("source")
+
+    if not isinstance(db, Session) or not isinstance(dispatch_job, DispatchJob) or dispatch_callback is None:
+        context.error_message = "Invalid execution pipeline dispatch context"
+        context.result_status = PipelineResultStatus.FAILED
+        return context
+
     dispatcher = ReminderDispatcher(db)
-    return dispatcher.execute_job(
+    queue_item = dispatcher.execute_job(
         dispatch_job=dispatch_job,
         actor_user_id=actor_user_id,
         dispatch_callback=dispatch_callback,
-        source=source,
+        source=source or "reminder.execution_pipeline.dispatch",
     )
+    context.metadata["execution_item"] = queue_item
+    context.execution_state = queue_item.status
+
+    if queue_item.status == ReminderExecutionQueueItem.STATUS_SUCCEEDED:
+        context.result_status = PipelineResultStatus.SUCCESS
+        context.error_message = None
+        context.retryable = False
+        return context
+
+    if queue_item.status == ReminderExecutionQueueItem.STATUS_RETRY_SCHEDULED:
+        context.result_status = PipelineResultStatus.RETRYABLE_FAILURE
+        context.error_message = queue_item.last_error
+        context.retryable = True
+        return context
+
+    if queue_item.status == ReminderExecutionQueueItem.STATUS_FAILED:
+        context.result_status = PipelineResultStatus.FAILED
+        context.error_message = queue_item.last_error
+        context.retryable = False
+        return context
+
+    context.result_status = PipelineResultStatus.SKIPPED
+    context.error_message = f"Unexpected execution queue status: {queue_item.status}"
+    context.skipped = True
+    return context
 
 
 def create_dispatch_job(
@@ -725,10 +812,10 @@ class ReminderDispatcher:
         dispatch_callback: DispatchCallback,
         source: str = "reminder.dispatcher",
     ) -> ReminderExecutionQueueItem:
-        if dispatch_job.status != DispatchJobStatus.PENDING:
+        if dispatch_job.status != "pending":
             raise HTTPException(status_code=409, detail="Dispatch job is not runnable")
 
-        dispatch_job.status = DispatchJobStatus.RUNNING
+        dispatch_job.status = "running"
         dispatch_job.attempts += 1
 
         queue_item = _load_queue_item(self.db, dispatch_job.execution_item_id)
@@ -761,7 +848,7 @@ class ReminderDispatcher:
             dispatch_outcome = ReminderDispatchOutcome(succeeded=False, error_message=str(exc))
 
         if dispatch_outcome.succeeded:
-            dispatch_job.status = DispatchJobStatus.SUCCEEDED
+            dispatch_job.status = "succeeded"
             dispatch_job.result = dispatch_outcome.result
             result_item = mark_reminder_execution_succeeded(
                 self.db,
@@ -786,7 +873,7 @@ class ReminderDispatcher:
             self.db.commit()
             return result_item
 
-        dispatch_job.status = DispatchJobStatus.FAILED
+        dispatch_job.status = "failed"
         dispatch_job.error_message = dispatch_outcome.error_message or "Reminder execution dispatch failed"
         failed_item = mark_reminder_execution_failed(
             self.db,
@@ -821,10 +908,10 @@ class ReminderDispatcher:
         reason: str | None = None,
         source: str = "reminder.dispatcher",
     ) -> DispatchJob:
-        if dispatch_job.status in {DispatchJobStatus.SUCCEEDED, DispatchJobStatus.FAILED, DispatchJobStatus.CANCELLED}:
+        if dispatch_job.status in {"succeeded", "failed", "cancelled"}:
             raise HTTPException(status_code=409, detail="Dispatch job is in terminal state")
 
-        dispatch_job.status = DispatchJobStatus.CANCELLED
+        dispatch_job.status = "cancelled"
         dispatch_job.error_message = (reason or "Dispatch cancelled").strip() or "Dispatch cancelled"
 
         queue_item = _load_queue_item(self.db, dispatch_job.execution_item_id)

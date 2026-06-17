@@ -202,17 +202,21 @@ Next logical milestone:
 
 Status:
 - Phase 6 specification and design baseline established.
-- Planning closeout in progress (commit/tag checkpoint pending).
+- Planning closeout complete.
+- Increment 1 (Execution Pipeline Foundation) implemented and pending closeout commit/tag.
 
 Authoritative planning document:
 - `PHASE6_SPECIFICATION_AND_DESIGN.md`
 
 Next executable work item:
-- Phase 6 Increment 1: Execution Pipeline Foundation
-	- Requires dedicated increment design review and explicit implementation approval before code changes.
+- Phase 6 Increment 1: Execution Pipeline Foundation (implementation closeout)
+	- Requires increment closeout approval, scoped commit, and baseline/tag checkpoint.
 
 Scope reminder:
 - Phase 6 proceeds incrementally: one reviewed and validated increment at a time.
+
+Next logical milestone after Increment 1 closeout:
+- Begin Phase 6 Increment 2 design review. No implementation until approval.
 
 🧠 Why This Roadmap Is Correct (quick context)
 

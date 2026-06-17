@@ -524,3 +524,28 @@ Rationale:
 - Preserves governance discipline established in Phases 5.6 through 5.9.
 - Prevents scope expansion by forcing one increment per approved change set.
 - Creates a stable planning reference before Phase 6 code changes begin.
+
+## ADR-027: Phase 6 Increment 1 Execution Pipeline Foundation
+Date: 2026-06-17
+Status: Accepted
+
+Decision:
+- Introduce `ExecutionPipeline` as the orchestration layer for dispatch execution sequencing.
+- Introduce `ExecutionContext` as the stage handoff contract for pipeline execution.
+- Introduce `PipelineStage` as the extensibility contract for ordered stage execution.
+- Introduce standardized `PipelineResult`/`PipelineResultStatus` outcomes (`success`, `failed`, `retryable_failure`, `skipped`).
+- Implement initial stage set (`ValidateExecutionStage`, `ResolveProviderStage`, `DispatchExecutionStage`, `RecordResultStage`) as pipeline foundations.
+- Route reminder dispatch flow through the execution pipeline while preserving existing public entry points and Phase 5.6-5.9 architectural boundaries.
+
+Deferred by decision:
+- provider failover
+- queue backend selection
+- distributed workers
+- circuit breakers
+- tracing and dashboards
+- persistence schema changes
+
+Rationale:
+- Establishes a formal orchestration seam for Phase 6 while maintaining compatibility with prior boundaries.
+- Enables incremental stage-based evolution without provider or retry contract rewrites.
+- Keeps Increment 1 scope narrow and governance-compliant.
