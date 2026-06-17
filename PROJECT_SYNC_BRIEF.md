@@ -424,6 +424,200 @@ File touchpoints:
 Canonical baseline recommendation:
 - `v1.13.0-phase6-increment2-outcome-classification`
 
+## Session Delta (Planning - June 17, Phase 6 Increment 3 Candidate Comparison Review)
+
+Status: Planning review complete (implementation not authorized)
+
+Objective:
+- Evaluate Increment 3 candidates before design packet drafting to prevent coupling/rework.
+- Select exactly one candidate for the Increment 3 design-review packet.
+
+Candidates reviewed:
+- A. Retry Strategy Pipeline Integration
+- B. Provider Failover Boundary
+- C. Observability Boundary
+
+Evaluation criteria and weights:
+- Dependency readiness: High
+- Architectural leverage of Increment 1 and 2: High
+- Scope containment: High
+- Regression risk: Medium
+- Future feature enablement: High
+- Provider isolation preservation: High
+- Testability: Medium
+
+Comparative assessment:
+- Candidate A (Retry Strategy Pipeline Integration)
+  - Dependency alignment: Excellent
+  - Strengths: directly leverages `ExecutionPipeline` plus `ExecutionOutcome.RETRYABLE_FAILURE`; aligns with existing Phase 5 retry abstractions; adds decision boundary without introducing execution loops.
+  - Risks: low-to-medium; primarily decision-contract drift if scope expands.
+- Candidate B (Provider Failover Boundary)
+  - Dependency alignment: Moderate
+  - Strengths: early provider continuity seam.
+  - Risks: criteria likely premature without mature retry decision boundary; higher coupling risk between provider selection and retry policy.
+- Candidate C (Observability Boundary)
+  - Dependency alignment: Moderate
+  - Strengths: improved visibility and diagnostics.
+  - Risks: telemetry model may require redesign after retry/failover behavior stabilizes.
+
+Selection outcome:
+- Selected Increment 3 candidate: Retry Strategy Pipeline Integration.
+- Ranking recorded:
+  - 1) Retry Strategy Pipeline Integration
+  - 2) Observability Boundary
+  - 3) Provider Failover Boundary
+
+Scope guardrails for upcoming design packet:
+- Planning/design only at this stage; no implementation authorization.
+- Integrate retry decision logic at pipeline boundary only.
+- Do not execute retries in Increment 3.
+- Preserve provider contracts, provider resolver behavior, and existing outcome-classification semantics.
+- Defer failover execution, worker/queue concerns, and telemetry expansion.
+
+Gate state after comparison:
+- Increment 3 candidate selection: complete
+- Increment 3 design-review packet: approved
+- Increment 3 implementation planning review: approved
+- Increment 3 implementation authorization: approved
+- Increment 3 closeout review: approved
+- Increment 3: closed
+
+## Session Delta (Planning - June 17, Phase 6 Increment 3 Implementation Planning Review Approval)
+
+Status: Implementation planning review approved; implementation authorization pending
+
+Reviewed increment:
+- Retry Strategy Pipeline Integration
+
+Approval outcome:
+- Design review: approved
+- Implementation authorization: not granted
+
+Governance conclusion:
+- Move to Increment 3 implementation authorization review only.
+
+Implementation planning review result:
+- File-by-file implementation plan approved.
+- Retry decision mappings approved.
+- Test matrix approved.
+- Regression validation plan approved.
+
+Likely files to evaluate:
+- `api/services/execution_pipeline.py`
+- `api/services/execution_pipeline_stages.py`
+- `api/services/reminder_execution.py`
+- `tests/test_execution_pipeline.py`
+- `tests/test_execution_pipeline_stages.py`
+
+Planned decision scope:
+- Consume normalized execution outcomes.
+- Produce deterministic retry decisions.
+- Preserve provider contracts, provider registry behavior, and public execution APIs.
+- Remain policy-driven rather than execution-driven.
+
+Test and validation scope:
+- Success path unchanged.
+- Skipped path unchanged.
+- Permanent failure remains non-retryable.
+- Retryable failure produces a retry-eligible decision.
+- Deterministic evaluation on repeated input.
+- Existing pipeline and stage tests remain green.
+
+Authorization state:
+- No code changes authorized.
+- Implementation authorization remains pending a separate review decision.
+
+## Session Delta (Implemented - June 17, Phase 6 Increment 3 Retry Strategy Pipeline Integration)
+
+Status: Implemented, validated, and approved for closeout
+
+Scope delivered:
+- Added provider-agnostic retry decision boundary via `api/services/retry_decision.py`.
+- Integrated retry decision stage into execution pipeline sequencing after outcome classification.
+- Preserved provider contracts, provider registry behavior, async dispatch boundary, and public execution entry points.
+- Kept retry behavior decision-only (no retry loops/execution).
+
+Functional validation:
+- `RETRYABLE_FAILURE` -> retry recommendation generated.
+- `PERMANENT_FAILURE` -> no retry recommendation.
+
+Regression validation:
+- Public execution entry points unchanged.
+- Provider contracts unchanged.
+- Provider implementations unchanged.
+- Pipeline sequencing preserved.
+
+Test validation:
+- `python -m unittest tests.test_retry_decision tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_outcomes`
+- Result: 31 tests, OK
+
+Implementation touchpoints:
+- `api/services/retry_decision.py`
+- `api/services/execution_pipeline.py`
+- `api/services/execution_pipeline_stages.py`
+- `api/services/reminder_execution.py`
+- `tests/test_retry_decision.py`
+- `tests/test_execution_pipeline.py`
+- `tests/test_execution_pipeline_stages.py`
+
+Canonical baseline recommendation:
+- `v1.14.0-phase6-increment3-retry-decision-integration`
+
+Next gate:
+- Phase 6 Increment 4 design review pending.
+
+## Session Delta (Planning - June 17, Phase 6 Increment 3 Design Review Packet Draft)
+
+Status: Draft complete (implementation not authorized)
+
+Candidate:
+- Retry Strategy Pipeline Integration
+
+Objective:
+- Integrate retry decision-making into the execution pipeline while preserving `ExecutionPipeline`, `ExecutionOutcome`, provider abstraction, provider registry behavior, and the async dispatch boundary.
+
+Dependency verification:
+- Execution Pipeline Foundation: complete
+- Execution Outcome Classification: complete
+- Retry Strategy Abstraction: complete
+- Provider Abstraction: complete
+
+Architectural intent:
+- Before Increment 3: `ExecutionPipeline -> Outcome Classification -> Pipeline Result`
+- After Increment 3: `ExecutionPipeline -> Outcome Classification -> Retry Decision Stage -> Pipeline Result`
+
+Proposed components under review:
+- `RetryDecisionStage`
+- `RetryDecisionResult`
+- `RetryEvaluationContext`
+- `RetryStrategy integration adapter`
+
+Explicit non-goals:
+- No retry loops
+- No provider failover
+- No circuit breakers
+- No workers
+- No queue processing changes
+- No persistence changes
+- No metrics or observability expansion
+
+Acceptance focus:
+- Retryability evaluation
+- Deterministic retry decisions
+- Pipeline integration
+- Unchanged provider contracts
+- Unchanged public APIs
+
+Risk focus:
+- Architectural boundary drift
+- Regression risk in pipeline normalization
+- Dependency readiness of retry abstractions
+- Future extensibility without provider coupling
+
+Governance state:
+- Increment 3 design review: ready for review
+- Increment 3 implementation: not authorized
+
 Deferred Work Register (carried forward):
 - SMS provider implementation
 - Push notification provider

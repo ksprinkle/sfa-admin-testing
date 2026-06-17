@@ -6,8 +6,10 @@ from api.services.execution_pipeline_stages import (
     DispatchExecutionStage,
     RecordResultStage,
     ResolveProviderStage,
+    RetryDecisionStage,
     ValidateExecutionStage,
 )
+from api.services.retry_decision import RetryDecision
 
 
 class ExecutionPipelineStageTests(unittest.TestCase):
@@ -99,6 +101,32 @@ class ExecutionPipelineStageTests(unittest.TestCase):
 
         self.assertEqual(result.execution_outcome, ExecutionOutcome.SKIPPED)
         self.assertEqual(result.result_status, PipelineResultStatus.SKIPPED)
+
+    def test_retry_decision_stage_recommends_retry_for_retryable_failure(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            execution_outcome=ExecutionOutcome.RETRYABLE_FAILURE,
+        )
+        stage = RetryDecisionStage()
+
+        result = stage.execute(context)
+
+        self.assertIsNotNone(result.retry_decision)
+        self.assertEqual(result.retry_decision.decision, RetryDecision.SHOULD_RETRY)
+        self.assertTrue(result.retry_decision.should_retry)
+
+    def test_retry_decision_stage_rejects_permanent_failure(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            execution_outcome=ExecutionOutcome.PERMANENT_FAILURE,
+        )
+        stage = RetryDecisionStage()
+
+        result = stage.execute(context)
+
+        self.assertIsNotNone(result.retry_decision)
+        self.assertEqual(result.retry_decision.decision, RetryDecision.SHOULD_NOT_RETRY)
+        self.assertFalse(result.retry_decision.should_retry)
 
 
 if __name__ == "__main__":

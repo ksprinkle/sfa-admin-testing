@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
 from api.services.execution_pipeline import (
@@ -10,6 +10,11 @@ from api.services.execution_pipeline import (
     PipelineStageError,
 )
 from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
+from api.services.retry_decision import (
+    DefaultRetryStrategyAdapter,
+    RetryEvaluationContext,
+    RetryStrategyAdapter,
+)
 
 
 @dataclass
@@ -70,4 +75,24 @@ class RecordResultStage(PipelineStage):
         else:
             context.result_status = PipelineResultStatus.SUCCESS
 
+        return context
+
+
+@dataclass
+class RetryDecisionStage(PipelineStage):
+    strategy: RetryStrategyAdapter = field(default_factory=DefaultRetryStrategyAdapter)
+
+    def execute(self, context: ExecutionContext) -> ExecutionContext:
+        if context.retry_decision is not None:
+            return context
+
+        evaluation_context = RetryEvaluationContext(
+            execution_id=context.execution_id,
+            execution_outcome=context.execution_outcome,
+            retryable=context.retryable,
+            skipped=context.skipped,
+            error_message=context.error_message,
+            metadata=context.metadata,
+        )
+        context.retry_decision = self.strategy.evaluate(evaluation_context)
         return context

@@ -150,10 +150,238 @@ Increment 1 is complete when:
 
 ---
 
-## 11. Future Increments (Placeholder)
+## 11. Increment 3 - Retry Strategy Pipeline Integration
 
-- Increment 2: Pipeline orchestration
-- Increment 3: Execution monitoring
+### Status
+Design review packet drafted. Implementation not authorized.
+
+### Candidate Selected
+Retry Strategy Pipeline Integration
+
+### Objective
+Integrate retry decision-making into the execution pipeline while preserving the established execution pipeline boundary, normalized outcome model, provider abstraction, provider registry behavior, and asynchronous dispatch boundary.
+
+### Dependency Verification
+Confirmed dependencies:
+
+- Execution Pipeline Foundation: complete
+- Execution Outcome Classification: complete
+- Retry Strategy Abstraction: complete
+- Provider Abstraction: complete
+
+Dependency interpretation:
+
+- Increment 1 provides the execution orchestration boundary.
+- Increment 2 provides normalized outcome semantics, including `RETRYABLE_FAILURE`.
+- Phase 5 retry abstractions remain the policy source but are not yet executed by the pipeline.
+- Provider resolution and async dispatch remain external boundaries to the retry decision layer.
+
+### Architectural Intent
+Expected architecture before Increment 3:
+
+```text
+ExecutionPipeline
+	↓
+Outcome Classification
+	↓
+Pipeline Result
+```
+
+Candidate architecture after Increment 3:
+
+```text
+ExecutionPipeline
+	↓
+Outcome Classification
+	↓
+Retry Decision Stage
+	↓
+Pipeline Result
+```
+
+The retry decision layer should evaluate whether an execution is retryable without performing retries, scheduling workers, or altering provider execution behavior.
+
+### Proposed Components
+The following components should be evaluated for the design packet:
+
+- `RetryDecisionStage`
+- `RetryDecisionResult`
+- `RetryEvaluationContext`
+- `RetryStrategy integration adapter`
+
+Component intent:
+
+- `RetryDecisionStage` should consume normalized execution outcomes and derive a deterministic retry decision.
+- `RetryDecisionResult` should represent the decision outcome without initiating execution loops.
+- `RetryEvaluationContext` should carry the minimum state needed to decide retryability.
+- `RetryStrategy integration adapter` should bridge existing retry policy abstractions into the pipeline boundary without rewriting the policy layer.
+
+### Non-Goals
+Explicitly out of scope for Increment 3:
+
+- No retry loops
+- No provider failover
+- No circuit breakers
+- No workers
+- No queue processing changes
+- No persistence changes
+- No metrics
+- No observability expansion
+
+### Acceptance Criteria
+Increment 3 design review should be considered ready only if the packet can demonstrate:
+
+- Retryability evaluation occurs at the pipeline boundary.
+- Retry decisions are deterministic for the same normalized outcome/context.
+- Provider contracts remain unchanged.
+- Public execution APIs remain unchanged.
+- The retry strategy boundary remains policy-driven rather than execution-driven.
+- The design can be validated without introducing queue, worker, or failover semantics.
+
+### Risk Analysis
+Primary risks for the proposed increment:
+
+- Architectural risk: retry decision logic could drift into execution-policy ownership or provider selection if the boundary is underspecified.
+- Regression risk: changes to pipeline result normalization may alter behavior for non-retryable outcomes if mapping rules are broadened too early.
+- Dependency readiness: the candidate depends on stable outcome classification and existing retry abstractions being sufficiently expressive for deterministic decisions.
+- Future extensibility impact: this increment should improve the path to future retry execution and failover, but only if the decision layer remains provider-agnostic.
+
+### Design Review Notes
+This packet intentionally stops short of implementation authorization.
+
+Implementation boundaries remain blocked until:
+
+1. The design-review packet is reviewed.
+2. Scope boundaries are approved.
+3. Implementation authorization is explicitly granted.
+
+## 12. Increment 3 Implementation Planning
+
+### Status
+Design review approved. Implementation planning review approved. Authorization not granted.
+
+### Planning Objective
+Prepare an exact, file-bounded implementation plan for Retry Strategy Pipeline Integration without changing code or broadening scope.
+
+### Implementation Planning Scope
+The implementation plan should enumerate the minimum files and behavioral changes required to support retry decisioning at the pipeline boundary.
+
+Likely implementation touchpoints to evaluate:
+
+- `api/services/execution_pipeline.py`
+- `api/services/execution_pipeline_stages.py`
+- `api/services/reminder_execution.py`
+- `tests/test_execution_pipeline.py`
+- `tests/test_execution_pipeline_stages.py`
+
+The planning packet should confirm whether any new helper module is required or whether existing abstractions are sufficient.
+
+### Planned Behavioral Changes
+The implementation plan should define how the retry decision layer will:
+
+- consume normalized execution outcomes
+- produce deterministic retry decisions
+- preserve provider contracts and provider registry behavior
+- preserve public execution APIs
+- remain policy-driven rather than execution-driven
+
+### Retry Decision Mapping Definitions
+The implementation plan should specify the deterministic mapping from normalized outcomes to retry decision states.
+
+At minimum, the mapping should address:
+
+- `SUCCESS` -> no retry decision
+- `SKIPPED` -> no retry decision
+- `PERMANENT_FAILURE` -> no retry decision
+- `RETRYABLE_FAILURE` -> retry-eligible decision state
+
+If the design requires additional context-sensitive distinctions, they must remain within the decision layer and must not trigger retry execution.
+
+### Test Matrix Definition
+The implementation plan should include tests for:
+
+- success path remains unchanged
+- skipped path remains unchanged
+- permanent failure remains non-retryable
+- retryable failure produces a retry-eligible decision
+- deterministic results for repeated evaluation of the same context
+- provider contracts remain unchanged
+- public API compatibility remains unchanged
+
+### Regression Validation Plan
+The implementation plan should require validation for:
+
+- existing pipeline tests
+- existing stage tests
+- retry decision unit coverage
+- baseline smoke behavior for execution pipeline context mutation
+- diagnostics on modified files
+
+### Authorization Review Gate
+The implementation planning packet does not authorize code changes.
+
+Implementation may begin only after:
+
+1. The implementation planning packet is reviewed.
+2. The file-by-file implementation plan is approved.
+3. The retry decision mapping is approved.
+4. The test matrix is approved.
+5. Explicit implementation authorization is granted.
+
+### Planning Review Decision
+Status: Approved
+
+Review outcome:
+
+- File-by-file implementation plan approved.
+- Retry decision mappings approved.
+- Test matrix approved.
+- Regression validation plan approved.
+
+Next gate:
+
+- Increment 3 Implementation Authorization Review
+- Implementation remains blocked until authorization is granted.
+
+### Implementation Authorization Decision
+Status: Approved
+
+Authorization scope:
+
+- Retry decision evaluation only
+- Retry strategy integration at pipeline boundary
+- Deterministic retry recommendation generation
+
+Explicitly unauthorized during Increment 3:
+
+- retry execution loops
+- provider failover
+- circuit breakers
+- queue/worker or scheduling changes
+- persistence/schema changes
+- metrics/observability expansion
+
+### Increment 3 Closeout
+Status: Closed
+
+Implementation summary:
+
+- Introduced retry decision boundary and adapter abstraction.
+- Integrated retry decision stage into pipeline flow after outcome classification.
+- Preserved provider contracts, provider registry behavior, and public execution APIs.
+
+Validation summary:
+
+- `RETRYABLE_FAILURE` yields retry recommendation.
+- `PERMANENT_FAILURE` yields no retry recommendation.
+- `python -m unittest tests.test_retry_decision tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_outcomes` -> 31 tests, OK.
+
+Next gate:
+
+- Increment 4 Design Review (pending)
+
+## 13. Future Increments (Provisional)
+
 - Increment 4: Retry and recovery policies
 - Increment 5: Observability and metrics
 - Increment 6: Performance optimization
@@ -162,7 +390,7 @@ These items are provisional and may be refined before implementation.
 
 ---
 
-## 12. Governance
+## 14. Governance
 Every implementation increment shall follow:
 
 1. Design

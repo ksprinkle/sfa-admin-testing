@@ -207,19 +207,33 @@ Status:
 - Canonical baseline established: `v1.12.0-phase6-increment1-execution-pipeline`.
 - Increment 2 (Execution Outcome Classification) implemented and approved for closeout.
 - Baseline advancement recommended: `v1.13.0-phase6-increment2-outcome-classification`.
+- Increment 3 candidate comparison complete.
+- Increment 3 selected candidate: Retry Strategy Pipeline Integration (design packet pending).
+- Increment 3 design-review packet drafted.
+- Increment 3 design review approved.
+- Increment 3 implementation planning review approved.
+- Increment 3 implementation authorization approved.
+- Increment 3 closeout approved.
+- Increment 3 closed.
+- Baseline advancement recommended: `v1.14.0-phase6-increment3-retry-decision-integration`.
 
 Authoritative planning document:
 - `PHASE6_SPECIFICATION_AND_DESIGN.md`
 
 Next executable work item:
-- Phase 6 Increment 3: Design review (candidate selection pending)
-	- No implementation until Increment 3 design review and explicit authorization.
+- Phase 6 Increment 4: Design review (candidate selection pending)
+	- No implementation until Increment 4 design review and explicit authorization.
 
 Scope reminder:
 - Phase 6 proceeds incrementally: one reviewed and validated increment at a time.
 
 Next logical milestone after Increment 1 closeout:
-- Begin Phase 6 Increment 3 design review. No implementation until approval.
+- Begin Phase 6 Increment 4 design review. No implementation until approval.
+
+Design-review packet status:
+- Approved
+- Implementation planning review approved
+- Implementation authorized and increment closed
 
 🧠 Why This Roadmap Is Correct (quick context)
 

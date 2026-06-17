@@ -19,6 +19,7 @@ from api.services.execution_pipeline_stages import (
     DispatchExecutionStage,
     RecordResultStage,
     ResolveProviderStage,
+    RetryDecisionStage,
     ValidateExecutionStage,
 )
 from api.services.reminders import record_reminder_audit_event
@@ -713,6 +714,7 @@ def dispatch_reminder_execution(
             ResolveProviderStage(resolver=_resolve_provider_for_execution_context),
             DispatchExecutionStage(dispatcher=_dispatch_execution_context),
             RecordResultStage(),
+            RetryDecisionStage(),
         ]
     )
     result = execution_pipeline.execute(execution_context)

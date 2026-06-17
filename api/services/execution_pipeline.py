@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, Iterable
 
 from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
+from api.services.retry_decision import RetryDecisionResult
 
 
 class PipelineResultStatus(Enum):
@@ -28,12 +29,14 @@ class ExecutionContext:
     metadata: dict[str, Any] = field(default_factory=dict)
     execution_outcome: ExecutionOutcome | None = None
     result_status: PipelineResultStatus | None = None
+    retry_decision: RetryDecisionResult | None = None
 
 
 @dataclass
 class PipelineResult:
     status: PipelineResultStatus
     context: ExecutionContext
+    retry_decision: RetryDecisionResult | None = None
 
 
 class PipelineStageError(Exception):
@@ -60,12 +63,20 @@ class ExecutionPipeline:
             except PipelineStageError as exc:
                 current.error_message = str(exc)
                 status = exc.status or self._status_from_context(current)
-                return PipelineResult(status=status, context=current)
+                return PipelineResult(status=status, context=current, retry_decision=current.retry_decision)
             except Exception as exc:
                 current.error_message = str(exc)
-                return PipelineResult(status=PipelineResultStatus.FAILED, context=current)
+                return PipelineResult(
+                    status=PipelineResultStatus.FAILED,
+                    context=current,
+                    retry_decision=current.retry_decision,
+                )
 
-        return PipelineResult(status=self._status_from_context(current), context=current)
+        return PipelineResult(
+            status=self._status_from_context(current),
+            context=current,
+            retry_decision=current.retry_decision,
+        )
 
     def _status_from_context(self, context: ExecutionContext) -> PipelineResultStatus:
         if context.result_status is not None:

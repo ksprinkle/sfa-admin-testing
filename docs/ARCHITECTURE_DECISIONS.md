@@ -569,3 +569,113 @@ Rationale:
 - Builds directly on Increment 1 pipeline abstractions while preserving architectural boundaries from Phases 5.6-5.9.
 - Creates a stable, provider-agnostic disposition layer required for future retry/failover/observability increments.
 - Keeps scope narrow and governance-compliant by isolating classification from execution policy behavior.
+
+## ADR-029: Phase 6 Increment 3 Candidate Comparison and Selection
+Date: 2026-06-17
+Status: Planning Approved (Implementation Not Authorized)
+
+Decision:
+- Conduct formal Increment 3 candidate comparison before drafting the design packet.
+- Evaluate three candidates:
+  - Retry Strategy Pipeline Integration
+  - Provider Failover Boundary
+  - Observability Boundary
+- Apply weighted criteria:
+  - Dependency readiness (High)
+  - Architectural leverage of Increment 1 and 2 (High)
+  - Scope containment (High)
+  - Regression risk (Medium)
+  - Future feature enablement (High)
+  - Provider isolation preservation (High)
+  - Testability (Medium)
+- Select Retry Strategy Pipeline Integration as the single Increment 3 candidate for design-review packet drafting.
+
+Ranking:
+- 1) Retry Strategy Pipeline Integration
+- 2) Observability Boundary
+- 3) Provider Failover Boundary
+
+Scope boundary for selected candidate:
+- Integrate retry decision logic at the pipeline boundary.
+- Do not execute retries in Increment 3.
+- Preserve provider contracts, provider resolver behavior, and outcome-classification semantics.
+- Defer provider failover execution, telemetry expansion, queue/worker concerns, and persistence/schema changes.
+
+Rationale:
+- Best dependency fit after Increment 1 (pipeline foundation) and Increment 2 (outcome classification).
+- Minimizes architectural coupling and rework risk versus failover-first or telemetry-first sequencing.
+- Establishes prerequisite decision semantics needed by both future failover and observability increments.
+
+## ADR-030: Phase 6 Increment 3 Implementation Planning Gate
+Date: 2026-06-17
+Status: Implementation Planning Review Approved (Implementation Not Authorized)
+
+Decision:
+- Move Phase 6 Increment 3 into implementation planning after design review approval for Retry Strategy Pipeline Integration.
+- Require a file-bounded implementation plan before any code change authorization.
+- Require explicit mapping definitions, test matrix definition, and regression validation plan before implementation authorization.
+
+Planning constraints:
+- No code changes.
+- No retry execution behavior.
+- No provider failover.
+- No queue or worker changes.
+- No persistence/schema changes.
+- No metrics or observability expansion.
+
+Rationale:
+- Preserves governance discipline after design approval.
+- Prevents scope drift before implementation authorization.
+- Forces the exact planning artifacts needed for a narrow, testable change set.
+
+Planning review outcome:
+- File-by-file implementation plan approved.
+- Retry decision mappings approved.
+- Test matrix approved.
+- Regression validation plan approved.
+
+Next gate:
+- Increment 3 Implementation Authorization Review
+
+## ADR-031: Phase 6 Increment 3 Retry Strategy Pipeline Integration Closeout
+Date: 2026-06-17
+Status: Accepted
+
+Decision:
+- Implement a dedicated retry decision boundary in the execution pipeline.
+- Evaluate retry recommendations from normalized execution outcomes and retry strategy adapter signals.
+- Integrate retry decision stage after outcome classification while preserving existing provider and dispatch contracts.
+
+Implemented scope:
+- Added `api/services/retry_decision.py` with:
+  - `RetryDecision`
+  - `RetryEvaluationContext`
+  - `RetryDecisionResult`
+  - `RetryStrategyAdapter` / `DefaultRetryStrategyAdapter`
+- Updated execution-pipeline context/result to carry retry decision output.
+- Added `RetryDecisionStage` in pipeline stages.
+- Integrated retry decision stage into reminder dispatch execution pipeline.
+
+Out of scope preserved:
+- retry execution loops
+- provider failover
+- circuit breakers
+- queue/worker changes
+- persistence/schema changes
+- metrics/observability expansion
+- provider contract and public API changes
+
+Validation evidence:
+- Functional paths validated:
+  - `RETRYABLE_FAILURE` -> retry recommendation
+  - `PERMANENT_FAILURE` -> no retry recommendation
+- Unit tests passed:
+  - `python -m unittest tests.test_retry_decision tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_outcomes`
+  - Result: 31 tests, OK
+
+Rationale:
+- Completes the retry decision architecture layer on top of Increment 1 and Increment 2.
+- Provides the prerequisite policy boundary for future retry execution and failover increments.
+
+Next gate:
+- Increment 4 Design Review
