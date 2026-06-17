@@ -654,7 +654,7 @@ Explicitly unauthorized during Increment 4:
 - provider contract and public API changes
 
 ### Implementation Summary (Pending Closeout)
-Status: Implemented and validated; closeout review pending
+Status: Implemented and validated; closeout review completed
 
 Implemented behavior:
 
@@ -691,7 +691,346 @@ Next gate:
 
 - Increment 5 Design Review (pending)
 
-## 15. Future Increments (Provisional)
+## 15. Increment 5 - Provider Failover Boundary
+
+### Status
+Design review packet drafted. Implementation not authorized.
+
+### Candidate Selected
+Provider Failover Boundary
+
+### Objective
+Define how execution transitions from a primary provider to an alternate provider after retry exhaustion while preserving provider abstraction boundaries, provider registry behavior, and public execution APIs.
+
+Expected progression:
+
+```text
+Execution Outcome
+	↓
+Retry Decision
+	↓
+Retry Execution
+	↓
+Retry Exhaustion
+	↓
+Failover Evaluation
+	↓
+Alternate Provider Dispatch
+```
+
+### Dependency Verification
+Confirmed dependencies:
+
+- Execution Pipeline Foundation: complete
+- Execution Outcome Classification: complete
+- Retry Decision Integration: complete
+- Retry Execution Orchestration: complete
+- Provider Abstraction Layer: complete
+- Provider Registry: complete
+
+Dependency interpretation:
+
+- Increments 1 through 4 establish the prerequisite failure, retry, and exhaustion semantics needed for bounded failover evaluation.
+- Existing provider abstraction and registry remain authoritative for provider selection constraints.
+
+### Architectural Intent
+Current architecture:
+
+```text
+ExecutionPipeline
+	↓
+Outcome Classification
+	↓
+Retry Decision
+	↓
+Retry Execution
+	↓
+Pipeline Result
+```
+
+Candidate architecture:
+
+```text
+ExecutionPipeline
+	↓
+Outcome Classification
+	↓
+Retry Decision
+	↓
+Retry Execution
+	↓
+Failover Decision
+	↓
+Alternate Provider Dispatch
+	↓
+Pipeline Result
+```
+
+### Proposed Components
+The design review evaluates responsibilities and boundaries for:
+
+- `FailoverDecisionStage`
+- `FailoverExecutionContext`
+- `FailoverResult`
+- `ProviderCandidateSelector`
+
+Boundary intent:
+
+- `FailoverDecisionStage` evaluates failover eligibility only after retry exhaustion.
+- `FailoverExecutionContext` carries failover state without changing provider contracts.
+- `FailoverResult` captures deterministic failover outcomes.
+- `ProviderCandidateSelector` selects alternate providers from registry-driven candidates.
+
+### Explicit Non-Goals
+Out of scope for Increment 5:
+
+- Circuit breakers
+- Observability expansion
+- Metrics/telemetry expansion
+- Worker execution
+- Queue processing changes
+- Persistence/schema changes
+- Provider contract changes
+- Public API changes
+
+### Acceptance Criteria
+Design review should be considered ready only if the packet can demonstrate:
+
+- Failover occurs only after retry exhaustion.
+- Provider selection remains registry-driven.
+- Provider contracts remain unchanged.
+- Public APIs remain unchanged.
+- Failover outcomes are deterministic and testable.
+- Primary-provider success path remains unaffected.
+
+### Risk Analysis
+Primary risks for this candidate:
+
+- Provider-selection complexity risk: candidate selection ordering/rules may create inconsistent routing if boundaries are underspecified.
+- Failover-loop containment risk: alternate routing must not create unbounded provider cycling.
+- Regression risk: failover insertion could alter existing non-failover success and retry semantics.
+- Future integration risk: design should remain compatible with future circuit-breaker and observability increments.
+
+### Design Review Notes
+This packet is planning-only and does not authorize implementation.
+
+Implementation remains blocked until:
+
+1. Increment 5 design review is approved.
+2. Increment 5 implementation planning is completed and approved.
+3. Increment 5 implementation authorization is explicitly granted.
+
+### Design Review Decision
+Status: Approved
+
+Review outcome:
+
+- Objective approved: failover transition after retry exhaustion.
+- Dependency chain approved: Increments 1 through 4 plus provider abstraction and registry boundaries.
+- Boundary model approved: retry orchestration, failover decisioning, alternate-provider dispatch separation.
+- Non-goal deferrals approved: circuit breakers, observability/metrics expansion, worker/queue changes, persistence changes.
+
+Next gate:
+
+- Increment 5 Implementation Planning
+- Implementation remains blocked until planning review and explicit authorization are complete.
+
+## 16. Increment 5 Implementation Planning
+
+### Status
+Implementation-planning packet drafted. Planning review pending. Implementation not authorized.
+
+### Planning Objective
+Translate approved Increment 5 failover design into an implementation-ready, file-bounded plan without introducing deferred concerns.
+
+### File-Level Scope
+Planned implementation boundaries:
+
+- New modules: failover boundary helpers only (if required by final implementation plan)
+- Modified modules: execution pipeline orchestration and reminder execution integration points only
+- Test modules: failover unit/integration tests plus existing pipeline/retry regression coverage
+- Governance updates: planning/roadmap/decision records only
+
+Expected implementation touchpoints to evaluate:
+
+- `api/services/execution_pipeline.py`
+- `api/services/execution_pipeline_stages.py`
+- `api/services/reminder_execution.py`
+- `api/services/retry_execution.py`
+- `tests/test_execution_pipeline.py`
+- `tests/test_execution_pipeline_stages.py`
+- `tests/test_retry_decision.py`
+
+Explicit exclusions:
+
+- provider contract updates
+- provider implementation rewrites
+- public API changes
+- worker/queue model changes
+- persistence/schema changes
+
+### Failover Decision Mapping
+Planning decision chain:
+
+```text
+Retry Exhaustion
+	↓
+Failover Eligibility
+	↓
+Provider Candidate Selection
+	↓
+Alternate Provider Dispatch
+	↓
+Final Outcome
+```
+
+Deterministic failover eligibility rules:
+
+- Permit failover only when retry execution reaches exhaustion.
+- Prevent failover when primary execution succeeds.
+- Prevent failover for non-retryable/permanent failures where policy disallows alternate dispatch.
+- Prevent failover if no eligible alternate provider exists.
+
+### Provider Candidate Lifecycle
+Planned lifecycle:
+
+```text
+Primary Provider
+	↓
+Failure / Exhaustion
+	↓
+Candidate Evaluation
+	↓
+Candidate Selection
+	↓
+Dispatch Attempt
+	↓
+Success or Final Failure
+```
+
+Containment rules:
+
+- No recursive failover chains.
+- At most one alternate provider dispatch path per execution context.
+- Candidate selection remains registry-driven and deterministic.
+- Primary provider is excluded from alternate candidate selection for the same execution attempt.
+
+### Test Matrix Definition
+The implementation plan should include explicit tests for:
+
+- Primary provider success (no failover path)
+- Retry exhaustion triggers failover evaluation
+- Successful alternate-provider dispatch
+- No candidate available path
+- Failover exhaustion/final-failure path
+- End-to-end pipeline integration sequencing with failover stage
+
+### Regression Validation Plan
+The implementation plan should verify unchanged behavior for:
+
+- Provider contracts
+- Provider implementations
+- Public APIs
+- Retry execution behavior
+- Retry decision behavior
+- Outcome classification behavior
+
+### Planning Review Exit Criteria
+Implementation planning review is complete only when:
+
+- Failover eligibility rules are deterministic.
+- Provider candidate selection rules are specified.
+- Failover containment rules are documented.
+- Test coverage expectations are defined.
+- Regression checks are documented.
+- Deferred concerns remain deferred.
+
+### Authorization Gate
+This implementation-planning packet does not authorize code changes.
+
+Implementation may begin only after:
+
+1. Increment 5 implementation planning review is approved.
+2. Increment 5 implementation authorization is explicitly granted.
+
+### Planning Review Decision
+Status: Approved
+
+Review outcome:
+
+- File-level scope boundaries approved.
+- Failover decision mapping approved.
+- Provider candidate lifecycle approved.
+- Failover containment rules approved.
+- Test matrix approved.
+- Regression validation plan approved.
+- Exit criteria and authorization gate approved.
+
+Next gate:
+
+- Increment 5 Implementation Authorization Review
+- Implementation remains blocked until authorization is explicitly granted.
+
+### Implementation Authorization Decision
+Status: Approved
+
+Authorization scope:
+
+- Provider failover orchestration after retry exhaustion
+- Deterministic candidate selection and single-level failover containment
+- Alternate-provider dispatch integration within execution pipeline
+
+Explicitly unauthorized during Increment 5:
+
+- circuit breakers
+- observability/metrics expansion
+- worker or queue-processing changes
+- persistence/schema changes
+- provider contract changes
+- provider implementation changes
+- public API changes
+
+### Implementation Summary (Pending Closeout)
+Status: Implemented and validated; closeout review pending
+
+Implemented behavior:
+
+- Added failover boundary primitives (`FailoverExecutionContext`, `FailoverResult`, `ProviderCandidateSelector`).
+- Added `FailoverDecisionStage` after retry execution to evaluate eligibility, select alternate provider, execute alternate dispatch, and enforce no-recursive-chain containment.
+- Extended execution pipeline context/result contracts to expose failover result state.
+- Integrated failover stage into reminder dispatch pipeline with registry-driven email-provider candidate selection.
+- Added deterministic no-candidate/failover-exhaustion handling that resolves to final failure.
+
+Validation summary:
+
+- Focused suite:
+	- `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_retry_decision tests.test_execution_outcomes`
+	- Result: 38 tests, OK.
+
+Next gate:
+
+- Increment 6 Design Review
+
+### Increment 5 Closeout Decision
+Status: Approved
+
+Closeout outcome:
+
+- Provider failover boundary scope accepted.
+- Retry-exhaustion failover eligibility and deterministic candidate selection accepted.
+- Alternate-provider dispatch integration accepted.
+- No-candidate final-failure path and recursive-chain containment accepted.
+- Regression invariants and test evidence accepted.
+
+Canonical baseline recommendation:
+
+- `v1.16.0-phase6-increment5-provider-failover-boundary`
+
+Next gate:
+
+- Increment 6 Design Review (pending)
+
+## 17. Future Increments (Provisional)
 
 - Increment 4: Retry and recovery policies
 - Increment 5: Observability and metrics
@@ -701,7 +1040,7 @@ These items are provisional and may be refined before implementation.
 
 ---
 
-## 16. Governance
+## 18. Governance
 Every implementation increment shall follow:
 
 1. Design

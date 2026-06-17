@@ -4,6 +4,7 @@ from api.services.execution_pipeline import ExecutionContext, PipelineResultStat
 from api.services.execution_outcomes import ExecutionOutcome
 from api.services.execution_pipeline_stages import (
     DispatchExecutionStage,
+    FailoverDecisionStage,
     RecordResultStage,
     ResolveProviderStage,
     RetryExecutionStage,
@@ -176,6 +177,64 @@ class ExecutionPipelineStageTests(unittest.TestCase):
         self.assertFalse(result.retry_execution_result.executed)
         self.assertEqual(result.retry_execution_result.attempts_executed, 0)
         self.assertTrue(result.retry_execution_result.exhausted)
+
+    def test_failover_decision_stage_dispatches_alternate_provider_after_retry_exhaustion(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            provider_name="email.noop",
+            execution_state="retry_scheduled",
+            retryable=True,
+            error_message="temporary",
+            metadata={"attempt_count": 3, "max_attempts": 3},
+        )
+        context = RecordResultStage().execute(context)
+        context = RetryDecisionStage().execute(context)
+
+        def _executor(ctx: ExecutionContext, provider_name: str) -> ExecutionContext:
+            self.assertEqual(provider_name, "email.smtp")
+            ctx.provider_name = provider_name
+            ctx.execution_state = "succeeded"
+            ctx.retryable = False
+            ctx.error_message = None
+            return ctx
+
+        context = RetryExecutionStage(executor=lambda c: c).execute(context)
+        result = FailoverDecisionStage(
+            candidate_selector=lambda _: "email.smtp",
+            executor=_executor,
+        ).execute(context)
+
+        self.assertIsNotNone(result.failover_result)
+        self.assertTrue(result.failover_result.attempted)
+        self.assertTrue(result.failover_result.succeeded)
+        self.assertEqual(result.failover_result.selected_provider, "email.smtp")
+        self.assertEqual(result.execution_outcome, ExecutionOutcome.SUCCESS)
+
+    def test_failover_decision_stage_sets_exhausted_when_no_candidate(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            provider_name="email.noop",
+            execution_state="retry_scheduled",
+            retryable=True,
+            error_message="temporary",
+            metadata={"attempt_count": 3, "max_attempts": 3},
+        )
+        context = RecordResultStage().execute(context)
+        context = RetryDecisionStage().execute(context)
+        context = RetryExecutionStage(executor=lambda c: c).execute(context)
+
+        result = FailoverDecisionStage(
+            candidate_selector=lambda _: None,
+            executor=lambda c, _: c,
+        ).execute(context)
+
+        self.assertIsNotNone(result.failover_result)
+        self.assertTrue(result.failover_result.eligible)
+        self.assertFalse(result.failover_result.attempted)
+        self.assertTrue(result.failover_result.exhausted)
+        self.assertEqual(result.failover_result.reason, "no_candidate_available")
+        self.assertEqual(result.result_status, PipelineResultStatus.FAILED)
+        self.assertEqual(result.execution_outcome, ExecutionOutcome.PERMANENT_FAILURE)
 
 
 if __name__ == "__main__":

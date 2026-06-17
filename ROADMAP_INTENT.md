@@ -227,19 +227,34 @@ Status:
 - Increment 4 closeout approved.
 - Increment 4 closed.
 - Baseline advancement recommended: `v1.15.0-phase6-increment4-retry-execution-orchestration`.
+- Increment 5 candidate comparison complete.
+- Increment 5 selected candidate: Provider Failover Boundary (design packet pending).
+- Increment 5 design-review packet drafted.
+- Increment 5 design review approved.
+- Increment 5 implementation-planning packet drafted.
+- Increment 5 implementation-planning review approved.
+- Increment 5 implementation authorization approved.
+- Increment 5 implementation completed.
+- Increment 5 closeout approved.
+- Increment 5 closed.
 
 Authoritative planning document:
 - `PHASE6_SPECIFICATION_AND_DESIGN.md`
 
 Next executable work item:
-- Phase 6 Increment 5: Design review (candidate selection pending)
-	- No implementation until Increment 5 design review and explicit authorization.
+- Phase 6 Increment 6: Design Review (candidate and packet pending)
+	- No Increment 6 implementation until design review, planning review, and explicit authorization are approved.
 
 Scope reminder:
 - Phase 6 proceeds incrementally: one reviewed and validated increment at a time.
 
 Next logical milestone after Increment 1 closeout:
-- Begin Phase 6 Increment 5 design review. No implementation until approval.
+- Start Phase 6 Increment 6 design-review packet drafting and review preparation.
+
+Design-review packet status:
+- Approved
+- Implementation planning pending
+- Implementation not authorized
 
 Design-review packet status:
 - Approved

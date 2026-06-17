@@ -10,6 +10,11 @@ from api.services.execution_pipeline import (
     PipelineStageError,
 )
 from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
+from api.services.failover_execution import (
+    FailoverExecutionContext,
+    FailoverResult,
+    ProviderCandidateSelector,
+)
 from api.services.retry_decision import (
     DefaultRetryStrategyAdapter,
     RetryEvaluationContext,
@@ -152,3 +157,118 @@ class RetryExecutionStage(PipelineStage):
             final_execution_state=context.execution_state,
         )
         return context
+
+
+@dataclass
+class FailoverDecisionStage(PipelineStage):
+    candidate_selector: Callable[[ExecutionContext], str | None]
+    executor: Callable[[ExecutionContext, str], ExecutionContext]
+
+    def execute(self, context: ExecutionContext) -> ExecutionContext:
+        if context.failover_result is not None:
+            return context
+
+        retry_result = context.retry_execution_result
+        retry_exhausted = bool(retry_result and retry_result.exhausted)
+        if not retry_exhausted:
+            context.failover_result = FailoverResult(
+                eligible=False,
+                attempted=False,
+                selected_provider=None,
+                succeeded=False,
+                exhausted=False,
+                reason="retry_not_exhausted",
+                final_execution_state=context.execution_state,
+            )
+            return context
+
+        failover_depth = int(context.metadata.get("failover_depth", 0) or 0)
+        if failover_depth >= 1:
+            context.retryable = False
+            context.error_message = context.error_message or "Failover chain blocked"
+            context.result_status = None
+            context.execution_outcome = None
+            context = RecordResultStage().execute(context)
+            context.failover_result = FailoverResult(
+                eligible=True,
+                attempted=False,
+                selected_provider=None,
+                succeeded=False,
+                exhausted=True,
+                reason="failover_chain_blocked",
+                final_execution_state=context.execution_state,
+            )
+            return context
+
+        selected_provider = self.candidate_selector(context)
+        if not selected_provider:
+            context.retryable = False
+            context.error_message = context.error_message or "No failover provider candidate available"
+            context.result_status = None
+            context.execution_outcome = None
+            context = RecordResultStage().execute(context)
+            context.failover_result = FailoverResult(
+                eligible=True,
+                attempted=False,
+                selected_provider=None,
+                succeeded=False,
+                exhausted=True,
+                reason="no_candidate_available",
+                final_execution_state=context.execution_state,
+            )
+            return context
+
+        context.metadata["failover_depth"] = failover_depth + 1
+        attempted_providers = list(context.metadata.get("failover_attempted_providers", []))
+        attempted_providers.append(selected_provider)
+        context.metadata["failover_attempted_providers"] = attempted_providers
+
+        context.provider_name = selected_provider
+        context.result_status = None
+        context.execution_outcome = None
+        context.retry_decision = None
+        context = self.executor(context, selected_provider)
+
+        if context.execution_state != "succeeded":
+            context.retryable = False
+            if not context.error_message:
+                context.error_message = "Failover dispatch did not succeed"
+
+        context = RecordResultStage().execute(context)
+        context.failover_result = FailoverResult(
+            eligible=True,
+            attempted=True,
+            selected_provider=selected_provider,
+            succeeded=context.execution_state == "succeeded",
+            exhausted=context.execution_state != "succeeded",
+            reason=None if context.execution_state == "succeeded" else "alternate_dispatch_failed",
+            final_execution_state=context.execution_state,
+        )
+        return context
+
+
+class RegistryProviderCandidateSelector(ProviderCandidateSelector):
+    def __init__(self, providers: Iterable[str]):
+        self.providers = tuple(providers)
+
+    def select_for_context(self, context: ExecutionContext) -> str | None:
+        failover_context = FailoverExecutionContext(
+            execution_id=context.execution_id,
+            current_provider=context.provider_name,
+            retry_exhausted=bool(context.retry_execution_result and context.retry_execution_result.exhausted),
+            candidate_providers=self.providers,
+            metadata=context.metadata,
+        )
+
+        attempted_providers = {
+            (provider or "").strip().lower()
+            for provider in context.metadata.get("failover_attempted_providers", [])
+            if isinstance(provider, str)
+        }
+
+        selected = super().select(failover_context)
+        if not selected:
+            return None
+        if selected in attempted_providers:
+            return None
+        return selected

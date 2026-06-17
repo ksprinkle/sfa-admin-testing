@@ -845,3 +845,195 @@ Baseline recommendation:
 
 Next gate:
 - Increment 5 Design Review
+
+## ADR-038: Phase 6 Increment 5 Candidate Comparison and Selection
+Date: 2026-06-17
+Status: Planning Approved (Implementation Not Authorized)
+
+Decision:
+- Conduct formal Increment 5 candidate comparison before drafting the design packet.
+- Evaluate three candidates:
+  - Provider Failover Boundary
+  - Observability Boundary
+  - Circuit Breaker Boundary
+- Apply weighted criteria:
+  - Dependency readiness (High)
+  - Architectural leverage (High)
+  - Scope containment (High)
+  - Regression risk (Medium)
+  - Future enablement value (High)
+  - Preservation of provider boundaries (High)
+  - Testability (Medium)
+- Select Provider Failover Boundary as the single Increment 5 candidate for design-review packet drafting.
+
+Ranking:
+- 1) Provider Failover Boundary
+- 2) Observability Boundary
+- 3) Circuit Breaker Boundary
+
+Scope boundary for selected candidate:
+- Focus on failover decision boundary and alternate provider routing.
+- Preserve retry execution boundary, provider contracts, provider implementations, and public execution APIs.
+- Defer circuit-breaker state management, observability expansion, queue/worker redesign, and persistence/schema changes.
+
+Rationale:
+- Best dependency fit after retry execution orchestration is closed in Increment 4.
+- Keeps resiliency layering ordered: retry before failover, failover before circuit-breaker management, and observability expansion after resiliency behavior stabilizes.
+- Minimizes rework risk while preserving staged governance boundaries.
+
+Next gate:
+- Increment 5 Design Review Packet Drafting
+
+## ADR-039: Phase 6 Increment 5 Design Review Packet Draft
+Date: 2026-06-17
+Status: Design Review Packet Drafted (Implementation Not Authorized)
+
+Decision:
+- Draft Increment 5 design-review packet for Provider Failover Boundary.
+- Define failover boundary after retry exhaustion while preserving provider abstraction and registry constraints.
+- Keep implementation blocked pending design review approval.
+
+Design boundaries:
+- Failover evaluates only after retry exhaustion.
+- Alternate provider selection remains registry-driven.
+- Provider contracts and public APIs remain unchanged.
+- Circuit breakers, observability expansion, metrics/telemetry, queue/worker redesign, and persistence/schema changes remain deferred.
+
+Rationale:
+- Uses the completed Increment 4 retry-exhaustion semantics as prerequisite inputs.
+- Keeps resiliency layering ordered and testable while minimizing coupling and rework.
+
+Next gate:
+- Increment 5 Design Review Approval
+
+## ADR-040: Phase 6 Increment 5 Design Review Approval
+Date: 2026-06-17
+Status: Design Review Approved (Implementation Not Authorized)
+
+Decision:
+- Approve Increment 5 design review for Provider Failover Boundary.
+- Preserve staged resiliency progression from retry execution to failover decisioning and alternate-provider dispatch.
+- Transition governance to implementation planning while keeping implementation blocked.
+
+Approved boundaries:
+- Failover only after retry exhaustion.
+- Registry-driven provider candidate selection.
+- Provider contracts, provider implementations, and public execution APIs unchanged.
+
+Explicitly deferred:
+- circuit breakers
+- observability expansion
+- metrics/telemetry expansion
+- worker execution and queue processing changes
+- persistence/schema changes
+
+Rationale:
+- Dependency chain is complete for failover-boundary planning.
+- Scope remains narrow and testable without introducing deferred resiliency/operability concerns.
+
+Next gate:
+- Increment 5 Implementation Planning
+
+## ADR-041: Phase 6 Increment 5 Implementation Planning Packet Draft
+Date: 2026-06-17
+Status: Implementation-Planning Packet Drafted (Implementation Not Authorized)
+
+Decision:
+- Draft Increment 5 implementation-planning packet for Provider Failover Boundary.
+- Define deterministic failover eligibility, provider candidate lifecycle, containment rules, test matrix, and regression validation requirements.
+- Keep implementation blocked pending planning-review approval and explicit implementation authorization.
+
+Planning boundaries:
+- Preserve provider contracts, provider implementations, and public execution APIs.
+- Allow failover evaluation only after retry exhaustion.
+- Keep candidate selection registry-driven and deterministic.
+- Prevent recursive failover chains.
+- Defer circuit breakers, observability/metrics expansion, worker/queue redesign, and persistence/schema changes.
+
+Rationale:
+- Converts approved design intent into an implementation-ready but governance-bounded planning artifact.
+- Reduces implementation risk through explicit failover eligibility and containment rules.
+- Preserves staged resiliency sequencing: retry execution before failover, failover before deferred resiliency controls.
+
+Next gate:
+- Increment 5 Implementation Planning Review
+
+## ADR-042: Phase 6 Increment 5 Implementation Planning Review Approval
+Date: 2026-06-17
+Status: Implementation Planning Review Approved (Implementation Not Authorized)
+
+Decision:
+- Approve Increment 5 implementation-planning review for Provider Failover Boundary.
+- Confirm planning completeness: file-level scope boundaries, failover decision mapping, provider candidate lifecycle, containment rules, test matrix, regression validation plan, and exit criteria.
+- Advance governance to implementation authorization review while keeping implementation blocked.
+
+Planning safeguards affirmed:
+- Failover eligibility occurs only after retry exhaustion.
+- Candidate selection remains registry-driven and deterministic.
+- Recursive failover chains are prohibited.
+- Provider contracts, provider implementations, and public APIs remain unchanged.
+- Deferred concerns remain deferred (circuit breakers, observability/metrics expansion, worker/queue redesign, persistence/schema changes).
+
+Rationale:
+- Planning packet provides sufficient deterministic constraints for authorization review.
+- Governance separation between planning approval and implementation authorization remains explicit.
+
+Next gate:
+- Increment 5 Implementation Authorization Review
+
+## ADR-043: Phase 6 Increment 5 Provider Failover Boundary Implementation
+Date: 2026-06-17
+Status: Implemented (Closeout Review Pending)
+
+Decision:
+- Authorize and execute Increment 5 implementation for Provider Failover Boundary.
+- Integrate failover decisioning after retry exhaustion and before final pipeline result resolution.
+- Enforce deterministic candidate selection and single-level failover containment.
+
+Implemented scope:
+- Added `api/services/failover_execution.py` with:
+  - `FailoverExecutionContext`
+  - `FailoverResult`
+  - `ProviderCandidateSelector`
+- Extended execution pipeline context/result contracts to surface failover result state.
+- Added `FailoverDecisionStage` in execution pipeline stages.
+- Integrated failover stage into reminder execution dispatch pipeline.
+- Added failover-focused unit tests for:
+  - failover success after retry exhaustion
+  - no-candidate final-failure path
+  - pipeline integration behavior
+
+Deferred scope preserved:
+- circuit breakers
+- observability/metrics expansion
+- worker/queue redesign
+- persistence/schema changes
+- provider contract and provider implementation changes
+- public API changes
+
+Validation evidence:
+- Focused suite:
+  - `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_retry_decision tests.test_execution_outcomes`
+  - Result: 38 tests, OK
+
+Next gate:
+- Increment 5 Closeout Review
+
+## ADR-044: Phase 6 Increment 5 Provider Failover Boundary Closeout
+Date: 2026-06-17
+Status: Accepted
+
+Decision:
+- Approve Increment 5 closeout for Provider Failover Boundary.
+- Confirm delivered scope: failover eligibility after retry exhaustion, deterministic candidate selection, alternate-provider dispatch orchestration, no-candidate final-failure handling, and recursive-chain containment.
+- Confirm deferred concerns remain deferred and architectural boundaries preserved.
+
+Validation evidence:
+- Focused suite: 38 tests, OK.
+- Regression invariants preserved: provider contracts and implementations, public APIs, outcome classification behavior, retry decision behavior, and retry execution behavior.
+
+Baseline recommendation:
+- `v1.16.0-phase6-increment5-provider-failover-boundary`
+
+Next gate:
+- Increment 6 Design Review

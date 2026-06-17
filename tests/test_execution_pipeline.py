@@ -9,7 +9,7 @@ from api.services.execution_pipeline import (
 )
 from api.services.execution_outcomes import ExecutionOutcome
 from api.services.execution_pipeline_stages import RecordResultStage, RetryDecisionStage
-from api.services.execution_pipeline_stages import RetryExecutionStage
+from api.services.execution_pipeline_stages import FailoverDecisionStage, RetryExecutionStage
 from api.services.retry_decision import RetryDecision
 
 
@@ -152,6 +152,73 @@ class ExecutionPipelineTests(unittest.TestCase):
         self.assertIsNotNone(result.retry_execution_result)
         self.assertTrue(result.retry_execution_result.executed)
         self.assertFalse(result.retry_execution_result.exhausted)
+
+    def test_pipeline_executes_failover_after_retry_exhaustion(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            provider_name="email.noop",
+            error_message="retry later",
+            retryable=True,
+            execution_state="retry_scheduled",
+            metadata={"attempt_count": 3, "max_attempts": 3},
+        )
+
+        def _failover_executor(ctx: ExecutionContext, provider_name: str) -> ExecutionContext:
+            self.assertEqual(provider_name, "email.smtp")
+            ctx.provider_name = provider_name
+            ctx.retryable = False
+            ctx.error_message = None
+            ctx.execution_state = "succeeded"
+            return ctx
+
+        pipeline = ExecutionPipeline([
+            RecordResultStage(),
+            RetryDecisionStage(),
+            RetryExecutionStage(executor=lambda c: c),
+            FailoverDecisionStage(
+                candidate_selector=lambda _: "email.smtp",
+                executor=_failover_executor,
+            ),
+        ])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        self.assertIsNotNone(result.retry_execution_result)
+        self.assertTrue(result.retry_execution_result.exhausted)
+        self.assertIsNotNone(result.failover_result)
+        self.assertTrue(result.failover_result.attempted)
+        self.assertTrue(result.failover_result.succeeded)
+        self.assertEqual(result.context.provider_name, "email.smtp")
+
+    def test_pipeline_fails_when_no_failover_candidate_is_available(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            provider_name="email.noop",
+            error_message="retry later",
+            retryable=True,
+            execution_state="retry_scheduled",
+            metadata={"attempt_count": 3, "max_attempts": 3},
+        )
+
+        pipeline = ExecutionPipeline([
+            RecordResultStage(),
+            RetryDecisionStage(),
+            RetryExecutionStage(executor=lambda c: c),
+            FailoverDecisionStage(
+                candidate_selector=lambda _: None,
+                executor=lambda c, _: c,
+            ),
+        ])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.FAILED)
+        self.assertIsNotNone(result.failover_result)
+        self.assertTrue(result.failover_result.eligible)
+        self.assertFalse(result.failover_result.attempted)
+        self.assertTrue(result.failover_result.exhausted)
+        self.assertEqual(result.failover_result.reason, "no_candidate_available")
 
 
 if __name__ == "__main__":

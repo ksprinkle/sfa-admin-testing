@@ -17,12 +17,14 @@ from api.services.execution_pipeline import (
 )
 from api.services.execution_pipeline_stages import (
     DispatchExecutionStage,
+    FailoverDecisionStage,
     RecordResultStage,
     ResolveProviderStage,
     RetryExecutionStage,
     RetryDecisionStage,
     ValidateExecutionStage,
 )
+from api.services.email_delivery import list_email_provider_keys
 from api.services.reminders import record_reminder_audit_event
 
 
@@ -717,6 +719,10 @@ def dispatch_reminder_execution(
             RecordResultStage(),
             RetryDecisionStage(),
             RetryExecutionStage(executor=_retry_execution_context),
+            FailoverDecisionStage(
+                candidate_selector=_select_failover_candidate_for_execution_context,
+                executor=_failover_execution_context,
+            ),
         ]
     )
     result = execution_pipeline.execute(execution_context)
@@ -809,6 +815,49 @@ def _retry_execution_context(context: ExecutionContext) -> ExecutionContext:
         source=source or "reminder.execution_pipeline.dispatch",
     )
     context.metadata["dispatch_job"] = dispatch_job
+    return _dispatch_execution_context(context)
+
+
+def _select_failover_candidate_for_execution_context(context: ExecutionContext) -> str | None:
+    current_provider = (context.provider_name or "").strip().lower()
+    attempted = {
+        (provider or "").strip().lower()
+        for provider in context.metadata.get("failover_attempted_providers", [])
+        if isinstance(provider, str)
+    }
+
+    for candidate in list_email_provider_keys():
+        normalized = (candidate or "").strip().lower()
+        if not normalized:
+            continue
+        if normalized == current_provider:
+            continue
+        if normalized in attempted:
+            continue
+        return normalized
+    return None
+
+
+def _failover_execution_context(context: ExecutionContext, provider_name: str) -> ExecutionContext:
+    db = context.metadata.get("db")
+    queue_item = context.metadata.get("execution_item")
+    actor_user_id = context.metadata.get("actor_user_id")
+    source = context.metadata.get("source")
+
+    if not isinstance(db, Session) or not isinstance(queue_item, ReminderExecutionQueueItem):
+        context.error_message = "Invalid failover execution context"
+        context.retryable = False
+        return context
+
+    dispatch_job = ReminderExecutionPipeline(db).create_dispatch_job(
+        execution_item_id=queue_item.id,
+        actor_user_id=actor_user_id,
+        source=source or "reminder.execution_pipeline.failover",
+    )
+    dispatch_job.provider = provider_name
+    context.provider_name = provider_name
+    context.metadata["dispatch_job"] = dispatch_job
+    context.metadata["failover_provider"] = provider_name
     return _dispatch_execution_context(context)
 
 
