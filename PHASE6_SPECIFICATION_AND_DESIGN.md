@@ -991,7 +991,7 @@ Explicitly unauthorized during Increment 5:
 - public API changes
 
 ### Implementation Summary (Pending Closeout)
-Status: Implemented and validated; closeout review pending
+Status: Implemented and validated; closeout review completed
 
 Implemented behavior:
 
@@ -1030,7 +1030,429 @@ Next gate:
 
 - Increment 6 Design Review (pending)
 
-## 17. Future Increments (Provisional)
+## 17. Increment 6 Candidate Comparison and Selection
+
+### Status
+Candidate comparison complete. Candidate selected. Design-review packet pending. Implementation not authorized.
+
+### Candidate Comparison Framework
+Weighted criteria used:
+
+- Dependency readiness (High)
+- Architectural leverage (High)
+- Scope containment (High)
+- Regression risk (Medium)
+- Future enablement value (High)
+- Preservation of abstraction boundaries (High)
+- Testability (Medium)
+
+### Candidates Evaluated
+Candidate A: Circuit Breaker Boundary
+
+- Dependency readiness: Excellent
+- Strengths: natural continuation of failover architecture; consumes provider-failure and failover signals; suppresses repeated dispatch to unhealthy providers; prepares clean observability foundation.
+- Risks: boundary drift if it expands into broader observability or queue concerns.
+
+Candidate B: Observability Expansion
+
+- Dependency readiness: Good
+- Strengths: improved diagnosability and operational visibility.
+- Risks: telemetry/event schemas may require revision if circuit-breaker semantics are introduced later.
+
+Candidate C: Provider Health Monitoring Boundary
+
+- Dependency readiness: Moderate
+- Strengths: explicit health tracking and recovery semantics.
+- Risks: likely overlaps with core circuit-breaker internal state rather than standing alone as a separate increment.
+
+### Ranking and Selection
+- 1) Circuit Breaker Boundary
+- 2) Observability Expansion
+- 3) Provider Health Monitoring Boundary
+
+Selected candidate:
+
+- Circuit Breaker Boundary
+
+### Scope Boundary for Selected Candidate
+Included for Increment 6 design packet drafting:
+
+- Circuit state ownership at provider boundary
+- Open/closed suppression semantics for unhealthy providers
+- Deterministic transition inputs from existing failure/failover outcomes
+
+Deferred and out of scope for Increment 6 candidate-comparison stage:
+
+- implementation code changes
+- observability/metrics expansion
+- queue/worker redesign
+- persistence/schema changes
+- provider contract or provider implementation changes
+- public API changes
+
+### Governance Outcome
+- Increment 6 candidate comparison: complete
+- Increment 6 candidate selection: complete
+- Increment 6 design-review packet: pending
+- Increment 6 implementation: not authorized
+
+Next gate:
+
+- Increment 6 Design Review Packet Drafting
+
+## 18. Increment 6 - Circuit Breaker Boundary
+
+### Status
+Design-review packet drafted. Implementation not authorized.
+
+### Candidate Selected
+Circuit Breaker Boundary
+
+### Objective
+Define how provider health and circuit state influence execution flow after retry and failover processing, so repeated dispatch attempts to unhealthy providers are suppressed deterministically.
+
+Expected progression:
+
+```text
+Execution Outcome
+	↓
+Retry Decision
+	↓
+Retry Execution
+	↓
+Failover Decision
+	↓
+Circuit Evaluation
+	↓
+Dispatch Allowed / Suppressed
+```
+
+### Dependency Verification
+Confirmed dependencies:
+
+- Execution Pipeline Foundation: complete
+- Execution Outcome Classification: complete
+- Retry Decision Integration: complete
+- Retry Execution Orchestration: complete
+- Provider Failover Boundary: complete
+- Provider Abstraction Layer: complete
+- Provider Registry: complete
+
+Dependency interpretation:
+
+- Increments 1 through 5 provide deterministic execution, retry, and failover outcomes required as circuit-state inputs.
+- Existing provider abstraction and registry remain authoritative for provider interactions and selection boundaries.
+
+### Architectural Intent
+Current architecture:
+
+```text
+ExecutionPipeline
+	↓
+Outcome Classification
+	↓
+Retry Decision
+	↓
+Retry Execution
+	↓
+Failover Decision
+	↓
+Alternate Provider Dispatch
+	↓
+Pipeline Result
+```
+
+Candidate architecture:
+
+```text
+ExecutionPipeline
+	↓
+Outcome Classification
+	↓
+Retry Decision
+	↓
+Retry Execution
+	↓
+Failover Decision
+	↓
+Circuit Evaluation
+	↓
+Dispatch Allowed / Suppressed
+	↓
+Pipeline Result
+```
+
+### Proposed Components
+The design review evaluates responsibilities and boundaries for:
+
+- `CircuitBreakerStage`
+- `CircuitState`
+- `CircuitEvaluationContext`
+- `CircuitDecisionResult`
+- `ProviderHealthTracker`
+
+Boundary intent:
+
+- `CircuitBreakerStage` evaluates provider circuit state before dispatch/failover dispatch execution is attempted.
+- `CircuitState` defines deterministic open/closed state semantics for dispatch suppression decisions.
+- `CircuitEvaluationContext` carries the minimal state required to evaluate dispatch eligibility.
+- `CircuitDecisionResult` captures allow/suppress outcomes without changing provider contracts.
+- `ProviderHealthTracker` remains scoped to circuit-breaker support and does not become a standalone observability system.
+
+### Explicit Non-Goals
+Out of scope for Increment 6:
+
+- Observability expansion
+- Metrics/telemetry expansion
+- Worker execution
+- Queue processing changes
+- Persistence/schema changes
+- Provider contract changes
+- Public API changes
+
+### Acceptance Criteria
+Design review should be considered ready only if the packet can demonstrate:
+
+- Circuit state deterministically influences dispatch eligibility.
+- Open circuits suppress dispatch attempts.
+- Healthy providers continue operating normally.
+- Provider contracts remain unchanged.
+- Public APIs remain unchanged.
+- Circuit behavior is deterministic and testable.
+
+### Risk Analysis
+Primary risks for this candidate:
+
+- circuit-state lifecycle complexity risk
+- provider-health tracking boundary drift risk
+- dispatch suppression edge-case risk
+- regression risk for existing retry/failover behavior
+- future observability compatibility risk
+
+### Design Review Notes
+This packet is planning-only and does not authorize implementation.
+
+Implementation remains blocked until:
+
+1. Increment 6 design review is approved.
+2. Increment 6 implementation planning is completed and approved.
+3. Increment 6 implementation authorization is explicitly granted.
+
+Next gate:
+
+- Increment 6 Design Review Approval
+- Implementation remains blocked until design review and subsequent gates are complete.
+
+### Design Review Decision
+Status: Approved
+
+Review outcome:
+
+- Objective approved: deterministic circuit-state evaluation and dispatch suppression after retry/failover processing.
+- Dependency chain approved: Increments 1 through 5 plus provider abstraction and registry boundaries.
+- Boundary model approved: circuit evaluation, dispatch allow/suppress behavior, and scoped provider-health tracking.
+- Non-goal deferrals approved: observability/metrics expansion, worker/queue changes, persistence changes, provider/public API changes.
+
+Next gate:
+
+- Increment 6 Implementation Planning
+- Implementation remains blocked until planning review and explicit authorization are complete.
+
+## 19. Increment 6 Implementation Planning
+
+### Status
+Implementation-planning packet drafted. Planning review pending. Implementation not authorized.
+
+### Planning Objective
+Translate approved Increment 6 circuit-breaker design into an implementation-ready, file-bounded plan without introducing deferred concerns.
+
+### File-Level Scope
+Planned implementation boundaries:
+
+- New modules: circuit-breaker boundary helpers only (if required by final implementation plan)
+- Modified modules: execution pipeline orchestration and reminder execution integration points only
+- Test modules: circuit-breaker unit/integration tests plus existing retry/failover regression coverage
+- Governance updates: planning/roadmap/decision records only
+
+Expected implementation touchpoints to evaluate:
+
+- `api/services/execution_pipeline.py`
+- `api/services/execution_pipeline_stages.py`
+- `api/services/reminder_execution.py`
+- `api/services/failover_execution.py`
+- `tests/test_execution_pipeline.py`
+- `tests/test_execution_pipeline_stages.py`
+
+Explicit exclusions:
+
+- provider contract updates
+- provider implementation rewrites
+- public API changes
+- worker/queue model changes
+- persistence/schema changes
+
+### Circuit-State Transition Definitions
+Planned state lifecycle:
+
+```text
+Closed
+	↓
+Failure Threshold Reached
+	↓
+Open
+	↓
+Recovery Evaluation
+	↓
+Closed
+```
+
+Deterministic transition criteria and containment:
+
+- Closed -> Open only when bounded failure-threshold criteria are reached.
+- Open -> Recovery Evaluation only when deterministic recovery conditions are met.
+- Recovery Evaluation -> Closed only on successful recovery evaluation.
+- No uncontrolled oscillation or recursive state-transition loops.
+
+### Provider Health Lifecycle
+Planned lifecycle:
+
+```text
+Dispatch Result
+	↓
+Health Signal
+	↓
+Circuit Evaluation
+	↓
+State Update
+	↓
+Dispatch Eligibility
+```
+
+Lifecycle boundary constraints:
+
+- Health tracking remains scoped to circuit-breaker support.
+- Health tracking is not expanded into observability/telemetry ownership.
+- Circuit evaluation is deterministic and provider-boundary scoped.
+
+### Test Matrix Definition
+The implementation plan should include explicit tests for:
+
+- Healthy provider dispatch
+- Open-circuit dispatch suppression
+- Circuit opening after threshold conditions
+- Circuit recovery path
+- Failover interaction under circuit constraints
+- End-to-end pipeline integration sequencing with circuit evaluation stage
+
+### Regression Validation Plan
+The implementation plan should verify unchanged behavior for:
+
+- Provider contracts
+- Provider implementations
+- Public APIs
+- Retry execution behavior
+- Failover behavior
+- Outcome classification behavior
+
+### Planning Review Exit Criteria
+Implementation planning review is complete only when:
+
+- Circuit-state transitions are deterministic.
+- Provider-health lifecycle is specified.
+- Dispatch suppression rules are documented.
+- Recovery behavior is defined.
+- Test coverage expectations are documented.
+- Deferred concerns remain deferred.
+
+### Authorization Gate
+This implementation-planning packet does not authorize code changes.
+
+Implementation may begin only after:
+
+1. Increment 6 implementation planning review is approved.
+2. Increment 6 implementation authorization is explicitly granted.
+
+Next gate:
+
+- Increment 6 Implementation Planning Review
+- Implementation remains blocked until planning review and explicit authorization are complete.
+
+### Planning Review Decision
+Status: Approved
+
+Review outcome:
+
+- File-level scope boundaries approved.
+- Circuit-state transition definitions approved.
+- Provider-health lifecycle approved.
+- Test matrix approved.
+- Regression validation plan approved.
+- Exit criteria and authorization gate approved.
+
+Next gate:
+
+- Increment 6 Implementation Authorization Review
+- Implementation remains blocked until authorization is explicitly granted.
+
+### Implementation Authorization Decision
+Status: Approved
+
+Authorization scope:
+
+- Circuit-breaker orchestration and deterministic dispatch suppression
+- Provider-health signal tracking for circuit-state transitions
+- Bounded recovery evaluation and dispatch-resume behavior
+
+Explicitly unauthorized during Increment 6:
+
+- observability/metrics expansion
+- worker or queue-processing changes
+- persistence/schema changes
+- provider contract changes
+- provider implementation changes
+- public API changes
+
+### Implementation Summary (Pending Closeout)
+Status: Implemented and validated; closeout review pending
+
+Implemented behavior:
+
+- Added circuit-breaker boundary primitives (`CircuitState`, `CircuitEvaluationContext`, `CircuitDecisionResult`, `ProviderHealthTracker`).
+- Added `CircuitBreakerStage` to evaluate dispatch eligibility, suppress open-circuit dispatches, and apply deterministic state transitions.
+- Integrated circuit-breaker orchestration into reminder execution dispatch and failover dispatch paths.
+- Extended execution pipeline context/result contracts to expose circuit decision state.
+- Added circuit-breaker-focused unit tests for threshold opening, suppression, recovery, and pipeline/failover interaction.
+
+Validation summary:
+
+- Focused suite:
+	- `python -m unittest tests.test_circuit_breaker tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_retry_decision tests.test_execution_outcomes`
+	- Result: 45 tests, OK.
+
+Next gate:
+
+- Increment 7 Design Review
+
+### Increment 6 Closeout Decision
+Status: Approved
+
+Closeout outcome:
+
+- Circuit-state evaluation and dispatch suppression scope accepted.
+- Provider-health signal tracking and deterministic state transitions accepted.
+- Bounded recovery evaluation behavior accepted.
+- Pipeline integration and regression invariants accepted.
+- Validation evidence accepted.
+
+Canonical baseline recommendation:
+
+- `v1.17.0-phase6-increment6-circuit-breaker-boundary`
+
+Next gate:
+
+- Increment 7 Design Review (pending)
+
+## 20. Future Increments (Provisional)
 
 - Increment 4: Retry and recovery policies
 - Increment 5: Observability and metrics
@@ -1040,7 +1462,7 @@ These items are provisional and may be refined before implementation.
 
 ---
 
-## 18. Governance
+## 21. Governance
 Every implementation increment shall follow:
 
 1. Design

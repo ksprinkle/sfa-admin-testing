@@ -7,8 +7,9 @@ from api.services.execution_pipeline import (
     PipelineStage,
     PipelineStageError,
 )
+from api.services.circuit_breaker import ProviderHealthTracker
 from api.services.execution_outcomes import ExecutionOutcome
-from api.services.execution_pipeline_stages import RecordResultStage, RetryDecisionStage
+from api.services.execution_pipeline_stages import CircuitBreakerStage, RecordResultStage, RetryDecisionStage
 from api.services.execution_pipeline_stages import FailoverDecisionStage, RetryExecutionStage
 from api.services.retry_decision import RetryDecision
 
@@ -219,6 +220,64 @@ class ExecutionPipelineTests(unittest.TestCase):
         self.assertFalse(result.failover_result.attempted)
         self.assertTrue(result.failover_result.exhausted)
         self.assertEqual(result.failover_result.reason, "no_candidate_available")
+
+    def test_pipeline_suppresses_dispatch_for_open_circuit(self) -> None:
+        tracker = ProviderHealthTracker(failure_threshold=1, recovery_after_suppressions=2)
+        tracker.record_result(provider_name="email.noop", succeeded=False)
+
+        context = ExecutionContext(execution_id="exec-1", provider_name="email.noop")
+
+        pipeline = ExecutionPipeline([
+            CircuitBreakerStage(dispatcher=lambda c: c, tracker=tracker),
+            RecordResultStage(),
+        ])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.RETRYABLE_FAILURE)
+        self.assertIsNotNone(result.circuit_decision)
+        self.assertFalse(result.circuit_decision.dispatch_allowed)
+        self.assertEqual(result.context.execution_state, "suppressed_open_circuit")
+
+    def test_pipeline_allows_failover_when_primary_circuit_is_open(self) -> None:
+        tracker = ProviderHealthTracker(failure_threshold=1, recovery_after_suppressions=2)
+        tracker.record_result(provider_name="email.noop", succeeded=False)
+
+        context = ExecutionContext(
+            execution_id="exec-1",
+            provider_name="email.noop",
+            metadata={"attempt_count": 0, "max_attempts": 0},
+        )
+
+        def _dispatcher(ctx: ExecutionContext) -> ExecutionContext:
+            if ctx.provider_name == "email.smtp":
+                ctx.execution_state = "succeeded"
+                ctx.error_message = None
+                ctx.retryable = False
+                return ctx
+            raise AssertionError("primary provider dispatch should be suppressed")
+
+        def _failover_executor(ctx: ExecutionContext, provider_name: str) -> ExecutionContext:
+            ctx.provider_name = provider_name
+            return _dispatcher(ctx)
+
+        pipeline = ExecutionPipeline([
+            CircuitBreakerStage(dispatcher=_dispatcher, tracker=tracker),
+            RecordResultStage(),
+            RetryDecisionStage(),
+            RetryExecutionStage(executor=lambda c: c),
+            FailoverDecisionStage(
+                candidate_selector=lambda _: "email.smtp",
+                executor=_failover_executor,
+            ),
+        ])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        self.assertIsNotNone(result.failover_result)
+        self.assertTrue(result.failover_result.attempted)
+        self.assertTrue(result.failover_result.succeeded)
 
 
 if __name__ == "__main__":

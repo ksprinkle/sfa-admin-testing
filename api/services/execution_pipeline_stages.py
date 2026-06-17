@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
+from api.services.circuit_breaker import (
+    CircuitEvaluationContext,
+    ProviderHealthTracker,
+)
 from api.services.execution_pipeline import (
     ExecutionContext,
     PipelineResultStatus,
@@ -62,6 +66,37 @@ class DispatchExecutionStage(PipelineStage):
 
     def execute(self, context: ExecutionContext) -> ExecutionContext:
         return self.dispatcher(context)
+
+
+@dataclass
+class CircuitBreakerStage(PipelineStage):
+    dispatcher: Callable[[ExecutionContext], ExecutionContext]
+    tracker: ProviderHealthTracker = field(default_factory=ProviderHealthTracker)
+
+    def execute(self, context: ExecutionContext) -> ExecutionContext:
+        provider_name = (context.provider_name or "").strip().lower()
+        if not provider_name:
+            raise PipelineStageError(
+                "Circuit evaluation requires a resolved provider",
+                status=PipelineResultStatus.FAILED,
+            )
+
+        decision = self.tracker.evaluate(CircuitEvaluationContext(provider_name=provider_name))
+        context.circuit_decision = decision
+        context.metadata["circuit_state"] = decision.state.value
+
+        if not decision.dispatch_allowed:
+            context.execution_state = "suppressed_open_circuit"
+            context.error_message = "Dispatch suppressed by open circuit"
+            context.retryable = True
+            context.skipped = False
+            return context
+
+        context = self.dispatcher(context)
+        succeeded = (context.execution_state or "").strip().lower() == "succeeded"
+        state = self.tracker.record_result(provider_name=provider_name, succeeded=succeeded)
+        context.metadata["circuit_state"] = state.value
+        return context
 
 
 class RecordResultStage(PipelineStage):

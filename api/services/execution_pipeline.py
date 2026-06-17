@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, Iterable
 
 from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
+from api.services.circuit_breaker import CircuitDecisionResult
 from api.services.failover_execution import FailoverResult
 from api.services.retry_decision import RetryDecisionResult
 from api.services.retry_execution import RetryExecutionResult
@@ -34,6 +35,7 @@ class ExecutionContext:
     retry_decision: RetryDecisionResult | None = None
     retry_execution_result: RetryExecutionResult | None = None
     failover_result: FailoverResult | None = None
+    circuit_decision: CircuitDecisionResult | None = None
 
 
 @dataclass
@@ -43,6 +45,7 @@ class PipelineResult:
     retry_decision: RetryDecisionResult | None = None
     retry_execution_result: RetryExecutionResult | None = None
     failover_result: FailoverResult | None = None
+    circuit_decision: CircuitDecisionResult | None = None
 
 
 class PipelineStageError(Exception):
@@ -75,6 +78,7 @@ class ExecutionPipeline:
                     retry_decision=current.retry_decision,
                     retry_execution_result=current.retry_execution_result,
                     failover_result=current.failover_result,
+                    circuit_decision=current.circuit_decision,
                 )
             except Exception as exc:
                 current.error_message = str(exc)
@@ -84,6 +88,7 @@ class ExecutionPipeline:
                     retry_decision=current.retry_decision,
                     retry_execution_result=current.retry_execution_result,
                     failover_result=current.failover_result,
+                    circuit_decision=current.circuit_decision,
                 )
 
         return PipelineResult(
@@ -92,6 +97,7 @@ class ExecutionPipeline:
             retry_decision=current.retry_decision,
             retry_execution_result=current.retry_execution_result,
             failover_result=current.failover_result,
+            circuit_decision=current.circuit_decision,
         )
 
     def _status_from_context(self, context: ExecutionContext) -> PipelineResultStatus:

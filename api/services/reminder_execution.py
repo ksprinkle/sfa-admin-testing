@@ -16,7 +16,7 @@ from api.services.execution_pipeline import (
     PipelineResultStatus,
 )
 from api.services.execution_pipeline_stages import (
-    DispatchExecutionStage,
+    CircuitBreakerStage,
     FailoverDecisionStage,
     RecordResultStage,
     ResolveProviderStage,
@@ -24,6 +24,7 @@ from api.services.execution_pipeline_stages import (
     RetryDecisionStage,
     ValidateExecutionStage,
 )
+from api.services.circuit_breaker import ProviderHealthTracker
 from api.services.email_delivery import list_email_provider_keys
 from api.services.reminders import record_reminder_audit_event
 
@@ -708,6 +709,7 @@ def dispatch_reminder_execution(
             "dispatch_callback": dispatch_callback,
             "actor_user_id": actor_user_id,
             "source": source,
+            "circuit_tracker": ProviderHealthTracker(),
         },
     )
 
@@ -715,7 +717,10 @@ def dispatch_reminder_execution(
         stages=[
             ValidateExecutionStage(required_fields=("execution_id",)),
             ResolveProviderStage(resolver=_resolve_provider_for_execution_context),
-            DispatchExecutionStage(dispatcher=_dispatch_execution_context),
+            CircuitBreakerStage(
+                dispatcher=_dispatch_execution_context,
+                tracker=execution_context.metadata["circuit_tracker"],
+            ),
             RecordResultStage(),
             RetryDecisionStage(),
             RetryExecutionStage(executor=_retry_execution_context),
@@ -858,7 +863,17 @@ def _failover_execution_context(context: ExecutionContext, provider_name: str) -
     context.provider_name = provider_name
     context.metadata["dispatch_job"] = dispatch_job
     context.metadata["failover_provider"] = provider_name
-    return _dispatch_execution_context(context)
+    return _dispatch_with_circuit_controls(context)
+
+
+def _dispatch_with_circuit_controls(context: ExecutionContext) -> ExecutionContext:
+    tracker = context.metadata.get("circuit_tracker")
+    if not isinstance(tracker, ProviderHealthTracker):
+        tracker = ProviderHealthTracker()
+        context.metadata["circuit_tracker"] = tracker
+
+    stage = CircuitBreakerStage(dispatcher=_dispatch_execution_context, tracker=tracker)
+    return stage.execute(context)
 
 
 def create_dispatch_job(

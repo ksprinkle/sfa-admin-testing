@@ -1058,6 +1058,213 @@ Closeout approval:
 - Increment 5 closeout review: approved
 - Baseline advancement recommended: `v1.16.0-phase6-increment5-provider-failover-boundary`
 
+## Session Delta (Planning - June 17, Phase 6 Increment 6 Candidate Comparison Review)
+
+Status: Candidate comparison complete; candidate selected; design-review packet pending; implementation not authorized
+
+Candidates evaluated:
+- Candidate A: Circuit Breaker Boundary
+- Candidate B: Observability Expansion
+- Candidate C: Provider Health Monitoring Boundary
+
+Evaluation framework:
+- Dependency readiness (High)
+- Architectural leverage (High)
+- Scope containment (High)
+- Regression risk (Medium)
+- Future enablement value (High)
+- Preservation of abstraction boundaries (High)
+- Testability (Medium)
+
+Ranking and selection:
+- 1) Circuit Breaker Boundary
+- 2) Observability Expansion
+- 3) Provider Health Monitoring Boundary
+- Selected candidate: Circuit Breaker Boundary
+
+Governance state:
+- Increment 6 candidate comparison: complete
+- Increment 6 candidate selection: complete
+- Increment 6 design-review packet: pending
+- Increment 6 implementation: not authorized
+
+Next gate:
+- Increment 6 Design Review Packet Drafting
+
+## Session Delta (Planning - June 17, Phase 6 Increment 6 Design Review Packet Draft)
+
+Status: Draft complete; design review pending; implementation not authorized
+
+Candidate:
+- Circuit Breaker Boundary
+
+Objective:
+- Define deterministic circuit evaluation and dispatch suppression after retry/failover outcomes while preserving provider boundaries.
+
+Dependency verification:
+- Execution Pipeline Foundation: complete
+- Execution Outcome Classification: complete
+- Retry Decision Integration: complete
+- Retry Execution Orchestration: complete
+- Provider Failover Boundary: complete
+- Provider Abstraction Layer: complete
+- Provider Registry: complete
+
+Architectural intent:
+- Current: ExecutionPipeline -> Outcome Classification -> Retry Decision -> Retry Execution -> Failover Decision -> Alternate Provider Dispatch -> Pipeline Result
+- Candidate: ExecutionPipeline -> Outcome Classification -> Retry Decision -> Retry Execution -> Failover Decision -> Circuit Evaluation -> Dispatch Allowed / Suppressed -> Pipeline Result
+
+Proposed components under review:
+- CircuitBreakerStage
+- CircuitState
+- CircuitEvaluationContext
+- CircuitDecisionResult
+- ProviderHealthTracker
+
+Explicit non-goals:
+- No observability expansion
+- No metrics/telemetry expansion
+- No worker execution
+- No queue processing changes
+- No persistence/schema changes
+- No provider contract changes
+- No public API changes
+
+Acceptance focus:
+- Deterministic circuit-state dispatch eligibility
+- Open-circuit suppression behavior
+- Healthy-provider normal operation
+- Unchanged provider contracts and public APIs
+- Deterministic and testable circuit behavior
+
+Risk focus:
+- Circuit-state lifecycle complexity
+- Provider-health tracking boundary drift
+- Dispatch suppression edge cases
+- Regression risk
+- Future observability compatibility
+
+Governance state:
+- Increment 6 design-review packet: drafted
+- Increment 6 design review: approved
+- Increment 6 implementation: not authorized
+
+Next gate:
+- Increment 6 Implementation Planning
+
+## Session Delta (Planning - June 17, Phase 6 Increment 6 Design Review Approval)
+
+Status: Design review approved; implementation planning pending; implementation not authorized
+
+Reviewed increment:
+- Circuit Breaker Boundary
+
+Design review result:
+- Dependency verification: approved
+- Architectural progression and circuit-evaluation placement: approved
+- Component boundary set (`CircuitBreakerStage`, `CircuitState`, `CircuitEvaluationContext`, `CircuitDecisionResult`, `ProviderHealthTracker`): approved
+- Non-goal preservation: approved
+- Acceptance criteria and risk analysis: approved
+
+Governance transition:
+- Increment 6 design review: approved
+- Next gate: Increment 6 Implementation Planning
+- Increment 6 implementation authorization: not granted
+- Increment 6 implementation: blocked
+
+## Session Delta (Planning - June 17, Phase 6 Increment 6 Implementation Planning Packet Draft)
+
+Status: Implementation-planning packet drafted; planning review pending; implementation not authorized
+
+Reviewed increment:
+- Circuit Breaker Boundary
+
+Planning packet deliverables:
+- File-level implementation scope defined (new/modified/test/governance boundaries).
+- Circuit-state transition definitions drafted with deterministic lifecycle criteria.
+- Provider-health lifecycle defined and bounded to circuit-breaker support.
+- Test matrix defined for healthy dispatch, suppression, threshold opening, recovery, failover interaction, and pipeline integration.
+- Regression validation plan defined for unchanged provider contracts/implementations, public APIs, retry/failover behavior, and outcome classification.
+
+Containment rules affirmed:
+- Circuit-state transitions remain deterministic and bounded.
+- Dispatch suppression rules documented for open-circuit paths.
+- Recovery behavior defined without introducing observability ownership.
+- Deferred concerns remain deferred (observability/metrics expansion, worker/queue redesign, persistence/schema changes, provider/public API changes).
+
+Governance state:
+- Increment 6 implementation-planning packet: drafted
+- Increment 6 implementation-planning review: approved
+- Increment 6 implementation authorization: not granted
+- Increment 6 implementation: blocked
+
+Next gate:
+- Increment 6 Implementation Authorization Review
+
+## Session Delta (Planning - June 17, Phase 6 Increment 6 Implementation Planning Review Approval)
+
+Status: Implementation planning review approved; implementation authorization pending
+
+Reviewed increment:
+- Circuit Breaker Boundary
+
+Planning review result:
+- File-level scope boundaries: approved
+- Circuit-state transition definitions: approved
+- Provider-health lifecycle: approved
+- Test matrix: approved
+- Regression validation plan: approved
+- Exit criteria: approved
+- Explicit authorization gate: approved
+
+Scope validation:
+- Included scope remains circuit-state evaluation, dispatch suppression, provider-health tracking, recovery evaluation, and pipeline integration.
+- Excluded scope remains deferred (observability/metrics expansion, worker/queue changes, persistence changes, provider contract changes, public API changes).
+
+Governance transition:
+- Increment 6 implementation-planning review: approved
+- Next gate: Increment 6 Implementation Authorization Review
+- Implementation authorization: not granted
+- Implementation: blocked
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 6 Circuit Breaker Boundary)
+
+Status: Implemented and validated; closeout review pending
+
+Authorization state:
+- Increment 6 implementation authorization: approved
+- Increment 6 implementation: authorized and executed within approved scope
+
+Implemented scope:
+- Added circuit-breaker domain primitives for state, evaluation context, decision result, and provider-health tracking.
+- Added `CircuitBreakerStage` to enforce dispatch suppression for open circuits and bounded deterministic recovery evaluation.
+- Integrated circuit-breaker controls into both primary dispatch and failover dispatch paths.
+- Extended pipeline context/result with circuit decision state.
+- Added unit and pipeline coverage for threshold opening, suppression, recovery, and failover interaction.
+
+Scope protections preserved:
+- No observability or metrics expansion
+- No provider contract changes
+- No provider implementation changes
+- No public API changes
+- No persistence/schema changes
+- No queue/worker redesign
+
+Validation evidence:
+- `python -m unittest tests.test_circuit_breaker tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_retry_decision tests.test_execution_outcomes`
+- Result: 45 tests, OK
+
+Governance state:
+- Increment 6 design review: approved
+- Increment 6 implementation planning review: approved
+- Increment 6 implementation authorization: approved
+- Increment 6 implementation: closed
+- Next gate: Increment 7 Design Review (pending)
+
+Closeout approval:
+- Increment 6 closeout review: approved
+- Baseline advancement recommended: `v1.17.0-phase6-increment6-circuit-breaker-boundary`
+
 ## Session Delta (Planning - June 17, Phase 6 Increment 3 Design Review Packet Draft)
 
 Status: Draft complete (implementation not authorized)

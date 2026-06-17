@@ -237,19 +237,29 @@ Status:
 - Increment 5 implementation completed.
 - Increment 5 closeout approved.
 - Increment 5 closed.
+- Increment 6 candidate comparison complete.
+- Increment 6 selected candidate: Circuit Breaker Boundary (design packet pending).
+- Increment 6 design-review packet drafted.
+- Increment 6 design review approved.
+- Increment 6 implementation-planning packet drafted.
+- Increment 6 implementation-planning review approved.
+- Increment 6 implementation authorization approved.
+- Increment 6 implementation completed (closeout review pending).
+- Increment 6 closeout approved.
+- Increment 6 closed.
 
 Authoritative planning document:
 - `PHASE6_SPECIFICATION_AND_DESIGN.md`
 
 Next executable work item:
-- Phase 6 Increment 6: Design Review (candidate and packet pending)
+- Phase 6 Increment 7: Design Review (candidate and packet pending)
 	- No Increment 6 implementation until design review, planning review, and explicit authorization are approved.
 
 Scope reminder:
 - Phase 6 proceeds incrementally: one reviewed and validated increment at a time.
 
 Next logical milestone after Increment 1 closeout:
-- Start Phase 6 Increment 6 design-review packet drafting and review preparation.
+- Start Phase 6 Increment 7 candidate comparison and design-review packet preparation.
 
 Design-review packet status:
 - Approved

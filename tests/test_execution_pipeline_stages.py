@@ -1,8 +1,10 @@
 import unittest
 
 from api.services.execution_pipeline import ExecutionContext, PipelineResultStatus, PipelineStageError
+from api.services.circuit_breaker import ProviderHealthTracker
 from api.services.execution_outcomes import ExecutionOutcome
 from api.services.execution_pipeline_stages import (
+    CircuitBreakerStage,
     DispatchExecutionStage,
     FailoverDecisionStage,
     RecordResultStage,
@@ -67,6 +69,40 @@ class ExecutionPipelineStageTests(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             stage.execute(context)
+
+    def test_circuit_breaker_stage_suppresses_when_open(self) -> None:
+        tracker = ProviderHealthTracker(failure_threshold=1, recovery_after_suppressions=2)
+        tracker.record_result(provider_name="email.noop", succeeded=False)
+
+        context = ExecutionContext(execution_id="exec-1", provider_name="email.noop")
+
+        def _dispatch(_: ExecutionContext) -> ExecutionContext:
+            raise AssertionError("dispatch should be suppressed when circuit is open")
+
+        result = CircuitBreakerStage(dispatcher=_dispatch, tracker=tracker).execute(context)
+
+        self.assertEqual(result.execution_state, "suppressed_open_circuit")
+        self.assertTrue(result.retryable)
+        self.assertEqual(result.metadata.get("circuit_state"), "open")
+
+    def test_circuit_breaker_stage_allows_recovery_dispatch(self) -> None:
+        tracker = ProviderHealthTracker(failure_threshold=1, recovery_after_suppressions=2)
+        tracker.record_result(provider_name="email.noop", succeeded=False)
+
+        context = ExecutionContext(execution_id="exec-1", provider_name="email.noop")
+
+        def _dispatch(ctx: ExecutionContext) -> ExecutionContext:
+            ctx.execution_state = "succeeded"
+            ctx.error_message = None
+            ctx.retryable = False
+            return ctx
+
+        stage = CircuitBreakerStage(dispatcher=_dispatch, tracker=tracker)
+        stage.execute(context)  # First evaluation is suppressed while open.
+        result = stage.execute(context)
+
+        self.assertEqual(result.execution_state, "succeeded")
+        self.assertEqual(result.metadata.get("circuit_state"), "closed")
 
     def test_record_result_stage_success_normalization(self) -> None:
         context = ExecutionContext(execution_id="exec-1")

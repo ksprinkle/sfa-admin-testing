@@ -1037,3 +1037,208 @@ Baseline recommendation:
 
 Next gate:
 - Increment 6 Design Review
+
+## ADR-045: Phase 6 Increment 6 Candidate Comparison and Selection
+Date: 2026-06-17
+Status: Planning Approved (Implementation Not Authorized)
+
+Decision:
+- Conduct formal Increment 6 candidate comparison before drafting the design packet.
+- Evaluate three candidates:
+  - Circuit Breaker Boundary
+  - Observability Expansion
+  - Provider Health Monitoring Boundary
+- Apply weighted criteria:
+  - Dependency readiness (High)
+  - Architectural leverage (High)
+  - Scope containment (High)
+  - Regression risk (Medium)
+  - Future enablement value (High)
+  - Preservation of abstraction boundaries (High)
+  - Testability (Medium)
+- Select Circuit Breaker Boundary as the single Increment 6 candidate for design-review packet drafting.
+
+Ranking:
+- 1) Circuit Breaker Boundary
+- 2) Observability Expansion
+- 3) Provider Health Monitoring Boundary
+
+Scope boundary for selected candidate:
+- Focus on circuit state ownership and dispatch suppression semantics at provider boundary.
+- Consume existing retry/failover outcome signals as deterministic circuit transition inputs.
+- Preserve provider contracts, provider implementations, and public execution APIs.
+- Defer observability expansion, queue/worker redesign, persistence/schema changes, and implementation code changes at this planning stage.
+
+Rationale:
+- Best dependency fit after Increment 5 failover completion.
+- Maintains resiliency sequencing: retry -> failover -> circuit breaker -> observability.
+- Minimizes rework risk by introducing circuit semantics before telemetry schema expansion.
+
+Next gate:
+- Increment 6 Design Review Packet Drafting
+
+## ADR-046: Phase 6 Increment 6 Design Review Packet Draft
+Date: 2026-06-17
+Status: Design Review Packet Drafted (Implementation Not Authorized)
+
+Decision:
+- Draft Increment 6 design-review packet for Circuit Breaker Boundary.
+- Define circuit evaluation and dispatch suppression boundaries that consume existing retry/failover outcomes.
+- Keep implementation blocked pending design review approval.
+
+Design boundaries:
+- Circuit state deterministically gates dispatch eligibility.
+- Open circuits suppress dispatch attempts.
+- Healthy providers remain dispatch-eligible.
+- Provider contracts and public APIs remain unchanged.
+- Provider-health tracking remains scoped to circuit-breaker support only.
+
+Explicitly deferred:
+- observability expansion
+- metrics/telemetry expansion
+- worker execution and queue processing changes
+- persistence/schema changes
+- provider contract and provider implementation changes
+- public API changes
+
+Rationale:
+- Builds naturally on established retry and failover outcomes from Increment 5.
+- Preserves staged resiliency layering by adding suppression controls before observability expansion.
+- Keeps the increment narrow, deterministic, and testable at design stage.
+
+Next gate:
+- Increment 6 Design Review Approval
+
+## ADR-047: Phase 6 Increment 6 Design Review Approval
+Date: 2026-06-17
+Status: Design Review Approved (Implementation Not Authorized)
+
+Decision:
+- Approve Increment 6 design review for Circuit Breaker Boundary.
+- Preserve staged resiliency progression from retry and failover behavior into circuit-state dispatch suppression controls.
+- Transition governance to implementation planning while keeping implementation blocked.
+
+Approved boundaries:
+- Circuit state deterministically influences dispatch eligibility.
+- Open circuits suppress dispatch attempts.
+- Healthy providers remain dispatch-eligible.
+- Provider contracts, provider implementations, and public execution APIs unchanged.
+
+Explicitly deferred:
+- observability expansion
+- metrics/telemetry expansion
+- worker execution and queue processing changes
+- persistence/schema changes
+- provider contract and provider implementation changes
+- public API changes
+
+Rationale:
+- Dependency chain is complete for circuit-breaker planning.
+- Scope remains narrow, deterministic, and testable without introducing deferred concerns.
+
+Next gate:
+- Increment 6 Implementation Planning
+
+## ADR-048: Phase 6 Increment 6 Implementation Planning Packet Draft
+Date: 2026-06-17
+Status: Implementation-Planning Packet Drafted (Implementation Not Authorized)
+
+Decision:
+- Draft Increment 6 implementation-planning packet for Circuit Breaker Boundary.
+- Define file-level scope boundaries, circuit-state transitions, provider-health lifecycle, dispatch suppression/recovery rules, test matrix, and regression validation requirements.
+- Keep implementation blocked pending planning-review approval and explicit implementation authorization.
+
+Planning boundaries:
+- Preserve provider contracts, provider implementations, and public execution APIs.
+- Keep circuit-state transitions deterministic and bounded.
+- Keep provider-health tracking scoped to circuit-breaker support only.
+- Defer observability/metrics expansion, worker/queue redesign, and persistence/schema changes.
+
+Rationale:
+- Converts approved design intent into an implementation-ready but governance-bounded planning artifact.
+- Reduces implementation risk through deterministic state-transition and suppression/recovery definitions.
+- Preserves staged architecture sequencing without introducing deferred concerns.
+
+Next gate:
+- Increment 6 Implementation Planning Review
+
+## ADR-049: Phase 6 Increment 6 Implementation Planning Review Approval
+Date: 2026-06-17
+Status: Implementation Planning Review Approved (Implementation Not Authorized)
+
+Decision:
+- Approve Increment 6 implementation-planning review for Circuit Breaker Boundary.
+- Confirm planning completeness: file-level scope boundaries, circuit-state transitions, provider-health lifecycle, test matrix, regression validation plan, and exit criteria.
+- Advance governance to implementation authorization review while keeping implementation blocked.
+
+Planning safeguards affirmed:
+- Circuit-state transitions remain deterministic and bounded.
+- Dispatch suppression and recovery behavior are documented.
+- Provider-health tracking remains scoped to circuit-breaker support only.
+- Provider contracts, provider implementations, and public APIs remain unchanged.
+- Deferred concerns remain deferred (observability/metrics expansion, worker/queue redesign, persistence/schema changes).
+
+Rationale:
+- Planning packet provides sufficient deterministic constraints for authorization review.
+- Governance separation between planning approval and implementation authorization remains explicit.
+
+Next gate:
+- Increment 6 Implementation Authorization Review
+
+## ADR-050: Phase 6 Increment 6 Circuit Breaker Boundary Implementation
+Date: 2026-06-17
+Status: Implemented (Closeout Review Pending)
+
+Decision:
+- Authorize and execute Increment 6 implementation for Circuit Breaker Boundary.
+- Integrate deterministic circuit-state evaluation and dispatch suppression into the execution pipeline.
+- Keep provider-health tracking bounded to circuit-breaker behavior.
+
+Implemented scope:
+- Added `api/services/circuit_breaker.py` with:
+  - `CircuitState`
+  - `CircuitEvaluationContext`
+  - `CircuitDecisionResult`
+  - `ProviderHealthTracker`
+- Extended execution-pipeline context/result contracts to surface circuit decision output.
+- Added `CircuitBreakerStage` in execution pipeline stages.
+- Integrated circuit-breaker stage into reminder execution dispatch flow, including failover dispatch path.
+- Added circuit-breaker-focused tests for:
+  - threshold opening
+  - open-circuit suppression
+  - recovery path
+  - pipeline/failover interaction
+
+Deferred scope preserved:
+- observability/metrics expansion
+- worker/queue redesign
+- persistence/schema changes
+- provider contract and provider implementation changes
+- public API changes
+
+Validation evidence:
+- Focused suite:
+  - `python -m unittest tests.test_circuit_breaker tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_retry_decision tests.test_execution_outcomes`
+  - Result: 45 tests, OK
+
+Next gate:
+- Increment 6 Closeout Review
+
+## ADR-051: Phase 6 Increment 6 Circuit Breaker Boundary Closeout
+Date: 2026-06-17
+Status: Accepted
+
+Decision:
+- Approve Increment 6 closeout for Circuit Breaker Boundary.
+- Confirm delivered scope: circuit-state evaluation, dispatch suppression, provider-health tracking, bounded recovery evaluation, and pipeline integration.
+- Confirm deferred concerns remain deferred and architectural boundaries preserved.
+
+Validation evidence:
+- Focused suite: 45 tests, OK.
+- Regression invariants preserved: provider contracts and implementations, public APIs, retry behavior, failover behavior, and outcome classification behavior.
+
+Baseline recommendation:
+- `v1.17.0-phase6-increment6-circuit-breaker-boundary`
+
+Next gate:
+- Increment 7 Design Review
