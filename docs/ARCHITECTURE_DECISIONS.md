@@ -550,14 +550,14 @@ Rationale:
 - Enables incremental stage-based evolution without provider or retry contract rewrites.
 - Keeps Increment 1 scope narrow and governance-compliant.
 
-## ADR-028: Phase 6 Increment 2 Implementation Planning Packet (Execution Outcome Classification)
+## ADR-028: Phase 6 Increment 2 Execution Outcome Classification
 Date: 2026-06-17
-Status: Planning Approved (Implementation Not Authorized)
+Status: Accepted
 
 Decision:
 - Select `Execution Outcome Classification` as the single Phase 6 Increment 2 candidate.
-- Plan introduction of a normalized outcome model between dispatch-stage outputs and pipeline-result derivation.
-- Plan a provider-agnostic `OutcomeClassifier` that maps raw dispatch/provider signals into normalized outcomes:
+- Introduce a normalized outcome model between dispatch-stage outputs and pipeline-result derivation.
+- Introduce a provider-agnostic `OutcomeClassifier` that maps raw dispatch/provider signals into normalized outcomes:
   - `SUCCESS`
   - `RETRYABLE_FAILURE`
   - `PERMANENT_FAILURE`

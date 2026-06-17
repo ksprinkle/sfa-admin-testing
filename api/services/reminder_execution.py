@@ -747,7 +747,8 @@ def _dispatch_execution_context(context: ExecutionContext) -> ExecutionContext:
 
     if not isinstance(db, Session) or not isinstance(dispatch_job, DispatchJob) or dispatch_callback is None:
         context.error_message = "Invalid execution pipeline dispatch context"
-        context.result_status = PipelineResultStatus.FAILED
+        context.retryable = False
+        context.skipped = False
         return context
 
     dispatcher = ReminderDispatcher(db)
@@ -761,26 +762,26 @@ def _dispatch_execution_context(context: ExecutionContext) -> ExecutionContext:
     context.execution_state = queue_item.status
 
     if queue_item.status == ReminderExecutionQueueItem.STATUS_SUCCEEDED:
-        context.result_status = PipelineResultStatus.SUCCESS
         context.error_message = None
         context.retryable = False
+        context.skipped = False
         return context
 
     if queue_item.status == ReminderExecutionQueueItem.STATUS_RETRY_SCHEDULED:
-        context.result_status = PipelineResultStatus.RETRYABLE_FAILURE
         context.error_message = queue_item.last_error
         context.retryable = True
+        context.skipped = False
         return context
 
     if queue_item.status == ReminderExecutionQueueItem.STATUS_FAILED:
-        context.result_status = PipelineResultStatus.FAILED
         context.error_message = queue_item.last_error
         context.retryable = False
+        context.skipped = False
         return context
 
-    context.result_status = PipelineResultStatus.SKIPPED
     context.error_message = f"Unexpected execution queue status: {queue_item.status}"
     context.skipped = True
+    context.retryable = False
     return context
 
 

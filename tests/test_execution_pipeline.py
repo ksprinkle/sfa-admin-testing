@@ -7,6 +7,7 @@ from api.services.execution_pipeline import (
     PipelineStage,
     PipelineStageError,
 )
+from api.services.execution_outcomes import ExecutionOutcome
 
 
 class _NamedStage(PipelineStage):
@@ -69,6 +70,30 @@ class ExecutionPipelineTests(unittest.TestCase):
         result = pipeline.execute(context)
 
         self.assertEqual(result.status, PipelineResultStatus.RETRYABLE_FAILURE)
+
+    def test_outcome_mapping_success(self) -> None:
+        context = ExecutionContext(execution_id="exec-1", execution_outcome=ExecutionOutcome.SUCCESS)
+        pipeline = ExecutionPipeline([])
+        result = pipeline.execute(context)
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+
+    def test_outcome_mapping_retryable_failure(self) -> None:
+        context = ExecutionContext(execution_id="exec-1", execution_outcome=ExecutionOutcome.RETRYABLE_FAILURE)
+        pipeline = ExecutionPipeline([])
+        result = pipeline.execute(context)
+        self.assertEqual(result.status, PipelineResultStatus.RETRYABLE_FAILURE)
+
+    def test_outcome_mapping_permanent_failure(self) -> None:
+        context = ExecutionContext(execution_id="exec-1", execution_outcome=ExecutionOutcome.PERMANENT_FAILURE)
+        pipeline = ExecutionPipeline([])
+        result = pipeline.execute(context)
+        self.assertEqual(result.status, PipelineResultStatus.FAILED)
+
+    def test_outcome_mapping_skipped(self) -> None:
+        context = ExecutionContext(execution_id="exec-1", execution_outcome=ExecutionOutcome.SKIPPED)
+        pipeline = ExecutionPipeline([])
+        result = pipeline.execute(context)
+        self.assertEqual(result.status, PipelineResultStatus.SKIPPED)
 
 
 if __name__ == "__main__":

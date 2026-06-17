@@ -9,6 +9,7 @@ from api.services.execution_pipeline import (
     PipelineStage,
     PipelineStageError,
 )
+from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
 
 
 @dataclass
@@ -50,15 +51,21 @@ class DispatchExecutionStage(PipelineStage):
 
 
 class RecordResultStage(PipelineStage):
+    def __init__(self, classifier: OutcomeClassifier | None = None):
+        self.classifier = classifier or OutcomeClassifier()
+
     def execute(self, context: ExecutionContext) -> ExecutionContext:
+        if context.execution_outcome is None:
+            context.execution_outcome = self.classifier.classify_from_context(context)
+
         if context.result_status is not None:
             return context
 
-        if context.skipped:
+        if context.execution_outcome == ExecutionOutcome.SKIPPED:
             context.result_status = PipelineResultStatus.SKIPPED
-        elif context.error_message and context.retryable:
+        elif context.execution_outcome == ExecutionOutcome.RETRYABLE_FAILURE:
             context.result_status = PipelineResultStatus.RETRYABLE_FAILURE
-        elif context.error_message:
+        elif context.execution_outcome == ExecutionOutcome.PERMANENT_FAILURE:
             context.result_status = PipelineResultStatus.FAILED
         else:
             context.result_status = PipelineResultStatus.SUCCESS

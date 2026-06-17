@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Iterable
 
+from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
+
 
 class PipelineResultStatus(Enum):
     SUCCESS = "success"
@@ -24,6 +26,7 @@ class ExecutionContext:
     retryable: bool = False
     skipped: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
+    execution_outcome: ExecutionOutcome | None = None
     result_status: PipelineResultStatus | None = None
 
 
@@ -67,10 +70,19 @@ class ExecutionPipeline:
     def _status_from_context(self, context: ExecutionContext) -> PipelineResultStatus:
         if context.result_status is not None:
             return context.result_status
-        if context.skipped:
-            return PipelineResultStatus.SKIPPED
-        if context.error_message and context.retryable:
+        if context.execution_outcome is None:
+            context.execution_outcome = OutcomeClassifier().classify(
+                skipped=context.skipped,
+                error_message=context.error_message,
+                retryable=context.retryable,
+            )
+        return self._map_execution_outcome_to_result_status(context.execution_outcome)
+
+    def _map_execution_outcome_to_result_status(self, outcome: ExecutionOutcome) -> PipelineResultStatus:
+        if outcome == ExecutionOutcome.SUCCESS:
+            return PipelineResultStatus.SUCCESS
+        if outcome == ExecutionOutcome.RETRYABLE_FAILURE:
             return PipelineResultStatus.RETRYABLE_FAILURE
-        if context.error_message:
-            return PipelineResultStatus.FAILED
-        return PipelineResultStatus.SUCCESS
+        if outcome == ExecutionOutcome.SKIPPED:
+            return PipelineResultStatus.SKIPPED
+        return PipelineResultStatus.FAILED

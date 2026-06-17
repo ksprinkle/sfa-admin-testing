@@ -1,6 +1,7 @@
 import unittest
 
 from api.services.execution_pipeline import ExecutionContext, PipelineResultStatus, PipelineStageError
+from api.services.execution_outcomes import ExecutionOutcome
 from api.services.execution_pipeline_stages import (
     DispatchExecutionStage,
     RecordResultStage,
@@ -69,6 +70,7 @@ class ExecutionPipelineStageTests(unittest.TestCase):
 
         result = stage.execute(context)
 
+        self.assertEqual(result.execution_outcome, ExecutionOutcome.SUCCESS)
         self.assertEqual(result.result_status, PipelineResultStatus.SUCCESS)
 
     def test_record_result_stage_failure_normalization(self) -> None:
@@ -77,7 +79,26 @@ class ExecutionPipelineStageTests(unittest.TestCase):
 
         result = stage.execute(context)
 
+        self.assertEqual(result.execution_outcome, ExecutionOutcome.PERMANENT_FAILURE)
         self.assertEqual(result.result_status, PipelineResultStatus.FAILED)
+
+    def test_record_result_stage_retryable_normalization(self) -> None:
+        context = ExecutionContext(execution_id="exec-1", error_message="temporary", retryable=True)
+        stage = RecordResultStage()
+
+        result = stage.execute(context)
+
+        self.assertEqual(result.execution_outcome, ExecutionOutcome.RETRYABLE_FAILURE)
+        self.assertEqual(result.result_status, PipelineResultStatus.RETRYABLE_FAILURE)
+
+    def test_record_result_stage_skipped_normalization(self) -> None:
+        context = ExecutionContext(execution_id="exec-1", skipped=True)
+        stage = RecordResultStage()
+
+        result = stage.execute(context)
+
+        self.assertEqual(result.execution_outcome, ExecutionOutcome.SKIPPED)
+        self.assertEqual(result.result_status, PipelineResultStatus.SKIPPED)
 
 
 if __name__ == "__main__":

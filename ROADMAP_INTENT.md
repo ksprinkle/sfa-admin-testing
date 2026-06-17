@@ -205,21 +205,21 @@ Status:
 - Planning closeout complete.
 - Increment 1 (Execution Pipeline Foundation) closed.
 - Canonical baseline established: `v1.12.0-phase6-increment1-execution-pipeline`.
-- Increment 2 (Execution Outcome Classification) implementation planning complete.
-- Increment 2 implementation remains unauthorized pending gate approval.
+- Increment 2 (Execution Outcome Classification) implemented and approved for closeout.
+- Baseline advancement recommended: `v1.13.0-phase6-increment2-outcome-classification`.
 
 Authoritative planning document:
 - `PHASE6_SPECIFICATION_AND_DESIGN.md`
 
 Next executable work item:
-- Phase 6 Increment 2: Execution Outcome Classification (implementation authorization review)
-	- Implementation remains blocked until explicit approval.
+- Phase 6 Increment 3: Design review (candidate selection pending)
+	- No implementation until Increment 3 design review and explicit authorization.
 
 Scope reminder:
 - Phase 6 proceeds incrementally: one reviewed and validated increment at a time.
 
 Next logical milestone after Increment 1 closeout:
-- Begin Phase 6 Increment 2 implementation authorization review. No implementation until approval.
+- Begin Phase 6 Increment 3 design review. No implementation until approval.
 
 🧠 Why This Roadmap Is Correct (quick context)
 
