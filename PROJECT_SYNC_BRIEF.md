@@ -310,9 +310,9 @@ File touchpoints:
 - `ROADMAP_INTENT.md`
 - `docs/ARCHITECTURE_DECISIONS.md`
 
-## Session Delta (Implemented - June 17, Phase 6 Increment 1 Execution Pipeline Foundation) — pending commit/tag
+## Session Delta (Committed - June 17, Phase 6 Increment 1 Execution Pipeline Foundation)
 
-Status: Implemented (awaiting closeout commit and optional baseline tag)
+Status: Committed
 
 Scope guardrails:
 - Introduce orchestration abstractions only (`ExecutionContext`, `PipelineStage`, `ExecutionPipeline`, `PipelineResult`).
@@ -343,6 +343,9 @@ Validation evidence:
   - `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages`
   - Result: 12 tests, OK
 
+Canonical baseline:
+- `v1.12.0-phase6-increment1-execution-pipeline` (tagged at `71df83eb5b94b33ff128933201165a5b8c257542`)
+
 File touchpoints:
 - `api/services/execution_pipeline.py`
 - `api/services/execution_pipeline_stages.py`
@@ -352,6 +355,34 @@ File touchpoints:
 - `PROJECT_SYNC_BRIEF.md`
 - `ROADMAP_INTENT.md`
 - `docs/ARCHITECTURE_DECISIONS.md`
+
+## Session Delta (Planning - June 17, Phase 6 Increment 2 Implementation Planning Packet)
+
+Status: Planning complete (implementation not authorized)
+
+Increment:
+- Phase 6 Increment 2: Execution Outcome Classification
+
+Planning objective:
+- Introduce a normalized outcome classification layer between dispatch-stage outputs and pipeline-result derivation.
+
+Planned scope:
+- Add `ExecutionOutcome` model and provider-agnostic `OutcomeClassifier`.
+- Integrate classification into pipeline result normalization flow.
+- Preserve provider contracts, retry contracts, and public execution entry points.
+
+Explicit non-goals:
+- retry execution behavior
+- provider failover
+- circuit breakers
+- metrics/telemetry
+- worker execution or queue processing changes
+- persistence/schema changes
+
+Implementation gate state:
+- Design review: approved candidate
+- Implementation planning: complete
+- Implementation authorization: not granted
 
 Deferred Work Register (carried forward):
 - SMS provider implementation
