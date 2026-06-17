@@ -19,6 +19,7 @@ from api.services.execution_pipeline_stages import (
     DispatchExecutionStage,
     RecordResultStage,
     ResolveProviderStage,
+    RetryExecutionStage,
     RetryDecisionStage,
     ValidateExecutionStage,
 )
@@ -715,6 +716,7 @@ def dispatch_reminder_execution(
             DispatchExecutionStage(dispatcher=_dispatch_execution_context),
             RecordResultStage(),
             RetryDecisionStage(),
+            RetryExecutionStage(executor=_retry_execution_context),
         ]
     )
     result = execution_pipeline.execute(execution_context)
@@ -761,6 +763,8 @@ def _dispatch_execution_context(context: ExecutionContext) -> ExecutionContext:
         source=source or "reminder.execution_pipeline.dispatch",
     )
     context.metadata["execution_item"] = queue_item
+    context.metadata["attempt_count"] = queue_item.attempt_count or 0
+    context.metadata["max_attempts"] = queue_item.max_attempts or DEFAULT_REMINDER_MAX_ATTEMPTS
     context.execution_state = queue_item.status
 
     if queue_item.status == ReminderExecutionQueueItem.STATUS_SUCCEEDED:
@@ -785,6 +789,27 @@ def _dispatch_execution_context(context: ExecutionContext) -> ExecutionContext:
     context.skipped = True
     context.retryable = False
     return context
+
+
+def _retry_execution_context(context: ExecutionContext) -> ExecutionContext:
+    db = context.metadata.get("db")
+    queue_item = context.metadata.get("execution_item")
+    actor_user_id = context.metadata.get("actor_user_id")
+    source = context.metadata.get("source")
+
+    if not isinstance(db, Session) or not isinstance(queue_item, ReminderExecutionQueueItem):
+        return context
+
+    if queue_item.status != ReminderExecutionQueueItem.STATUS_RETRY_SCHEDULED:
+        return context
+
+    dispatch_job = ReminderExecutionPipeline(db).create_dispatch_job(
+        execution_item_id=queue_item.id,
+        actor_user_id=actor_user_id,
+        source=source or "reminder.execution_pipeline.dispatch",
+    )
+    context.metadata["dispatch_job"] = dispatch_job
+    return _dispatch_execution_context(context)
 
 
 def create_dispatch_job(

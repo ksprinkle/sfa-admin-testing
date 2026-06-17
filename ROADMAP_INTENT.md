@@ -216,22 +216,34 @@ Status:
 - Increment 3 closeout approved.
 - Increment 3 closed.
 - Baseline advancement recommended: `v1.14.0-phase6-increment3-retry-decision-integration`.
+- Increment 4 candidate comparison complete.
+- Increment 4 selected candidate: Retry Execution Orchestration (design packet pending).
+- Increment 4 design-review packet drafted.
+- Increment 4 design review approved.
+- Increment 4 implementation-planning packet drafted.
+- Increment 4 implementation planning review approved.
+- Increment 4 implementation authorization approved.
+- Increment 4 implementation completed (closeout review pending).
+- Increment 4 closeout approved.
+- Increment 4 closed.
+- Baseline advancement recommended: `v1.15.0-phase6-increment4-retry-execution-orchestration`.
 
 Authoritative planning document:
 - `PHASE6_SPECIFICATION_AND_DESIGN.md`
 
 Next executable work item:
-- Phase 6 Increment 4: Design review (candidate selection pending)
-	- No implementation until Increment 4 design review and explicit authorization.
+- Phase 6 Increment 5: Design review (candidate selection pending)
+	- No implementation until Increment 5 design review and explicit authorization.
 
 Scope reminder:
 - Phase 6 proceeds incrementally: one reviewed and validated increment at a time.
 
 Next logical milestone after Increment 1 closeout:
-- Begin Phase 6 Increment 4 design review. No implementation until approval.
+- Begin Phase 6 Increment 5 design review. No implementation until approval.
 
 Design-review packet status:
 - Approved
+- Implementation planning packet drafted
 - Implementation planning review approved
 - Implementation authorized and increment closed
 

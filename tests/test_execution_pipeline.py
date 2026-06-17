@@ -9,6 +9,7 @@ from api.services.execution_pipeline import (
 )
 from api.services.execution_outcomes import ExecutionOutcome
 from api.services.execution_pipeline_stages import RecordResultStage, RetryDecisionStage
+from api.services.execution_pipeline_stages import RetryExecutionStage
 from api.services.retry_decision import RetryDecision
 
 
@@ -122,6 +123,35 @@ class ExecutionPipelineTests(unittest.TestCase):
         self.assertIsNotNone(result.retry_decision)
         self.assertEqual(result.retry_decision.decision, RetryDecision.SHOULD_NOT_RETRY)
         self.assertFalse(result.retry_decision.should_retry)
+
+    def test_pipeline_executes_retry_and_finishes_success(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            error_message="retry later",
+            retryable=True,
+            execution_state="retry_scheduled",
+            metadata={"attempt_count": 1, "max_attempts": 3},
+        )
+
+        def _retry_executor(ctx: ExecutionContext) -> ExecutionContext:
+            ctx.retryable = False
+            ctx.error_message = None
+            ctx.execution_state = "succeeded"
+            ctx.metadata["attempt_count"] = 2
+            return ctx
+
+        pipeline = ExecutionPipeline([
+            RecordResultStage(),
+            RetryDecisionStage(),
+            RetryExecutionStage(executor=_retry_executor),
+        ])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        self.assertIsNotNone(result.retry_execution_result)
+        self.assertTrue(result.retry_execution_result.executed)
+        self.assertFalse(result.retry_execution_result.exhausted)
 
 
 if __name__ == "__main__":

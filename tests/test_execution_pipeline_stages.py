@@ -6,6 +6,7 @@ from api.services.execution_pipeline_stages import (
     DispatchExecutionStage,
     RecordResultStage,
     ResolveProviderStage,
+    RetryExecutionStage,
     RetryDecisionStage,
     ValidateExecutionStage,
 )
@@ -127,6 +128,54 @@ class ExecutionPipelineStageTests(unittest.TestCase):
         self.assertIsNotNone(result.retry_decision)
         self.assertEqual(result.retry_decision.decision, RetryDecision.SHOULD_NOT_RETRY)
         self.assertFalse(result.retry_decision.should_retry)
+
+    def test_retry_execution_stage_executes_retry_until_success(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            execution_outcome=ExecutionOutcome.RETRYABLE_FAILURE,
+            retryable=True,
+            error_message="temporary",
+            execution_state="retry_scheduled",
+            metadata={"attempt_count": 1, "max_attempts": 3},
+        )
+
+        def _executor(ctx: ExecutionContext) -> ExecutionContext:
+            ctx.execution_state = "succeeded"
+            ctx.retryable = False
+            ctx.error_message = None
+            ctx.metadata["attempt_count"] = 2
+            return ctx
+
+        context = RetryDecisionStage().execute(context)
+        result = RetryExecutionStage(executor=_executor).execute(context)
+
+        self.assertIsNotNone(result.retry_execution_result)
+        self.assertTrue(result.retry_execution_result.executed)
+        self.assertEqual(result.retry_execution_result.attempts_executed, 1)
+        self.assertFalse(result.retry_execution_result.exhausted)
+        self.assertEqual(result.execution_outcome, ExecutionOutcome.SUCCESS)
+        self.assertEqual(result.retry_decision.decision, RetryDecision.SHOULD_NOT_RETRY)
+
+    def test_retry_execution_stage_marks_exhaustion_without_retry(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-1",
+            execution_outcome=ExecutionOutcome.RETRYABLE_FAILURE,
+            retryable=True,
+            error_message="temporary",
+            execution_state="retry_scheduled",
+            metadata={"attempt_count": 3, "max_attempts": 3},
+        )
+
+        def _executor(ctx: ExecutionContext) -> ExecutionContext:
+            raise AssertionError("executor should not run when attempts are exhausted")
+
+        context = RetryDecisionStage().execute(context)
+        result = RetryExecutionStage(executor=_executor).execute(context)
+
+        self.assertIsNotNone(result.retry_execution_result)
+        self.assertFalse(result.retry_execution_result.executed)
+        self.assertEqual(result.retry_execution_result.attempts_executed, 0)
+        self.assertTrue(result.retry_execution_result.exhausted)
 
 
 if __name__ == "__main__":

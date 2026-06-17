@@ -566,6 +566,262 @@ Canonical baseline recommendation:
 Next gate:
 - Phase 6 Increment 4 design review pending.
 
+## Session Delta (Planning - June 17, Phase 6 Increment 4 Candidate Comparison Review)
+
+Status: Planning review complete (implementation not authorized)
+
+Objective:
+- Evaluate Increment 4 candidates before design packet drafting to prevent coupling/rework.
+- Select exactly one candidate for the Increment 4 design-review packet.
+
+Candidates reviewed:
+- A. Retry Execution Orchestration
+- B. Provider Failover Boundary
+- C. Observability Boundary
+
+Evaluation criteria and weights:
+- Dependency readiness: High
+- Architectural leverage of existing Phase 6 work: High
+- Scope containment: High
+- Regression risk: Medium
+- Future enablement value: High
+- Preservation of provider boundaries: High
+- Testability: Medium
+
+Comparative assessment:
+- Candidate A (Retry Execution Orchestration)
+  - Dependency alignment: Excellent
+  - Strengths: direct continuation from pipeline foundation, outcome classification, and retry decision integration; enables actual retry behavior using existing retry abstractions.
+  - Risks: boundary drift into failover logic if scope is not tightly constrained.
+- Candidate B (Provider Failover Boundary)
+  - Dependency alignment: Moderate
+  - Strengths: establishes alternate-provider seam for future resilience.
+  - Risks: premature without retry execution/exhaustion semantics; high coupling risk between provider routing and retry policy.
+- Candidate C (Observability Boundary)
+  - Dependency alignment: Moderate
+  - Strengths: improves diagnosability and reporting fidelity.
+  - Risks: telemetry model likely to change once retry execution behavior is introduced.
+
+Selection outcome:
+- Selected Increment 4 candidate: Retry Execution Orchestration.
+- Ranking recorded:
+  - 1) Retry Execution Orchestration
+  - 2) Observability Boundary
+  - 3) Provider Failover Boundary
+
+Scope guardrails for upcoming design packet:
+- Planning/design only at this stage; no implementation authorization.
+- Introduce retry execution orchestration only.
+- Preserve provider contracts, provider registry behavior, and public execution entry points.
+- Exclude provider failover, observability expansion, and persistence/schema changes.
+
+Gate state after comparison:
+- Increment 4 candidate selection: complete
+- Increment 4 design-review packet: approved
+- Increment 4 implementation-planning packet: drafted
+- Increment 4 implementation planning review: approved
+- Increment 4 implementation authorization: approved
+- Increment 4 closeout review: approved
+- Increment 4: closed
+
+## Session Delta (Planning - June 17, Phase 6 Increment 4 Design Review Packet Draft)
+
+Status: Draft complete (implementation not authorized)
+
+Candidate:
+- Retry Execution Orchestration
+
+Objective:
+- Define retry execution orchestration once retry recommendations exist, while preserving established pipeline, retry-strategy, provider, and public-API boundaries.
+
+Dependency verification:
+- Execution Pipeline Foundation: complete
+- Execution Outcome Classification: complete
+- Retry Decision Integration: complete
+- Retry Strategy Abstraction: complete
+- Provider Abstraction: complete
+
+Architectural intent:
+- Current: `ExecutionPipeline -> Outcome Classification -> Retry Decision -> Pipeline Result`
+- Candidate: `ExecutionPipeline -> Outcome Classification -> Retry Decision -> Retry Execution -> Pipeline Result`
+
+Proposed components under review:
+- `RetryExecutionStage`
+- `RetryExecutionResult`
+- `RetryAttemptTracker`
+- `RetryExecutionContext`
+
+Explicit non-goals:
+- No provider failover
+- No circuit breakers
+- No observability expansion
+- No worker execution
+- No queue changes
+- No persistence/schema changes
+- No provider contract changes
+- No public API changes
+
+Acceptance focus:
+- Retry execution orchestrated through pipeline stages
+- Retry attempt limits honored
+- Retry strategy remains authoritative
+- Providers unchanged
+- Public APIs unchanged
+- Deterministic and testable retry outcomes
+
+Risk focus:
+- Orchestration complexity
+- Retry loop containment
+- Regression risk
+- Future failover integration impact
+
+Governance state:
+- Increment 4 design review: ready for review
+- Increment 4 implementation: not authorized
+
+## Session Delta (Planning - June 17, Phase 6 Increment 4 Design Review Approval)
+
+Status: Design review approved; implementation planning pending
+
+Reviewed increment:
+- Retry Execution Orchestration
+
+Approval outcome:
+- Design review: approved
+- Implementation authorization: not granted
+
+Governance conclusion:
+- Move to Increment 4 implementation planning only.
+
+Implementation planning objective:
+- Produce an exact file-by-file implementation plan, retry execution mapping definitions, retry-attempt lifecycle definition, test matrix, and regression validation plan before any code changes.
+
+Planned decision scope:
+- Orchestrate retry execution from existing retry decisions.
+- Enforce retry-attempt containment and deterministic execution behavior.
+- Preserve provider contracts, provider registry behavior, and public execution APIs.
+- Keep retry strategy abstraction authoritative.
+
+Test and validation scope:
+- Retry execution orchestration path coverage.
+- Retry-attempt limit enforcement coverage.
+- Deterministic retry outcome coverage.
+- Existing pipeline and retry-decision tests remain green.
+
+Authorization state:
+- No code changes authorized.
+- No implementation authorization until implementation-planning review is complete.
+
+## Session Delta (Planning - June 17, Phase 6 Increment 4 Implementation Planning Packet Draft)
+
+Status: Planning packet draft complete (implementation not authorized)
+
+Planning deliverables drafted:
+- File-level scope boundaries (new/modified/test/governance)
+- Retry execution mapping definitions
+- Retry attempt lifecycle definition
+- Test matrix definition
+- Regression validation plan
+- Planning review exit criteria
+
+File-level scope intent:
+- New modules: retry-execution boundary components only if required.
+- Modified modules: pipeline orchestration and reminder execution integration points only.
+- Test modules: retry-execution coverage plus pipeline regression tests.
+- Governance updates only for gate-state transitions.
+
+Retry execution mapping chain:
+- Retry recommendation -> retry execution decision -> attempt lifecycle transition -> final execution outcome.
+
+Retry-attempt lifecycle focus:
+- Initial attempt -> retryable failure -> retry execution -> attempt count update -> success or exhaustion.
+
+Implementation-planning constraints:
+- No provider failover semantics.
+- No circuit breakers.
+- No observability expansion.
+- No worker/queue model changes.
+- No persistence/schema changes.
+- No provider contract changes.
+- No public API changes.
+
+Planning review readiness:
+- Increment 4 implementation planning review: approved
+- Increment 4 implementation authorization: not granted
+
+## Session Delta (Planning - June 17, Phase 6 Increment 4 Implementation Planning Review Approval)
+
+Status: Implementation planning review approved; implementation authorization pending
+
+Reviewed increment:
+- Retry Execution Orchestration
+
+Planning review outcome:
+- File-level scope boundaries approved.
+- Retry execution mapping approved.
+- Retry-attempt lifecycle approved.
+- Test matrix approved.
+- Regression validation plan approved.
+- Exit criteria and authorization gate approved.
+
+Governance conclusion:
+- Move to Increment 4 implementation authorization review only.
+
+Authorization state:
+- No implementation code changes authorized.
+- No implementation commits or baseline advancement authorized.
+- Implementation authorization remains pending a separate review decision.
+
+## Session Delta (Implemented - June 17, Phase 6 Increment 4 Retry Execution Orchestration)
+
+Status: Implemented and validated (pending closeout review)
+
+Scope delivered:
+- Added retry execution boundary primitives in `api/services/retry_execution.py`:
+  - `RetryExecutionContext`
+  - `RetryExecutionResult`
+  - `RetryAttemptTracker`
+- Integrated retry execution orchestration into execution pipeline stages via `RetryExecutionStage`.
+- Integrated retry execution stage into reminder dispatch execution pipeline after retry decision evaluation.
+- Added deterministic attempt progression guards to prevent unbounded retry loops.
+
+Functional validation:
+- Retryable failure -> retry execution occurs -> success path validated.
+- Retryable failure with attempts exhausted -> retry execution does not run and exhaustion is reported.
+
+Regression validation:
+- Provider contracts unchanged.
+- Provider implementations unchanged.
+- Public execution APIs unchanged.
+- Pipeline ordering preserved with explicit retry-execution stage insertion.
+- Outcome classification behavior preserved.
+- Retry decision behavior preserved.
+
+Test validation:
+- Targeted tests (retry execution behavior): 3 tests, OK
+- Focused suite:
+  - `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_retry_decision tests.test_execution_outcomes`
+  - Result: 34 tests, OK
+
+Implementation touchpoints:
+- `api/services/retry_execution.py`
+- `api/services/execution_pipeline.py`
+- `api/services/execution_pipeline_stages.py`
+- `api/services/reminder_execution.py`
+- `tests/test_execution_pipeline.py`
+- `tests/test_execution_pipeline_stages.py`
+
+Governance state:
+- Increment 4 closeout review: approved
+- No implementation commit created yet
+- No baseline tag advancement created yet
+
+Canonical baseline recommendation:
+- `v1.15.0-phase6-increment4-retry-execution-orchestration`
+
+Next gate:
+- Phase 6 Increment 5 design review pending.
+
 ## Session Delta (Planning - June 17, Phase 6 Increment 3 Design Review Packet Draft)
 
 Status: Draft complete (implementation not authorized)

@@ -679,3 +679,169 @@ Rationale:
 
 Next gate:
 - Increment 4 Design Review
+
+## ADR-032: Phase 6 Increment 4 Candidate Comparison and Selection
+Date: 2026-06-17
+Status: Planning Approved (Implementation Not Authorized)
+
+Decision:
+- Conduct formal Increment 4 candidate comparison before drafting the design packet.
+- Evaluate three candidates:
+  - Retry Execution Orchestration
+  - Provider Failover Boundary
+  - Observability Boundary
+- Apply weighted criteria:
+  - Dependency readiness (High)
+  - Architectural leverage of existing Phase 6 work (High)
+  - Scope containment (High)
+  - Regression risk (Medium)
+  - Future enablement value (High)
+  - Preservation of provider boundaries (High)
+  - Testability (Medium)
+- Select Retry Execution Orchestration as the single Increment 4 candidate for design-review packet drafting.
+
+Ranking:
+- 1) Retry Execution Orchestration
+- 2) Observability Boundary
+- 3) Provider Failover Boundary
+
+Scope boundary for selected candidate:
+- Focus on retry execution orchestration only.
+- Preserve provider contracts, provider registry behavior, and public execution APIs.
+- Defer provider failover, observability expansion, queue/worker redesign, and persistence/schema changes.
+
+Rationale:
+- Best dependency fit after Increment 1 (pipeline), Increment 2 (outcomes), and Increment 3 (retry decision).
+- Minimizes architectural rework by implementing execution behavior before failover and telemetry expansion.
+- Maintains staged boundary discipline and testability.
+
+Next gate:
+- Increment 4 Design Review Packet Drafting
+
+## ADR-033: Phase 6 Increment 4 Design Review Approval
+Date: 2026-06-17
+Status: Design Review Approved (Implementation Not Authorized)
+
+Decision:
+- Approve Increment 4 design review for Retry Execution Orchestration.
+- Preserve staged architecture progression from pipeline foundation through outcome classification and retry decision into retry execution orchestration.
+- Transition governance to implementation planning while keeping implementation blocked.
+
+Approved boundaries:
+- Maintain retry strategy abstraction as authoritative.
+- Maintain provider abstraction and registry boundaries.
+- Keep provider contracts and public execution APIs unchanged.
+
+Explicitly deferred:
+- provider failover
+- circuit breakers
+- observability expansion
+- worker execution and queue processing changes
+- persistence/schema changes
+
+Rationale:
+- Dependency chain is complete for retry execution orchestration.
+- Scope remains narrow, deterministic, and testable.
+- Sequencing minimizes rework risk before failover and observability increments.
+
+Next gate:
+- Increment 4 Implementation Planning
+
+## ADR-034: Phase 6 Increment 4 Implementation Planning Packet Draft
+Date: 2026-06-17
+Status: Planning Packet Drafted (Implementation Not Authorized)
+
+Decision:
+- Draft Increment 4 implementation-planning packet for Retry Execution Orchestration.
+- Define explicit file boundaries, retry execution mapping definitions, retry-attempt lifecycle, test matrix, and regression validation plan.
+- Keep implementation blocked pending planning-review approval and explicit implementation authorization.
+
+Planning boundaries:
+- Keep provider contracts and provider implementations unchanged.
+- Keep public execution APIs unchanged.
+- Preserve pipeline ordering, outcome classification behavior, and retry decision behavior.
+- Defer failover, circuit breakers, observability expansion, worker/queue redesign, and persistence/schema changes.
+
+Rationale:
+- Converts approved design intent into executable but bounded planning artifacts.
+- Reduces implementation risk through explicit lifecycle and attempt-limit rules.
+- Maintains governance discipline by separating planning review from implementation authorization.
+
+Next gate:
+- Increment 4 Implementation Planning Review
+
+## ADR-035: Phase 6 Increment 4 Implementation Planning Review Approval
+Date: 2026-06-17
+Status: Implementation Planning Review Approved (Implementation Not Authorized)
+
+Decision:
+- Approve Increment 4 implementation-planning review for Retry Execution Orchestration.
+- Confirm planning completeness: file boundaries, retry mapping, attempt lifecycle, test matrix, and regression validation plan.
+- Advance governance to implementation authorization review while keeping implementation blocked.
+
+Planning safeguards affirmed:
+- Provider contracts unchanged.
+- Provider implementations unchanged.
+- Public APIs unchanged.
+- Pipeline ordering, outcome classification, and retry decision behavior preserved.
+- Deferred items remain deferred (failover, circuit breakers, observability expansion, worker/queue redesign, persistence/schema changes).
+
+Rationale:
+- Planning packet provides sufficient deterministic boundaries for authorization review.
+- Separation between planning approval and implementation authorization remains explicit.
+
+Next gate:
+- Increment 4 Implementation Authorization Review
+
+## ADR-036: Phase 6 Increment 4 Retry Execution Orchestration Implementation
+Date: 2026-06-17
+Status: Implemented (Closeout Review Pending)
+
+Decision:
+- Authorize and execute Increment 4 implementation for Retry Execution Orchestration.
+- Integrate retry execution into pipeline flow after retry decision evaluation.
+- Enforce bounded retry attempt behavior without introducing deferred concerns.
+
+Implemented scope:
+- Added `api/services/retry_execution.py` with retry execution context/result and attempt tracking primitives.
+- Updated pipeline context/result contracts to expose retry execution result.
+- Added `RetryExecutionStage` to execution stages.
+- Integrated retry execution stage into `dispatch_reminder_execution` pipeline path.
+- Added retry-execution-focused unit tests for success-on-retry and exhaustion behavior.
+
+Deferred scope preserved:
+- provider failover
+- circuit breakers
+- observability expansion
+- queue/worker redesign
+- persistence/schema changes
+- provider contract and public API changes
+
+Validation evidence:
+- Targeted retry-execution tests: 3 tests, OK.
+- Focused suite:
+  - `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_retry_decision tests.test_execution_outcomes`
+  - Result: 34 tests, OK
+
+Next gate:
+- Increment 4 Closeout Review
+
+## ADR-037: Phase 6 Increment 4 Retry Execution Orchestration Closeout
+Date: 2026-06-17
+Status: Accepted
+
+Decision:
+- Approve Increment 4 closeout for Retry Execution Orchestration.
+- Confirm delivered scope: retry execution stage, attempt tracking, exhaustion handling, and pipeline integration.
+- Confirm deferred concerns remain deferred and boundaries preserved.
+
+Validation evidence:
+- Targeted functional tests: 3 tests, OK.
+- Focused suite: 34 tests, OK.
+- Regression invariants preserved: provider contracts/implementations, public APIs, outcome classification, retry decision behavior, and pipeline ordering.
+
+Baseline recommendation:
+- `v1.15.0-phase6-increment4-retry-execution-orchestration`
+
+Next gate:
+- Increment 5 Design Review
