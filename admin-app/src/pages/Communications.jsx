@@ -1,7 +1,8 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Button from "../components/Button"
 import Card from "../components/Card"
 import MessageComposerModal from "../components/communications/MessageComposerModal"
+import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "../api/communications"
 
 const deliverySummary = [
   { label: "Queued", value: "128", tone: "border-sky-200 bg-sky-50", valueClass: "text-sky-900" },
@@ -72,12 +73,107 @@ function getStatusTone(status) {
   return "border-gray-200 bg-gray-100 text-secondary"
 }
 
+function formatDateTime(value) {
+  if (!value) return "Recently"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return "Recently"
+  return parsed.toLocaleString()
+}
+
+function summarizeDeliveries(messages, deliveries) {
+  const messageStatusCounts = messages.reduce(
+    (counts, message) => {
+      const key = String(message?.status || "").trim().toLowerCase()
+      if (key in counts) {
+        counts[key] += 1
+      }
+      return counts
+    },
+    { draft: 0, ready: 0, dispatched: 0 }
+  )
+
+  const deliveryStatusCounts = deliveries.reduce(
+    (counts, delivery) => {
+      const key = String(delivery?.status || "").trim().toLowerCase()
+      if (key in counts) {
+        counts[key] += 1
+      }
+      return counts
+    },
+    { queued: 0, delivered: 0, failed: 0 }
+  )
+
+  return [
+    { label: "Queued", value: String(messageStatusCounts.ready || deliveryStatusCounts.queued || 0), tone: "border-sky-200 bg-sky-50", valueClass: "text-sky-900" },
+    { label: "Delivered", value: String(deliveryStatusCounts.delivered || 0), tone: "border-emerald-200 bg-emerald-50", valueClass: "text-emerald-900" },
+    { label: "Opened", value: String(messageStatusCounts.dispatched || 0), tone: "border-indigo-200 bg-indigo-50", valueClass: "text-indigo-900" },
+    { label: "Failed", value: String(deliveryStatusCounts.failed || 0), tone: "border-rose-200 bg-rose-50", valueClass: "text-rose-900" },
+  ]
+}
+
 function Communications() {
   const [composerOpen, setComposerOpen] = useState(false)
+  const [messages, setMessages] = useState([])
+  const [deliveries, setDeliveries] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [statusMessage, setStatusMessage] = useState("")
+
+  const loadCommunicationsData = async () => {
+    setLoading(true)
+    setError("")
+
+    try {
+      const [nextMessages, nextDeliveries] = await Promise.all([
+        fetchCommunicationMessages(),
+        fetchCommunicationDeliveries(),
+      ])
+
+      setMessages(Array.isArray(nextMessages) ? nextMessages : [])
+      setDeliveries(Array.isArray(nextDeliveries) ? nextDeliveries : [])
+    } catch (loadError) {
+      setError(loadError?.message || "Failed to load communications data")
+      setMessages([])
+      setDeliveries([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCommunicationsData()
+  }, [])
+
+  const handleMessageSent = async () => {
+    await loadCommunicationsData()
+    setStatusMessage("Message sent successfully and dashboard refreshed.")
+    setComposerOpen(false)
+  }
+
+  const deliverySummary = summarizeDeliveries(messages, deliveries)
+  const recentMessages = messages.slice(0, 3).map((message) => ({
+    subject: message.subject || "Untitled message",
+    channel: String(message.channel || "email").toUpperCase(),
+    status: String(message.status || "draft").replace(/_/g, " "),
+    audience: message.audience_filter?.recipient_group || message.audience_type || "Manual audience",
+    sentAt: formatDateTime(message.created_at),
+  }))
 
   return (
     <div className="space-y-4 pb-20">
-      <MessageComposerModal isOpen={composerOpen} onClose={() => setComposerOpen(false)} />
+      <MessageComposerModal isOpen={composerOpen} onClose={() => setComposerOpen(false)} onNext={handleMessageSent} />
+
+      {statusMessage ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {statusMessage}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
 
       <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -106,6 +202,13 @@ function Communications() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {loading ? (
+            <Card className="border border-slate-200 bg-slate-50" bodyClassName="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-secondary">Loading</p>
+              <p className="text-3xl font-bold text-slate-400">...</p>
+              <p className="text-xs text-secondary">Refreshing dashboard data.</p>
+            </Card>
+          ) : null}
           {deliverySummary.map((item) => (
             <Card key={item.label} className={`border ${item.tone}`} bodyClassName="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-secondary">{item.label}</p>
@@ -119,6 +222,8 @@ function Communications() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)]">
         <Card header={<Card.Header>Recent Messages</Card.Header>}>
           <div className="space-y-3">
+            {loading ? <p className="text-sm text-secondary">Loading recent messages...</p> : null}
+            {!loading && recentMessages.length === 0 ? <p className="text-sm text-secondary">No messages yet.</p> : null}
             {recentMessages.map((message) => (
               <article key={`${message.subject}-${message.sentAt}`} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

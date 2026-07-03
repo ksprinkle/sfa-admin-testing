@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Button from "../Button"
+import { fetchCommunicationTemplates, sendCommunicationMessage } from "../../api/communications"
 
 const recipientGroupOptions = ["All Participants", "Volunteers", "Event Staff", "Recent Attendees", "Custom Segment"]
 const deliveryMethodOptions = ["Email", "SMS"]
@@ -11,90 +12,109 @@ const recipientSummaryByGroup = {
   "Custom Segment": { estimate: "Custom Selection", label: "Estimated recipient count" },
 }
 
-const MOCK_MESSAGE_TEMPLATES = [
-  {
-    id: "email-event-reminder",
-    deliveryMethod: "Email",
-    name: "Event reminder",
-    recipientGroup: "All Participants",
-    subject: "Reminder: Upcoming event details",
-    messageBody: "Hi everyone,\n\nThis is a reminder about the upcoming event. Please review your schedule, arrival time, and any event-day instructions before the session begins.\n\nThanks,\nSurfers Admin",
-  },
-  {
-    id: "email-volunteer-follow-up",
-    deliveryMethod: "Email",
-    name: "Volunteer follow-up",
-    recipientGroup: "Volunteers",
-    subject: "Thank you for volunteering",
-    messageBody: "Hello volunteers,\n\nThank you for supporting the event. We appreciate your time, flexibility, and commitment to the day.\n\nBest,\nSurfers Admin",
-  },
-  {
-    id: "email-thank-you-note",
-    deliveryMethod: "Email",
-    name: "Thank you note",
-    recipientGroup: "Recent Attendees",
-    subject: "Thank you for joining us",
-    messageBody: "Hi there,\n\nThank you for being part of our latest event. We look forward to seeing you again at the next session.\n\nWarmly,\nSurfers Admin",
-  },
-  {
-    id: "sms-weather-update",
-    deliveryMethod: "SMS",
-    name: "Weather update",
-    recipientGroup: "All Participants",
-    subject: "Weather update for today",
-    messageBody: "Weather update: please check current conditions and event alerts before departure. Reply if you need help coordinating arrival.",
-  },
-  {
-    id: "sms-schedule-reminder",
-    deliveryMethod: "SMS",
-    name: "Schedule reminder",
-    recipientGroup: "Volunteers",
-    subject: "Schedule reminder",
-    messageBody: "Reminder: please review your assigned schedule and arrival instructions before the event starts.",
-  },
-  {
-    id: "sms-urgent-notice",
-    deliveryMethod: "SMS",
-    name: "Urgent notice",
-    recipientGroup: "Custom Segment",
-    subject: "Urgent event notice",
-    messageBody: "Urgent notice: check the latest event update as soon as possible for timing or safety changes.",
-  },
-]
-
-function getTemplatesForMethod(deliveryMethod) {
-  return MOCK_MESSAGE_TEMPLATES.filter((template) => template.deliveryMethod === deliveryMethod)
+const DEFAULT_FORM = {
+  recipientGroup: recipientGroupOptions[0],
+  deliveryMethod: deliveryMethodOptions[0],
+  templateId: "",
+  subject: "",
+  messageBody: "",
 }
 
-function getTemplateByName(deliveryMethod, templateName) {
-  return getTemplatesForMethod(deliveryMethod).find((template) => template.name === templateName) || null
+function normalizeChannel(channel) {
+  return String(channel || "").trim().toLowerCase()
 }
 
-function getDefaultTemplate(deliveryMethod) {
-  return getTemplatesForMethod(deliveryMethod)[0] || null
+function normalizeAudienceType(recipientGroup) {
+  return String(recipientGroup || "manual")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "manual"
 }
 
-function buildFormState({ deliveryMethod = deliveryMethodOptions[0], templateName = "" } = {}) {
-  const selectedTemplate = getTemplateByName(deliveryMethod, templateName) || getDefaultTemplate(deliveryMethod)
-
+function getTemplateContent(template) {
   return {
-    recipientGroup: selectedTemplate?.recipientGroup || recipientGroupOptions[0],
-    deliveryMethod,
-    template: selectedTemplate?.name || "",
-    subject: selectedTemplate?.subject || "",
-    messageBody: selectedTemplate?.messageBody || "",
+    recipientGroup: recipientGroupOptions[0],
+    subject: template?.subject_template || "",
+    messageBody: template?.body_template || "",
   }
 }
 
-const DEFAULT_FORM = buildFormState()
+function getDefaultTemplate(templates, deliveryMethod) {
+  const channel = normalizeChannel(deliveryMethod)
+  return templates.find((template) => normalizeChannel(template.channel) === channel) || null
+}
 
 function MessageComposerModal({ isOpen, onClose, onNext }) {
   const [form, setForm] = useState(DEFAULT_FORM)
+  const [templates, setTemplates] = useState([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+  const [templateError, setTemplateError] = useState("")
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const [sendError, setSendError] = useState("")
+  const availableTemplates = useMemo(
+    () => templates.filter((template) => normalizeChannel(template.channel) === normalizeChannel(form.deliveryMethod)),
+    [templates, form.deliveryMethod],
+  )
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) return undefined
 
-    setForm(buildFormState())
+    let isCancelled = false
+
+    const loadTemplates = async () => {
+      setLoadingTemplates(true)
+      setTemplateError("")
+      setSendError("")
+
+      try {
+        const data = await fetchCommunicationTemplates()
+        const nextTemplates = Array.isArray(data) ? data : []
+
+        if (isCancelled) return
+
+        setTemplates(nextTemplates)
+
+        const defaultTemplate = getDefaultTemplate(nextTemplates, DEFAULT_FORM.deliveryMethod)
+        setForm((current) => {
+          if (current.templateId) {
+            return current
+          }
+
+          if (!defaultTemplate) {
+            return {
+              ...DEFAULT_FORM,
+              deliveryMethod: current.deliveryMethod || DEFAULT_FORM.deliveryMethod,
+            }
+          }
+
+          const content = getTemplateContent(defaultTemplate)
+          return {
+            recipientGroup: DEFAULT_FORM.recipientGroup,
+            deliveryMethod: DEFAULT_FORM.deliveryMethod,
+            templateId: String(defaultTemplate.id),
+            subject: content.subject,
+            messageBody: content.messageBody,
+          }
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          setTemplates([])
+          setTemplateError(error?.message || "Failed to load communication templates")
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingTemplates(false)
+        }
+      }
+    }
+
+    setForm(DEFAULT_FORM)
+    loadTemplates()
+
+    return () => {
+      isCancelled = true
+    }
   }, [isOpen])
 
   useEffect(() => {
@@ -112,7 +132,6 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
 
   if (!isOpen) return null
 
-  const availableTemplates = getTemplatesForMethod(form.deliveryMethod)
   const previewSubject = form.subject.trim() || "Preview subject"
   const previewBody = form.messageBody.trim() || "Your message preview will appear here as you type."
   const previewRecipient = form.recipientGroup || "Recipient group"
@@ -124,31 +143,47 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
 
   const handleChange = (event) => {
     const { name, value } = event.target
+    setSendError("")
 
     setForm((current) => {
       if (name === "deliveryMethod") {
-        const nextTemplate = getDefaultTemplate(value)
-        return buildFormState({
-          deliveryMethod: value,
-          templateName: nextTemplate?.name || "",
-        })
-      }
+        const nextTemplate = getDefaultTemplate(templates, value)
 
-      if (name === "template") {
-        const selectedTemplate = getTemplateByName(current.deliveryMethod, value)
-        if (!selectedTemplate) {
+        if (!nextTemplate) {
           return {
             ...current,
-            template: value,
+            deliveryMethod: value,
+            templateId: "",
+            subject: "",
+            messageBody: "",
           }
         }
 
+        const content = getTemplateContent(nextTemplate)
         return {
           ...current,
-          template: selectedTemplate.name,
-          recipientGroup: selectedTemplate.recipientGroup || current.recipientGroup,
-          subject: selectedTemplate.subject,
-          messageBody: selectedTemplate.messageBody,
+          deliveryMethod: value,
+          templateId: String(nextTemplate.id),
+          subject: content.subject,
+          messageBody: content.messageBody,
+        }
+      }
+
+      if (name === "template") {
+        const selectedTemplate = templates.find((template) => String(template.id) === String(value)) || null
+        if (!selectedTemplate) {
+          return {
+            ...current,
+            templateId: value,
+          }
+        }
+
+        const content = getTemplateContent(selectedTemplate)
+        return {
+          ...current,
+          templateId: String(selectedTemplate.id),
+          subject: content.subject,
+          messageBody: content.messageBody,
         }
       }
 
@@ -159,9 +194,35 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
     })
   }
 
-  const handleNext = () => {
-    onNext?.(form)
-    onClose?.()
+  const handleNext = async () => {
+    if (sendingMessage) return
+
+    const body = String(form.messageBody || "").trim()
+    if (!body) {
+      setSendError("Enter a message body before sending.")
+      return
+    }
+
+    const payload = {
+      template_id: form.templateId || null,
+      channel: normalizeChannel(form.deliveryMethod),
+      audience_type: normalizeAudienceType(form.recipientGroup),
+      audience_filter: { recipient_group: form.recipientGroup },
+      subject: String(form.subject || "").trim() || null,
+      body,
+    }
+
+    setSendingMessage(true)
+    setSendError("")
+
+    try {
+      const createdMessage = await sendCommunicationMessage(payload)
+      await onNext?.(createdMessage)
+    } catch (error) {
+      setSendError(error?.message || "We could not send your message. Please try again.")
+    } finally {
+      setSendingMessage(false)
+    }
   }
 
   return (
@@ -193,6 +254,14 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
             Close
           </button>
         </div>
+
+        {(templateError || sendError) ? (
+          <div
+            className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+          >
+            {sendError || templateError}
+          </div>
+        ) : null}
 
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
@@ -247,18 +316,27 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
 
               <label className="space-y-2 text-sm font-medium text-gray-900 md:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Template Selection</span>
-                <select
-                  name="template"
-                  value={form.template}
-                  onChange={handleChange}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-sky-400 focus:outline-none"
-                >
-                  {availableTemplates.map((option) => (
-                    <option key={option.id} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
+                {loadingTemplates ? (
+                  <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-secondary">
+                    Loading templates...
+                  </div>
+                ) : (
+                  <select
+                    name="template"
+                    value={form.templateId}
+                    onChange={handleChange}
+                    disabled={loadingTemplates || sendingMessage}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-sky-400 focus:outline-none"
+                  >
+                    <option value="">Select a template</option>
+                    {availableTemplates.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {templateError ? <p className="text-xs text-red-700">{templateError}</p> : null}
               </label>
 
               <label className="space-y-2 text-sm font-medium text-gray-900 md:col-span-2">
@@ -267,6 +345,7 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
                   name="subject"
                   value={form.subject}
                   onChange={handleChange}
+                  disabled={sendingMessage}
                   placeholder="Message subject"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-gray-900 focus:border-sky-400 focus:outline-none"
                 />
@@ -278,6 +357,7 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
                   name="messageBody"
                   value={form.messageBody}
                   onChange={handleChange}
+                  disabled={sendingMessage}
                   rows={7}
                   placeholder="Write your message here..."
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-gray-900 focus:border-sky-400 focus:outline-none"
@@ -323,8 +403,8 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
           <Button variant="neutral" onClick={onClose} className="w-full sm:w-auto">
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleNext} className="w-full sm:w-auto">
-            Next
+          <Button variant="primary" onClick={handleNext} className="w-full sm:w-auto" disabled={sendingMessage}>
+            {sendingMessage ? "Sending..." : "Send Message"}
           </Button>
         </div>
       </section>
