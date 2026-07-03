@@ -27,6 +27,7 @@ from api.services.execution_pipeline_stages import (
 from api.services.circuit_breaker import ProviderHealthTracker
 from api.services.email_delivery import list_email_provider_keys
 from api.services.reminders import record_reminder_audit_event
+from api.services.telemetry_store import SqlAlchemyTelemetryStore
 
 
 DEFAULT_REMINDER_MAX_ATTEMPTS = 3
@@ -690,6 +691,7 @@ def dispatch_reminder_execution(
     dispatch_callback: DispatchCallback,
     source: str = "reminder.execution_pipeline.dispatch",
 ) -> ReminderExecutionQueueItem:
+    queue_item = _load_queue_item(db, execution_item_id)
     pipeline = ReminderExecutionPipeline(db)
     dispatch_job = pipeline.create_dispatch_job(
         execution_item_id=execution_item_id,
@@ -698,7 +700,7 @@ def dispatch_reminder_execution(
     )
 
     execution_context = ExecutionContext(
-        reminder_id=None,
+        reminder_id=str(queue_item.reminder_id),
         execution_id=str(dispatch_job.execution_item_id),
         channel="email",
         provider_name=dispatch_job.provider,
@@ -710,6 +712,10 @@ def dispatch_reminder_execution(
             "actor_user_id": actor_user_id,
             "source": source,
             "circuit_tracker": ProviderHealthTracker(),
+            "telemetry_store": SqlAlchemyTelemetryStore(
+                session_factory=lambda: db,
+                close_session_after_use=False,
+            ),
         },
     )
 

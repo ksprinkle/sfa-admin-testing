@@ -7,6 +7,7 @@ from typing import Any, Iterable
 
 from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
 from api.services.circuit_breaker import CircuitDecisionResult
+from api.services.execution_observability import emit_observability_event
 from api.services.failover_execution import FailoverResult
 from api.services.retry_decision import RetryDecisionResult
 from api.services.retry_execution import RetryExecutionResult
@@ -66,12 +67,22 @@ class ExecutionPipeline:
 
     def execute(self, context: ExecutionContext) -> PipelineResult:
         current = context
+        emit_observability_event(
+            current,
+            "execution_started",
+            payload={"stage_count": len(self.stages)},
+        )
         for stage in self.stages:
             try:
                 current = stage.execute(current)
             except PipelineStageError as exc:
                 current.error_message = str(exc)
                 status = exc.status or self._status_from_context(current)
+                emit_observability_event(
+                    current,
+                    "execution_completed",
+                    payload={"status": status.value, "error": current.error_message},
+                )
                 return PipelineResult(
                     status=status,
                     context=current,
@@ -82,6 +93,11 @@ class ExecutionPipeline:
                 )
             except Exception as exc:
                 current.error_message = str(exc)
+                emit_observability_event(
+                    current,
+                    "execution_completed",
+                    payload={"status": PipelineResultStatus.FAILED.value, "error": current.error_message},
+                )
                 return PipelineResult(
                     status=PipelineResultStatus.FAILED,
                     context=current,
@@ -90,9 +106,14 @@ class ExecutionPipeline:
                     failover_result=current.failover_result,
                     circuit_decision=current.circuit_decision,
                 )
-
+        final_status = self._status_from_context(current)
+        emit_observability_event(
+            current,
+            "execution_completed",
+            payload={"status": final_status.value},
+        )
         return PipelineResult(
-            status=self._status_from_context(current),
+            status=final_status,
             context=current,
             retry_decision=current.retry_decision,
             retry_execution_result=current.retry_execution_result,
@@ -108,6 +129,11 @@ class ExecutionPipeline:
                 skipped=context.skipped,
                 error_message=context.error_message,
                 retryable=context.retryable,
+            )
+            emit_observability_event(
+                context,
+                "outcome_classified",
+                payload={"execution_outcome": context.execution_outcome.value},
             )
         return self._map_execution_outcome_to_result_status(context.execution_outcome)
 

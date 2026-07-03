@@ -13,6 +13,7 @@ from api.services.execution_pipeline import (
     PipelineStage,
     PipelineStageError,
 )
+from api.services.execution_observability import emit_observability_event
 from api.services.execution_outcomes import ExecutionOutcome, OutcomeClassifier
 from api.services.failover_execution import (
     FailoverExecutionContext,
@@ -84,18 +85,38 @@ class CircuitBreakerStage(PipelineStage):
         decision = self.tracker.evaluate(CircuitEvaluationContext(provider_name=provider_name))
         context.circuit_decision = decision
         context.metadata["circuit_state"] = decision.state.value
+        emit_observability_event(
+            context,
+            "circuit_evaluated",
+            payload={
+                "provider": provider_name,
+                "state": decision.state.value,
+                "dispatch_allowed": decision.dispatch_allowed,
+                "reason": decision.reason,
+            },
+        )
 
         if not decision.dispatch_allowed:
             context.execution_state = "suppressed_open_circuit"
             context.error_message = "Dispatch suppressed by open circuit"
             context.retryable = True
             context.skipped = False
+            emit_observability_event(
+                context,
+                "circuit_blocked",
+                payload={"provider": provider_name, "state": decision.state.value},
+            )
             return context
 
         context = self.dispatcher(context)
         succeeded = (context.execution_state or "").strip().lower() == "succeeded"
         state = self.tracker.record_result(provider_name=provider_name, succeeded=succeeded)
         context.metadata["circuit_state"] = state.value
+        emit_observability_event(
+            context,
+            "circuit_closed" if state.value == "closed" else "circuit_open",
+            payload={"provider": provider_name, "state": state.value, "dispatch_succeeded": succeeded},
+        )
         return context
 
 
@@ -106,6 +127,11 @@ class RecordResultStage(PipelineStage):
     def execute(self, context: ExecutionContext) -> ExecutionContext:
         if context.execution_outcome is None:
             context.execution_outcome = self.classifier.classify_from_context(context)
+            emit_observability_event(
+                context,
+                "outcome_classified",
+                payload={"execution_outcome": context.execution_outcome.value},
+            )
 
         if context.result_status is not None:
             return context
@@ -128,6 +154,15 @@ class RetryDecisionStage(PipelineStage):
 
     def execute(self, context: ExecutionContext) -> ExecutionContext:
         if context.retry_decision is not None:
+            emit_observability_event(
+                context,
+                "retry_evaluated",
+                payload={
+                    "should_retry": context.retry_decision.should_retry,
+                    "decision": context.retry_decision.decision.value,
+                    "reason": context.retry_decision.reason,
+                },
+            )
             return context
 
         evaluation_context = RetryEvaluationContext(
@@ -139,6 +174,15 @@ class RetryDecisionStage(PipelineStage):
             metadata=context.metadata,
         )
         context.retry_decision = self.strategy.evaluate(evaluation_context)
+        emit_observability_event(
+            context,
+            "retry_evaluated",
+            payload={
+                "should_retry": context.retry_decision.should_retry,
+                "decision": context.retry_decision.decision.value,
+                "reason": context.retry_decision.reason,
+            },
+        )
         return context
 
 
@@ -163,6 +207,15 @@ class RetryExecutionStage(PipelineStage):
             previous_attempt_count = attempt_count
             context = self.executor(context)
             attempts_executed += 1
+            emit_observability_event(
+                context,
+                "retry_executed",
+                payload={
+                    "attempt_number": attempts_executed,
+                    "attempt_count": int(context.metadata.get("attempt_count", attempt_count) or attempt_count),
+                    "max_attempts": max_attempts,
+                },
+            )
 
             updated_attempt_count = int(context.metadata.get("attempt_count", attempt_count) or attempt_count)
             # Guard against non-advancing attempt counters to avoid infinite retry loops.
@@ -191,6 +244,12 @@ class RetryExecutionStage(PipelineStage):
             exhausted=exhausted,
             final_execution_state=context.execution_state,
         )
+        if exhausted:
+            emit_observability_event(
+                context,
+                "retry_exhausted",
+                payload={"attempt_count": attempt_count, "max_attempts": max_attempts},
+            )
         return context
 
 
@@ -215,6 +274,11 @@ class FailoverDecisionStage(PipelineStage):
                 reason="retry_not_exhausted",
                 final_execution_state=context.execution_state,
             )
+            emit_observability_event(
+                context,
+                "failover_evaluated",
+                payload={"eligible": False, "reason": "retry_not_exhausted"},
+            )
             return context
 
         failover_depth = int(context.metadata.get("failover_depth", 0) or 0)
@@ -232,6 +296,11 @@ class FailoverDecisionStage(PipelineStage):
                 exhausted=True,
                 reason="failover_chain_blocked",
                 final_execution_state=context.execution_state,
+            )
+            emit_observability_event(
+                context,
+                "failover_evaluated",
+                payload={"eligible": True, "attempted": False, "reason": "failover_chain_blocked"},
             )
             return context
 
@@ -251,7 +320,18 @@ class FailoverDecisionStage(PipelineStage):
                 reason="no_candidate_available",
                 final_execution_state=context.execution_state,
             )
+            emit_observability_event(
+                context,
+                "failover_evaluated",
+                payload={"eligible": True, "attempted": False, "reason": "no_candidate_available"},
+            )
             return context
+
+        emit_observability_event(
+            context,
+            "failover_evaluated",
+            payload={"eligible": True, "attempted": True, "selected_provider": selected_provider},
+        )
 
         context.metadata["failover_depth"] = failover_depth + 1
         attempted_providers = list(context.metadata.get("failover_attempted_providers", []))
@@ -278,6 +358,15 @@ class FailoverDecisionStage(PipelineStage):
             exhausted=context.execution_state != "succeeded",
             reason=None if context.execution_state == "succeeded" else "alternate_dispatch_failed",
             final_execution_state=context.execution_state,
+        )
+        emit_observability_event(
+            context,
+            "failover_executed",
+            payload={
+                "selected_provider": selected_provider,
+                "succeeded": context.execution_state == "succeeded",
+                "final_execution_state": context.execution_state,
+            },
         )
         return context
 

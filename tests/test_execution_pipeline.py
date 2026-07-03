@@ -8,6 +8,7 @@ from api.services.execution_pipeline import (
     PipelineStageError,
 )
 from api.services.circuit_breaker import ProviderHealthTracker
+from api.services.execution_observability import ExecutionObserver, ObservabilityEvent
 from api.services.execution_outcomes import ExecutionOutcome
 from api.services.execution_pipeline_stages import CircuitBreakerStage, RecordResultStage, RetryDecisionStage
 from api.services.execution_pipeline_stages import FailoverDecisionStage, RetryExecutionStage
@@ -26,6 +27,19 @@ class _NamedStage(PipelineStage):
             raise PipelineStageError("stage failed", status=PipelineResultStatus.FAILED)
         context.metadata[self.name] = True
         return context
+
+
+class _CapturingObserver(ExecutionObserver):
+    def __init__(self) -> None:
+        self.events: list[ObservabilityEvent] = []
+
+    def record_event(self, event: ObservabilityEvent) -> None:
+        self.events.append(event)
+
+
+class _FailingObserver(ExecutionObserver):
+    def record_event(self, event: ObservabilityEvent) -> None:
+        raise RuntimeError(f"observer failed for {event.event_type}")
 
 
 class ExecutionPipelineTests(unittest.TestCase):
@@ -278,6 +292,242 @@ class ExecutionPipelineTests(unittest.TestCase):
         self.assertIsNotNone(result.failover_result)
         self.assertTrue(result.failover_result.attempted)
         self.assertTrue(result.failover_result.succeeded)
+
+    def test_pipeline_emits_observability_events_for_retry_and_failover_lifecycle(self) -> None:
+        observer = _CapturingObserver()
+        context = ExecutionContext(
+            execution_id="exec-obs-1",
+            provider_name="email.noop",
+            error_message="retry later",
+            retryable=True,
+            execution_state="retry_scheduled",
+            metadata={
+                "attempt_count": 3,
+                "max_attempts": 3,
+                "execution_observer": observer,
+            },
+        )
+
+        def _failover_executor(ctx: ExecutionContext, provider_name: str) -> ExecutionContext:
+            ctx.provider_name = provider_name
+            ctx.retryable = False
+            ctx.error_message = None
+            ctx.execution_state = "succeeded"
+            return ctx
+
+        pipeline = ExecutionPipeline([
+            RecordResultStage(),
+            RetryDecisionStage(),
+            RetryExecutionStage(executor=lambda c: c),
+            FailoverDecisionStage(
+                candidate_selector=lambda _: "email.smtp",
+                executor=_failover_executor,
+            ),
+        ])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        event_types = [event.event_type for event in observer.events]
+        for required_type in (
+            "execution_started",
+            "outcome_classified",
+            "retry_evaluated",
+            "retry_exhausted",
+            "failover_evaluated",
+            "failover_executed",
+            "execution_completed",
+        ):
+            self.assertIn(required_type, event_types)
+
+    def test_observer_failures_do_not_change_pipeline_result(self) -> None:
+        context = ExecutionContext(
+            execution_id="exec-obs-2",
+            metadata={"execution_observer": _FailingObserver()},
+        )
+        pipeline = ExecutionPipeline([_NamedStage("stage1")])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        self.assertTrue(isinstance(result.context.metadata.get("observability_errors"), list))
+        self.assertGreaterEqual(len(result.context.metadata.get("observability_errors", [])), 1)
+
+    def test_event_ordering_for_successful_execution_path(self) -> None:
+        observer = _CapturingObserver()
+        context = ExecutionContext(
+            execution_id="exec-order-1",
+            reminder_id="rem-1",
+            provider_name="email.noop",
+            channel="email",
+            metadata={"execution_observer": observer},
+        )
+        pipeline = ExecutionPipeline([RecordResultStage()])
+
+        result = pipeline.execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        event_types = [event.event_type for event in observer.events]
+        self.assertLess(event_types.index("execution_started"), event_types.index("outcome_classified"))
+        self.assertLess(event_types.index("outcome_classified"), event_types.index("execution_completed"))
+
+    def test_telemetry_context_propagates_identity_fields(self) -> None:
+        observer = _CapturingObserver()
+        context = ExecutionContext(
+            execution_id="exec-context-1",
+            reminder_id="reminder-abc",
+            provider_name="email.smtp",
+            channel="email",
+            execution_state="running",
+            metadata={"execution_observer": observer},
+        )
+
+        ExecutionPipeline([RecordResultStage()]).execute(context)
+
+        started_event = next(event for event in observer.events if event.event_type == "execution_started")
+        telemetry_context = started_event.telemetry_context
+        self.assertEqual(telemetry_context.execution_id, "exec-context-1")
+        self.assertEqual(telemetry_context.reminder_id, "reminder-abc")
+        self.assertEqual(telemetry_context.provider_name, "email.smtp")
+        self.assertEqual(telemetry_context.channel, "email")
+
+    def test_provider_agnostic_observability_supports_non_email_provider_names(self) -> None:
+        observer = _CapturingObserver()
+        context = ExecutionContext(
+            execution_id="exec-provider-agnostic-1",
+            provider_name="sms.twilio",
+            channel="sms",
+            metadata={"execution_observer": observer},
+        )
+
+        ExecutionPipeline([RecordResultStage()]).execute(context)
+
+        completed_event = next(event for event in observer.events if event.event_type == "execution_completed")
+        self.assertEqual(completed_event.telemetry_context.provider_name, "sms.twilio")
+        self.assertEqual(completed_event.telemetry_context.channel, "sms")
+
+    def test_pipeline_emits_classified_failure_events(self) -> None:
+        observer = _CapturingObserver()
+        context = ExecutionContext(
+            execution_id="exec-failure-1",
+            error_message="transport failure",
+            retryable=False,
+            metadata={"execution_observer": observer},
+        )
+
+        result = ExecutionPipeline([]).execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.FAILED)
+        event_types = [event.event_type for event in observer.events]
+        self.assertIn("outcome_classified", event_types)
+        completed_event = next(event for event in observer.events if event.event_type == "execution_completed")
+        self.assertEqual(completed_event.payload.get("status"), PipelineResultStatus.FAILED.value)
+
+    def test_pipeline_emits_retry_executed_event_on_successful_retry(self) -> None:
+        observer = _CapturingObserver()
+        context = ExecutionContext(
+            execution_id="exec-retry-1",
+            provider_name="email.noop",
+            error_message="temporary failure",
+            retryable=True,
+            execution_state="retry_scheduled",
+            metadata={"attempt_count": 1, "max_attempts": 3, "execution_observer": observer},
+        )
+
+        def _retry_executor(ctx: ExecutionContext) -> ExecutionContext:
+            ctx.execution_state = "succeeded"
+            ctx.error_message = None
+            ctx.retryable = False
+            ctx.metadata["attempt_count"] = 2
+            return ctx
+
+        result = ExecutionPipeline([
+            RecordResultStage(),
+            RetryDecisionStage(),
+            RetryExecutionStage(executor=_retry_executor),
+        ]).execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        event_types = [event.event_type for event in observer.events]
+        self.assertIn("retry_executed", event_types)
+
+    def test_pipeline_emits_circuit_events_for_open_and_blocked_path(self) -> None:
+        observer = _CapturingObserver()
+        tracker = ProviderHealthTracker(failure_threshold=1, recovery_after_suppressions=2)
+        tracker.record_result(provider_name="email.noop", succeeded=False)
+        context = ExecutionContext(
+            execution_id="exec-circuit-1",
+            provider_name="email.noop",
+            metadata={"execution_observer": observer},
+        )
+
+        result = ExecutionPipeline([
+            CircuitBreakerStage(dispatcher=lambda c: c, tracker=tracker),
+            RecordResultStage(),
+        ]).execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.RETRYABLE_FAILURE)
+        event_types = [event.event_type for event in observer.events]
+        self.assertIn("circuit_evaluated", event_types)
+        self.assertIn("circuit_blocked", event_types)
+
+    def test_pipeline_emits_circuit_open_event_when_dispatch_failure_trips_threshold(self) -> None:
+        observer = _CapturingObserver()
+        tracker = ProviderHealthTracker(failure_threshold=1, recovery_after_suppressions=2)
+        context = ExecutionContext(
+            execution_id="exec-circuit-open-1",
+            provider_name="email.noop",
+            metadata={"execution_observer": observer},
+        )
+
+        def _failed_dispatch(ctx: ExecutionContext) -> ExecutionContext:
+            ctx.execution_state = "failed"
+            ctx.error_message = "provider timeout"
+            ctx.retryable = True
+            return ctx
+
+        result = ExecutionPipeline([
+            CircuitBreakerStage(dispatcher=_failed_dispatch, tracker=tracker),
+            RecordResultStage(),
+        ]).execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.RETRYABLE_FAILURE)
+        event_types = [event.event_type for event in observer.events]
+        self.assertIn("circuit_open", event_types)
+
+    def test_pipeline_emits_failover_executed_after_evaluation(self) -> None:
+        observer = _CapturingObserver()
+        context = ExecutionContext(
+            execution_id="exec-failover-1",
+            provider_name="email.noop",
+            error_message="retry later",
+            retryable=True,
+            execution_state="retry_scheduled",
+            metadata={"attempt_count": 3, "max_attempts": 3, "execution_observer": observer},
+        )
+
+        def _failover_executor(ctx: ExecutionContext, provider_name: str) -> ExecutionContext:
+            ctx.provider_name = provider_name
+            ctx.retryable = False
+            ctx.error_message = None
+            ctx.execution_state = "succeeded"
+            return ctx
+
+        result = ExecutionPipeline([
+            RecordResultStage(),
+            RetryDecisionStage(),
+            RetryExecutionStage(executor=lambda c: c),
+            FailoverDecisionStage(
+                candidate_selector=lambda _: "sms.twilio",
+                executor=_failover_executor,
+            ),
+        ]).execute(context)
+
+        self.assertEqual(result.status, PipelineResultStatus.SUCCESS)
+        event_types = [event.event_type for event in observer.events]
+        self.assertLess(event_types.index("failover_evaluated"), event_types.index("failover_executed"))
+        failover_event = next(event for event in observer.events if event.event_type == "failover_executed")
+        self.assertEqual(failover_event.payload.get("selected_provider"), "sms.twilio")
 
 
 if __name__ == "__main__":
