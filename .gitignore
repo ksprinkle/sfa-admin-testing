@@ -1,12 +1,33 @@
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 venv/
+.venv/
 
 # Databases
 *.db
+
+# Node and build outputs
+**/node_modules/
+admin-app/dist/
+frontend/dist/
+
+# Generated documentation/build artifacts
+docs/assets/index-*.css
+docs/assets/index-*.js
+docs/waiver-signing.html
+docs/SFA Liability Waiver.pdf
+
+# Runtime/local files
+storage/
+*.log
 
 # OS files
 .DS_Store
