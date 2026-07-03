@@ -122,6 +122,13 @@ Common startup notes:
 - If backend reports port 10000 already in use, stop the existing process on 10000, then start backend once.
 - For phone testing/install, open the frontend via your laptop IPv4 address and port 5173.
 
+Local URL routing note:
+
+- Frontend application routes (for example, `/events`) are served by Vite on port 5173.
+- Backend endpoints are served by FastAPI under `/api/...` on port 8000 (or your configured backend port).
+- Opening `http://127.0.0.1:8000/events` directly will return 404 because it is not a backend API endpoint.
+- Use `http://127.0.0.1:5173/events` for the page and `http://127.0.0.1:8000/api/admin/events/` for API checks.
+
 ---
 
 # Overview

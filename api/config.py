@@ -1,6 +1,21 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+# Bootstrap local configuration early so Settings reads .env values by default.
+# `override=False` preserves deployed environment variables as source of truth.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ROOT_ENV_FILE = PROJECT_ROOT / ".env"
+LEGACY_API_ENV_FILE = PROJECT_ROOT / "api" / ".env"
+
+load_dotenv(ROOT_ENV_FILE, override=False)
+
+# Compatibility fallback while local setups migrate env files to repository root.
+if not ROOT_ENV_FILE.exists() and LEGACY_API_ENV_FILE.exists():
+    load_dotenv(LEGACY_API_ENV_FILE, override=False)
+
 
 def _split_csv(value: str):
     return [item.strip() for item in value.split(",") if item.strip()]
