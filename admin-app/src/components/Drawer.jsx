@@ -34,6 +34,10 @@ function Drawer({ isOpen, onClose }) {
   <Link to="/participants" onClick={onClose} className="block">
     Participants
   </Link>
+
+  <Link to="/communications" onClick={onClose} className="block">
+    Communications
+  </Link>
 </nav>
       </div>
     </>
