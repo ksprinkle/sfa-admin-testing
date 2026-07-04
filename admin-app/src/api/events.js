@@ -219,6 +219,18 @@ export async function fetchExecutiveDashboard() {
   return res.json()
 }
 
+export async function fetchDashboardDiagnosticsReport(recentActivityLimit = 5) {
+  const query = `?recent_activity_limit=${encodeURIComponent(String(recentActivityLimit))}`
+  const res = await apiFetch(`/api/admin/dashboard/diagnostics/report${query}`)
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to fetch dashboard diagnostics report")
+  }
+
+  return res.json()
+}
+
 export async function fetchDashboardMetrics(recentActivityLimit = 8) {
   const query = `?recent_activity_limit=${encodeURIComponent(String(recentActivityLimit))}`
   const res = await apiFetch(`/api/admin/dashboard/metrics${query}`)

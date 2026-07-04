@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard } from "../api/events"
+import { fetchDashboardDiagnosticsReport, fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard } from "../api/events"
 
 const EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.executiveDashboardRefreshIntervalMs"
 const EXECUTIVE_DASHBOARD_REFRESH_OPTIONS = [
@@ -28,6 +28,20 @@ function formatCalculatedAt(value) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return "-"
   return parsed.toLocaleString()
+}
+
+function formatRefreshIntervalLabel(value) {
+  const interval = Number(value) || 0
+
+  if (interval <= 0) {
+    return "auto-refresh is off"
+  }
+
+  if (interval < 60000) {
+    return `refreshes every ${Math.round(interval / 1000)} seconds`
+  }
+
+  return `refreshes every ${Math.round(interval / 60000)} minute${interval >= 120000 ? "s" : ""}`
 }
 
 function cardTone(metricKey, notTracked) {
@@ -62,7 +76,7 @@ function stringifyPayload(payload) {
   }
 }
 
-function formatRefreshStatus({ loading, isRefreshing, error, activityError }) {
+function formatRefreshStatus({ loading, isRefreshing, error, activityError, diagnosticsError }) {
   if (loading) {
     return { label: "Loading dashboard", tone: "border-blue-200 bg-blue-50 text-blue-800" }
   }
@@ -71,11 +85,58 @@ function formatRefreshStatus({ loading, isRefreshing, error, activityError }) {
     return { label: "Refreshing in background", tone: "border-indigo-200 bg-indigo-50 text-indigo-800" }
   }
 
-  if (error || activityError) {
+  if (error || activityError || diagnosticsError) {
     return { label: "Live with warnings", tone: "border-amber-200 bg-amber-50 text-amber-800" }
   }
 
   return { label: "Live", tone: "border-green-200 bg-green-50 text-green-800" }
+}
+
+function attentionTone(severity) {
+  const normalized = String(severity || "").trim().toLowerCase()
+
+  if (normalized === "critical") {
+    return "border-red-200 bg-red-50 text-red-800"
+  }
+
+  if (normalized === "warning") {
+    return "border-amber-200 bg-amber-50 text-amber-800"
+  }
+
+  return "border-sky-200 bg-sky-50 text-sky-800"
+}
+
+function attentionWorkflowForItem(item) {
+  if (item.source === "activity") {
+    const category = String(item.category || "").trim().toLowerCase()
+    const eventType = String(item.eventType || "").trim().toLowerCase()
+
+    if (category.includes("delivery") || category.includes("provider") || eventType.includes("delivery") || eventType.includes("provider")) {
+      return { to: "/communications", label: "Open Communications" }
+    }
+
+    if (category.includes("execution") || eventType.includes("execution") || eventType.includes("retry") || eventType.includes("queue")) {
+      return { to: "/executive-dashboard", label: "Review Dashboard" }
+    }
+
+    return { to: "/executive-dashboard", label: "Review Dashboard" }
+  }
+
+  const code = String(item.code || "").trim().toLowerCase()
+
+  if (code === "no_telemetry" || code === "no_recent_activity") {
+    return { to: "/feedback", label: "Review Feedback" }
+  }
+
+  if (code === "failures_present") {
+    return { to: "/executive-dashboard", label: "Review Dashboard" }
+  }
+
+  if (code === "no_metric_sources" || code === "no_widgets") {
+    return { to: "/executive-dashboard", label: "Review Setup" }
+  }
+
+  return { to: "/executive-dashboard", label: "Review Dashboard" }
 }
 
 function ExecutiveDashboard() {
@@ -97,6 +158,8 @@ function ExecutiveDashboard() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null)
   const [recentActivity, setRecentActivity] = useState([])
   const [activityError, setActivityError] = useState("")
+  const [diagnosticsReport, setDiagnosticsReport] = useState(null)
+  const [diagnosticsError, setDiagnosticsError] = useState("")
   const [activeEvent, setActiveEvent] = useState(null)
   const [activeEventError, setActiveEventError] = useState("")
 
@@ -117,9 +180,10 @@ function ExecutiveDashboard() {
     }
 
     try {
-      const [analyticsResult, metricsResult, eventsResult] = await Promise.allSettled([
+      const [analyticsResult, metricsResult, diagnosticsResult, eventsResult] = await Promise.allSettled([
         fetchExecutiveDashboard(),
         fetchDashboardMetrics(),
+        fetchDashboardDiagnosticsReport(),
         fetchEvents(),
       ])
 
@@ -145,6 +209,14 @@ function ExecutiveDashboard() {
         setActivityError(metricsResult.reason?.message || "Failed to load recent activity")
       }
 
+      if (diagnosticsResult.status === "fulfilled") {
+        setDiagnosticsReport(diagnosticsResult.value)
+        setDiagnosticsError("")
+      } else {
+        setDiagnosticsReport(null)
+        setDiagnosticsError(diagnosticsResult.reason?.message || "Failed to load dashboard diagnostics")
+      }
+
       if (eventsResult?.status === "fulfilled") {
         const events = Array.isArray(eventsResult.value) ? eventsResult.value : []
         const publishedEvents = events.filter((candidate) => candidate.status?.toLowerCase() === "published")
@@ -156,7 +228,7 @@ function ExecutiveDashboard() {
       }
 
       setLastRefreshedAt(new Date())
-      return analyticsResult.status === "fulfilled" && metricsResult.status === "fulfilled" && eventsResult?.status === "fulfilled"
+      return analyticsResult.status === "fulfilled" && metricsResult.status === "fulfilled" && diagnosticsResult.status === "fulfilled" && eventsResult?.status === "fulfilled"
     } catch (loadError) {
       if (isMountedRef.current) {
         setError(loadError?.message || "Failed to load executive dashboard")
@@ -232,8 +304,77 @@ function ExecutiveDashboard() {
   }, [cards, search])
 
   const sortedRecentActivity = useMemo(() => recentActivity, [recentActivity])
-  const refreshStatus = formatRefreshStatus({ loading, isRefreshing, error, activityError })
+  const refreshStatus = formatRefreshStatus({ loading, isRefreshing, error, activityError, diagnosticsError })
   const lastUpdatedLabel = lastRefreshedAt ? formatCalculatedAt(lastRefreshedAt.toISOString()) : "Never"
+
+  const attentionItems = useMemo(() => {
+    const findings = diagnosticsReport?.findings || []
+    const activityItems = sortedRecentActivity
+      .filter((activity) => {
+        const status = String(activity.status || "").trim().toLowerCase()
+        return status.includes("fail") || status.includes("error") || status.includes("warn") || status.includes("retry") || status.includes("defer")
+      })
+      .map((activity) => ({
+        key: `activity-${activity.event_id}`,
+        code: activity.event_type,
+        title: activity.event_type,
+        description: activity.status,
+        summary: [activity.category, activity.provider_name, activity.channel].filter(Boolean).join(" · ") || "Recent operational event",
+        severity: activityTone(activity.status).includes("red") ? "critical" : "warning",
+        source: "activity",
+        category: activity.category,
+        eventType: activity.event_type,
+      }))
+
+    const diagnosticItems = findings.map((finding) => ({
+      key: `finding-${finding.code}`,
+      code: finding.code,
+      title: finding.code.replace(/[_-]/g, " "),
+      description: finding.message,
+      summary: Object.entries(finding.details || {})
+        .map(([key, value]) => `${key}: ${String(value)}`)
+        .join(" · ") || "Dashboard diagnostics finding",
+      severity: finding.severity,
+      source: "diagnostics",
+      details: Object.entries(finding.details || {})
+        .map(([key, value]) => `${key}: ${String(value)}`)
+        .join(" · "),
+    }))
+
+    return [...diagnosticItems, ...activityItems]
+  }, [diagnosticsReport, sortedRecentActivity])
+
+  const attentionSummary = diagnosticsReport?.health_summary || null
+  const attentionBuckets = useMemo(() => {
+    return attentionItems.reduce((groups, item) => {
+      const severity = String(item.severity || "info").trim().toLowerCase()
+      if (!groups[severity]) {
+        groups[severity] = []
+      }
+      groups[severity].push(item)
+      return groups
+    }, {})
+  }, [attentionItems])
+
+  const attentionSeveritySummary = useMemo(() => {
+    const order = ["critical", "warning", "info"]
+    return order.map((severity) => ({
+      severity,
+      count: attentionBuckets[severity]?.length || 0,
+    }))
+  }, [attentionBuckets])
+
+  const attentionSections = [
+    { severity: "critical", label: "Critical", tone: "border-red-200 bg-red-50 text-red-800" },
+    { severity: "warning", label: "Warnings", tone: "border-amber-200 bg-amber-50 text-amber-800" },
+    { severity: "info", label: "Info", tone: "border-sky-200 bg-sky-50 text-sky-800" },
+  ]
+
+  function openAttentionWorkflow(item) {
+    const workflow = attentionWorkflowForItem(item)
+    navigate(workflow.to)
+  }
+
   const quickActions = [
     {
       label: "Events",
@@ -395,6 +536,119 @@ function ExecutiveDashboard() {
           <p className="mt-3 text-xs text-secondary">
             Check-In is disabled until an active event is available.
           </p>
+        ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-amber-950">Attention</h3>
+            <p className="text-xs text-amber-900/80">
+              Operational items needing administrator follow-up, based on dashboard diagnostics and recent activity.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {attentionSummary ? (
+              <>
+                <span className={`rounded-full border px-2 py-1 font-semibold ${attentionTone(attentionSummary.overall_status === "healthy" ? "info" : attentionSummary.overall_status === "degraded" ? "warning" : "critical")}`}>
+                  {String(attentionSummary.overall_status || "unknown").replace(/_/g, " ")}
+                </span>
+                <span className="rounded-full border border-amber-200 bg-white px-2 py-1 font-semibold text-amber-900">
+                  {attentionSummary.failure_count} failures
+                </span>
+                <span className="rounded-full border border-amber-200 bg-white px-2 py-1 font-semibold text-amber-900">
+                  {attentionSummary.warning_count} warnings
+                </span>
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {attentionSeveritySummary.map((bucket) => (
+            <div key={bucket.severity} className={`rounded-xl border p-3 ${attentionTone(bucket.severity)}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide">{bucket.severity}</p>
+              <p className="mt-1 text-2xl font-bold">{bucket.count}</p>
+              <p className="mt-1 text-xs leading-5 opacity-90">
+                {bucket.severity === "critical"
+                  ? "Immediate administrator action needed."
+                  : bucket.severity === "warning"
+                    ? "Review soon to avoid operational drift."
+                    : "Monitor and confirm expected behavior."}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {diagnosticsError ? (
+          <div className="mt-3 rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm text-amber-800">
+            Attention panel is partially unavailable: {diagnosticsError}
+          </div>
+        ) : null}
+
+        {!diagnosticsError && attentionItems.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-dashed border-amber-300 bg-white/80 px-4 py-4 text-sm text-amber-900">
+            <p className="font-semibold">No current attention items.</p>
+            <p className="mt-1 text-xs leading-5 text-amber-900/80">
+              The dashboard services are reporting a clean operational state, and this panel will update automatically whenever the main dashboard refreshes. Current cadence: {formatRefreshIntervalLabel(refreshIntervalMs)}.
+            </p>
+          </div>
+        ) : null}
+
+        {attentionItems.length > 0 ? (
+          <div className="mt-4 space-y-4">
+            {attentionSections.map((section) => {
+              const items = (attentionBuckets[section.severity] || []).slice(0, 3)
+
+              if (items.length === 0) return null
+
+              return (
+                <div key={section.severity} className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${section.tone}`}>
+                      {section.label}
+                    </div>
+                    <p className="text-xs text-amber-900/80">
+                      {items.length} item{items.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {items.map((item) => {
+                      const workflow = attentionWorkflowForItem(item)
+
+                      return (
+                        <article key={item.key} className={`rounded-xl border p-4 shadow-sm ${attentionTone(item.severity)}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
+                                {item.source === "activity" ? "Recent Activity" : "Diagnostics"}
+                              </p>
+                              <h4 className="mt-1 text-sm font-semibold">{item.title}</h4>
+                            </div>
+                            <span className="rounded-full border border-white/60 bg-white/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                              {String(item.severity || "info")}
+                            </span>
+                          </div>
+
+                          <p className="mt-2 text-sm leading-5">{item.summary || item.description}</p>
+                          <p className="mt-1 text-xs font-medium opacity-80">{item.description}</p>
+
+                          <button
+                            type="button"
+                            onClick={() => openAttentionWorkflow(item)}
+                            className="mt-3 rounded-full border border-current bg-white/80 px-3 py-1 text-xs font-semibold transition hover:bg-white"
+                          >
+                            {workflow.label}
+                          </button>
+                        </article>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         ) : null}
       </section>
 
