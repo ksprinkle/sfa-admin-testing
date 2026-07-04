@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 
-import { fetchDashboardMetrics, fetchExecutiveDashboard } from "../api/events"
+import { fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard } from "../api/events"
 
 const EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.executiveDashboardRefreshIntervalMs"
 const EXECUTIVE_DASHBOARD_REFRESH_OPTIONS = [
@@ -78,6 +79,7 @@ function formatRefreshStatus({ loading, isRefreshing, error, activityError }) {
 }
 
 function ExecutiveDashboard() {
+  const navigate = useNavigate()
   const [payload, setPayload] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -95,6 +97,8 @@ function ExecutiveDashboard() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null)
   const [recentActivity, setRecentActivity] = useState([])
   const [activityError, setActivityError] = useState("")
+  const [activeEvent, setActiveEvent] = useState(null)
+  const [activeEventError, setActiveEventError] = useState("")
 
   const isMountedRef = useRef(false)
   const refreshInFlightRef = useRef(false)
@@ -113,9 +117,10 @@ function ExecutiveDashboard() {
     }
 
     try {
-      const [analyticsResult, metricsResult] = await Promise.allSettled([
+      const [analyticsResult, metricsResult, eventsResult] = await Promise.allSettled([
         fetchExecutiveDashboard(),
         fetchDashboardMetrics(),
+        fetchEvents(),
       ])
 
       if (!isMountedRef.current) {
@@ -140,8 +145,18 @@ function ExecutiveDashboard() {
         setActivityError(metricsResult.reason?.message || "Failed to load recent activity")
       }
 
+      if (eventsResult?.status === "fulfilled") {
+        const events = Array.isArray(eventsResult.value) ? eventsResult.value : []
+        const publishedEvents = events.filter((candidate) => candidate.status?.toLowerCase() === "published")
+        setActiveEvent(publishedEvents[0] || events[0] || null)
+        setActiveEventError("")
+      } else {
+        setActiveEvent(null)
+        setActiveEventError(eventsResult?.reason?.message || "Failed to load active event")
+      }
+
       setLastRefreshedAt(new Date())
-      return analyticsResult.status === "fulfilled" && metricsResult.status === "fulfilled"
+      return analyticsResult.status === "fulfilled" && metricsResult.status === "fulfilled" && eventsResult?.status === "fulfilled"
     } catch (loadError) {
       if (isMountedRef.current) {
         setError(loadError?.message || "Failed to load executive dashboard")
@@ -219,6 +234,60 @@ function ExecutiveDashboard() {
   const sortedRecentActivity = useMemo(() => recentActivity, [recentActivity])
   const refreshStatus = formatRefreshStatus({ loading, isRefreshing, error, activityError })
   const lastUpdatedLabel = lastRefreshedAt ? formatCalculatedAt(lastRefreshedAt.toISOString()) : "Never"
+  const quickActions = [
+    {
+      label: "Events",
+      description: "Review the current event list and operational state.",
+      to: "/events",
+      tone: "border-ocean-200 bg-ocean-50 text-ocean-900",
+    },
+    {
+      label: "Create Event",
+      description: "Launch a new event from the admin workflow.",
+      to: "/events/new",
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    },
+    {
+      label: "Participants",
+      description: "Open the participant roster and record actions.",
+      to: "/participants",
+      tone: "border-indigo-200 bg-indigo-50 text-indigo-900",
+    },
+    {
+      label: "Check-In",
+      description: activeEvent
+        ? `Jump into check-in for ${activeEvent.title || "the active event"}.`
+        : "No active event is available for check-in right now.",
+      to: activeEvent ? `/events/${activeEvent.id}/checkin` : null,
+      tone: "border-sky-200 bg-sky-50 text-sky-900",
+      disabled: !activeEvent,
+      hidden: false,
+    },
+    {
+      label: "Communications",
+      description: "Compose and send operational messages.",
+      to: "/communications",
+      tone: "border-violet-200 bg-violet-50 text-violet-900",
+    },
+    {
+      label: "Waiver Templates",
+      description: "Manage the current waiver template set.",
+      to: "/waiver-templates",
+      tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
+    },
+    {
+      label: "Volunteer Dashboard",
+      description: "View the operational volunteer readiness projection.",
+      to: "/volunteer-dashboard",
+      tone: "border-amber-200 bg-amber-50 text-amber-900",
+    },
+    {
+      label: "Feedback Review",
+      description: "Inspect feedback and release-loop signals.",
+      to: "/feedback",
+      tone: "border-rose-200 bg-rose-50 text-rose-900",
+    },
+  ]
 
   return (
     <div className="space-y-4 pb-20">
@@ -270,6 +339,62 @@ function ExecutiveDashboard() {
           <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
             Dashboard metrics could not be refreshed: {error}
           </div>
+        ) : null}
+      </section>
+
+      <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Quick Actions</h3>
+            <p className="text-xs text-secondary">
+              Shortcuts to the primary operational workflows used from the dashboard.
+            </p>
+          </div>
+          <p className="text-xs text-secondary">Fast access to day-to-day execution paths</p>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {quickActions
+            .filter((action) => !action.hidden)
+            .map((action) => {
+              const isDisabled = Boolean(action.disabled || !action.to)
+
+              return (
+                <button
+                  key={`${action.label}-${action.to || "disabled"}`}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    if (!action.to) return
+                    navigate(action.to)
+                  }}
+                  aria-label={isDisabled ? `${action.label} unavailable` : `Open ${action.label}`}
+                  className={`flex h-full min-h-36 flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean focus-visible:ring-offset-2 ${
+                    isDisabled
+                      ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500 opacity-70"
+                      : `hover:-translate-y-0.5 hover:shadow-md ${action.tone}`
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-semibold">{action.label}</p>
+                    <p className="mt-1 text-xs leading-5 opacity-90">{action.description}</p>
+                  </div>
+                  <span className="mt-3 inline-flex w-fit rounded-full bg-white/80 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                    {isDisabled ? "Unavailable" : `Open ${action.to}`}
+                  </span>
+                </button>
+              )
+            })}
+        </div>
+
+        {activeEventError ? (
+          <p className="mt-3 text-xs text-amber-700">
+            Check-In is unavailable until an active event is loaded. {activeEventError}
+          </p>
+        ) : !activeEvent ? (
+          <p className="mt-3 text-xs text-secondary">
+            Check-In is disabled until an active event is available.
+          </p>
         ) : null}
       </section>
 
