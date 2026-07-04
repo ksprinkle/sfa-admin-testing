@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { fetchDashboardDiagnosticsReport, fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard } from "../api/events"
+import { fetchDashboardDiagnosticsReport, fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard, fetchVolunteerDashboard } from "../api/events"
 
 const EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.executiveDashboardRefreshIntervalMs"
 const EXECUTIVE_DASHBOARD_REFRESH_OPTIONS = [
@@ -42,6 +42,27 @@ function formatRefreshIntervalLabel(value) {
   }
 
   return `refreshes every ${Math.round(interval / 60000)} minute${interval >= 120000 ? "s" : ""}`
+}
+
+function formatDateKey(value) {
+  if (!value) return ""
+
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ""
+  return new Intl.DateTimeFormat("en-CA", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).format(parsed)
+}
+
+function clampPercent(value) {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(Math.max(value, 0), 100)
+}
+
+function sumNumeric(values) {
+  return values.reduce((total, value) => total + (Number(value) || 0), 0)
 }
 
 function cardTone(metricKey, notTracked) {
@@ -145,6 +166,7 @@ function ExecutiveDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
+  const [events, setEvents] = useState([])
   const [refreshIntervalMs, setRefreshIntervalMs] = useState(() => {
     if (typeof window === "undefined") {
       return DEFAULT_EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_MS
@@ -160,6 +182,8 @@ function ExecutiveDashboard() {
   const [activityError, setActivityError] = useState("")
   const [diagnosticsReport, setDiagnosticsReport] = useState(null)
   const [diagnosticsError, setDiagnosticsError] = useState("")
+  const [volunteerDashboard, setVolunteerDashboard] = useState(null)
+  const [volunteerDashboardError, setVolunteerDashboardError] = useState("")
   const [activeEvent, setActiveEvent] = useState(null)
   const [activeEventError, setActiveEventError] = useState("")
 
@@ -180,11 +204,12 @@ function ExecutiveDashboard() {
     }
 
     try {
-      const [analyticsResult, metricsResult, diagnosticsResult, eventsResult] = await Promise.allSettled([
+      const [analyticsResult, metricsResult, diagnosticsResult, eventsResult, volunteerResult] = await Promise.allSettled([
         fetchExecutiveDashboard(),
         fetchDashboardMetrics(),
         fetchDashboardDiagnosticsReport(),
         fetchEvents(),
+        fetchVolunteerDashboard(),
       ])
 
       if (!isMountedRef.current) {
@@ -219,12 +244,22 @@ function ExecutiveDashboard() {
 
       if (eventsResult?.status === "fulfilled") {
         const events = Array.isArray(eventsResult.value) ? eventsResult.value : []
+        setEvents(events)
         const publishedEvents = events.filter((candidate) => candidate.status?.toLowerCase() === "published")
         setActiveEvent(publishedEvents[0] || events[0] || null)
         setActiveEventError("")
       } else {
+        setEvents([])
         setActiveEvent(null)
         setActiveEventError(eventsResult?.reason?.message || "Failed to load active event")
+      }
+
+      if (volunteerResult?.status === "fulfilled") {
+        setVolunteerDashboard(volunteerResult.value)
+        setVolunteerDashboardError("")
+      } else {
+        setVolunteerDashboard(null)
+        setVolunteerDashboardError(volunteerResult?.reason?.message || "Failed to load volunteer dashboard")
       }
 
       setLastRefreshedAt(new Date())
@@ -369,6 +404,57 @@ function ExecutiveDashboard() {
     { severity: "warning", label: "Warnings", tone: "border-amber-200 bg-amber-50 text-amber-800" },
     { severity: "info", label: "Info", tone: "border-sky-200 bg-sky-50 text-sky-800" },
   ]
+
+  const todayKey = formatDateKey(new Date())
+  const todayEvent = useMemo(() => {
+    const todaysEvents = events.filter((event) => formatDateKey(event.start_date) === todayKey)
+    return todaysEvents.find((event) => event.status?.toLowerCase() === "published") || todaysEvents[0] || null
+  }, [events, todayKey])
+
+  const todayVolunteerRows = useMemo(() => {
+    const volunteers = Array.isArray(volunteerDashboard?.volunteers) ? volunteerDashboard.volunteers : []
+    if (!todayEvent) return []
+    return volunteers.filter((volunteer) => String(volunteer.event_id) === String(todayEvent.id))
+  }, [todayEvent, volunteerDashboard])
+
+  const todayParticipantCapacity = todayEvent?.capacity?.participants ?? todayEvent?.participant_capacity ?? null
+  const todayConfirmedParticipants = Number(todayEvent?.participant_count) || 0
+  const todayCheckedInParticipants = Number(todayEvent?.checked_in_count) || 0
+  const todayWaitlistedParticipants = Number(todayEvent?.waitlist_count) || 0
+  const todayParticipantFillPercent = todayParticipantCapacity
+    ? clampPercent((todayConfirmedParticipants / todayParticipantCapacity) * 100)
+    : 0
+  const todayCheckInPercent = todayConfirmedParticipants > 0
+    ? clampPercent((todayCheckedInParticipants / todayConfirmedParticipants) * 100)
+    : 0
+
+  const todayVolunteerSummary = useMemo(() => {
+    const readiness = todayVolunteerRows.reduce(
+      (counts, volunteer) => {
+        const status = String(volunteer.computed_status || "").trim().toLowerCase()
+
+        if (status === "ready") counts.ready += 1
+        if (status === "checked_in") counts.checked_in += 1
+        if (status === "incomplete") counts.incomplete += 1
+        if (status === "action_required") counts.action_required += 1
+
+        return counts
+      },
+      { total_volunteers: todayVolunteerRows.length, ready: 0, checked_in: 0, incomplete: 0, action_required: 0 },
+    )
+
+    return readiness
+  }, [todayVolunteerRows])
+  const todayAssignedVolunteers = todayVolunteerRows.filter((volunteer) => volunteer.session_id).length
+  const todayUnassignedVolunteers = Math.max(todayVolunteerRows.length - todayAssignedVolunteers, 0)
+
+  const todaySessions = Array.isArray(todayEvent?.sessions) ? todayEvent.sessions : []
+  const todaySessionCapacity = sumNumeric(todaySessions.map((session) => session.capacity))
+  const todaySessionParticipants = sumNumeric(todaySessions.map((session) => session.participant_count))
+  const todaySessionUtilizationPercent = todaySessionCapacity > 0
+    ? clampPercent((todaySessionParticipants / todaySessionCapacity) * 100)
+    : 0
+  const todayFullSessions = todaySessions.filter((session) => Number(session.capacity) > 0 && Number(session.participant_count) >= Number(session.capacity)).length
 
   function openAttentionWorkflow(item) {
     const workflow = attentionWorkflowForItem(item)
@@ -537,6 +623,147 @@ function ExecutiveDashboard() {
             Check-In is disabled until an active event is available.
           </p>
         ) : null}
+      </section>
+
+      <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Today Overview</h3>
+            <p className="text-xs text-secondary">
+              Summarizes today&apos;s event, participant progress, volunteer assignments, and session utilization from the current dashboard services.
+            </p>
+          </div>
+          <p className="text-xs text-secondary">Updates on the same refresh cycle as the dashboard</p>
+        </div>
+
+        {volunteerDashboardError ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+            Volunteer assignment details are partially unavailable: {volunteerDashboardError}
+          </div>
+        ) : null}
+
+        {!todayEvent ? (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-700">
+            <p className="font-semibold">No active event is scheduled for today.</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              The overview will populate automatically when a live event appears and the dashboard refreshes on its normal cadence: {formatRefreshIntervalLabel(refreshIntervalMs)}.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                label="Today&apos;s Event"
+                value={todayEvent.title}
+                color="text-gray-900"
+                labelColor="text-slate-600"
+                cardClass="bg-slate-50 border border-slate-200"
+              />
+              <StatCard
+                label="Participant Progress"
+                value={`${todayConfirmedParticipants}/${todayParticipantCapacity || "-"}`}
+                color="text-blue-900"
+                labelColor="text-blue-700"
+                cardClass="bg-blue-50 border border-blue-200"
+              />
+              <StatCard
+                label="Volunteer Assignments"
+                value={todayVolunteerSummary?.total_volunteers ?? todayVolunteerRows.length}
+                color="text-emerald-900"
+                labelColor="text-emerald-700"
+                cardClass="bg-emerald-50 border border-emerald-200"
+              />
+              <StatCard
+                label="Session Utilization"
+                value={`${todaySessionUtilizationPercent.toFixed(0)}%`}
+                color="text-amber-900"
+                labelColor="text-amber-700"
+                cardClass="bg-amber-50 border border-amber-200"
+              />
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Participant & Volunteer Progress</h4>
+                    <p className="text-xs text-secondary">Compact progress indicators for today.</p>
+                  </div>
+                  <span className="text-xs text-secondary">{todayVolunteerRows.length} volunteers</span>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-secondary">
+                      <span>Participants</span>
+                      <span>{todayConfirmedParticipants}/{todayParticipantCapacity || "-"} confirmed · {todayCheckedInParticipants} checked in · {todayWaitlistedParticipants} waitlisted</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-blue-500" style={{ width: `${todayParticipantFillPercent}%` }} />
+                    </div>
+                    <p className="mt-1 text-[11px] text-secondary">{todayCheckInPercent.toFixed(0)}% check-in rate</p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-secondary">
+                      <span>Volunteer readiness</span>
+                      <span>{todayAssignedVolunteers} assigned · {todayUnassignedVolunteers} unassigned</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500"
+                        style={{ width: `${clampPercent((todayAssignedVolunteers / Math.max(todayVolunteerRows.length, 1)) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[11px] text-secondary">{(todayVolunteerSummary?.action_required ?? 0) + (todayVolunteerSummary?.incomplete ?? 0)} need attention</p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-secondary">
+                      <span>Sessions utilized</span>
+                      <span>{todaySessionParticipants}/{todaySessionCapacity || "-"} seats filled</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-amber-500" style={{ width: `${todaySessionUtilizationPercent}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Session Snapshot</h4>
+                    <p className="text-xs text-secondary">Fast readout by session.</p>
+                  </div>
+                  <span className="text-xs text-secondary">{todayFullSessions} full</span>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {todaySessions.length > 0 ? todaySessions.slice(0, 4).map((session) => {
+                    const capacity = Number(session.capacity) || 0
+                    const count = Number(session.participant_count) || 0
+                    const utilization = capacity > 0 ? clampPercent((count / capacity) * 100) : 0
+
+                    return (
+                      <div key={session.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <p className="font-semibold text-gray-900">{session.name}</p>
+                          <p className="text-xs text-secondary">{count}/{capacity || "-"}</p>
+                        </div>
+                        <div className="mt-2 h-1.5 rounded-full bg-white overflow-hidden">
+                          <div className="h-full bg-amber-500" style={{ width: `${utilization}%` }} />
+                        </div>
+                      </div>
+                    )
+                  }) : (
+                    <p className="text-sm text-secondary">No sessions are configured for today&apos;s event.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-6">
