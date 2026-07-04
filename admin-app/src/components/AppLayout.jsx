@@ -7,6 +7,7 @@ function AppLayout({
   onPromoteUser,
   buildFingerprint,
   showHeader = true,
+  searchPanel = null,
   children,
   footer,
 }) {
@@ -14,17 +15,19 @@ function AppLayout({
     <div className="min-h-screen bg-[var(--bg-page)]">
       {showHeader && (
         <header
-          className="rounded-b-lg text-white shadow-[0_2px_10px_rgba(15,23,42,0.14)]"
+          className="overflow-visible rounded-b-lg text-white shadow-[0_2px_10px_rgba(15,23,42,0.14)]"
           style={{ background: "linear-gradient(120deg, #155799 0%, #159957 100%)" }}
         >
-          <div className="mx-auto flex w-full max-w-[1100px] items-center justify-between px-5 py-4">
-            <div className="min-w-0">
+          <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:gap-4">
+            <div className="min-w-0 lg:w-[220px]">
               <h1 className="truncate text-lg font-semibold">{title}</h1>
               {releaseTag ? <p className="text-xs text-white/80">{releaseTag}</p> : null}
             </div>
 
+            {searchPanel ? <div className="w-full lg:flex-1">{searchPanel}</div> : null}
+
             {profile ? (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 lg:ml-auto">
                 <span className="hidden max-w-[260px] truncate text-sm text-white/90 sm:inline">{profile.email}</span>
                 {canPromoteUsers ? (
                   <button

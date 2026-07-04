@@ -628,6 +628,7 @@ import ParticipantActionsDropdown from "../components/ParticipantActionsDropdown
 export default function Participants() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const requestedSearch = (searchParams.get("search") || "").trim()
   const requestedParticipantId = (searchParams.get("participant_id") || "").trim()
   const requestedEventId = (searchParams.get("event_id") || "").trim()
   const requestedEventType = (searchParams.get("event_type") || "").trim().toLowerCase()
@@ -1064,7 +1065,7 @@ export default function Participants() {
               refreshRemovalLogRef.current()
             }
           }
-        } catch (e) {
+        } catch {
           // Ignore parse errors
         }
       };
@@ -1136,6 +1137,12 @@ export default function Participants() {
 
     return () => window.clearTimeout(timeoutId)
   }, [searchInput])
+
+  useEffect(() => {
+    if (requestedSearch) {
+      setSearchInput(requestedSearch)
+    }
+  }, [requestedSearch])
 
   const participantEventOptions = Array.from(
     new Map([

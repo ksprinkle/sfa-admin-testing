@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { fetchVolunteerDashboard } from "../api/events"
 
@@ -19,10 +19,17 @@ const STATUS_CLASSES = {
 
 function VolunteerDashboard() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [projection, setProjection] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const requestedSearch = (searchParams.get("search") || "").trim()
+  const [searchInput, setSearchInput] = useState(requestedSearch)
+
+  useEffect(() => {
+    setSearchInput(requestedSearch)
+  }, [requestedSearch])
 
   useEffect(() => {
     let isCancelled = false
@@ -53,11 +60,30 @@ function VolunteerDashboard() {
     }
   }, [])
 
-  const volunteers = projection?.volunteers || []
+  const volunteers = useMemo(() => projection?.volunteers || [], [projection])
   const filteredVolunteers = useMemo(() => {
-    if (statusFilter === "ALL") return volunteers
-    return volunteers.filter((volunteer) => volunteer.computed_status === statusFilter)
-  }, [volunteers, statusFilter])
+    const normalizedSearch = searchInput.trim().toLowerCase()
+
+    return volunteers
+      .filter((volunteer) => {
+        if (!normalizedSearch) return true
+        return [
+          volunteer.full_name,
+          volunteer.email,
+          volunteer.event_title,
+          volunteer.session_name,
+          volunteer.computed_status,
+          volunteer.waiver_document_status,
+          volunteer.compliance_status,
+          ...(Array.isArray(volunteer.status_reasons) ? volunteer.status_reasons : []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch)
+      })
+      .filter((volunteer) => statusFilter === "ALL" || volunteer.computed_status === statusFilter)
+  }, [volunteers, statusFilter, searchInput])
 
   const openParticipants = (email) => {
     if (!email) {
@@ -87,6 +113,40 @@ function VolunteerDashboard() {
         <p className="mt-1 text-sm text-secondary">
           Read-only projection of current volunteer readiness. Status is computed from canonical data and never stored.
         </p>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <label className="block w-full max-w-xl">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Search volunteers</span>
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => {
+                const nextValue = event.target.value
+                setSearchInput(nextValue)
+                const nextParams = new URLSearchParams(searchParams)
+                if (nextValue.trim()) nextParams.set("search", nextValue.trim())
+                else nextParams.delete("search")
+                setSearchParams(nextParams, { replace: true })
+              }}
+              placeholder="Search name, email, event, session, or status"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              aria-label="Search volunteers"
+            />
+          </label>
+          {requestedSearch ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput("")
+                const nextParams = new URLSearchParams(searchParams)
+                nextParams.delete("search")
+                setSearchParams(nextParams, { replace: true })
+              }}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Clear search
+            </button>
+          ) : null}
+        </div>
       </section>
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div> : null}
