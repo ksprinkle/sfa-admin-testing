@@ -554,6 +554,11 @@ useEffect(() => {
     { key: "buddy", label: "Buddy", color: "text-cyan-700", bg: "bg-cyan-50" },
     { key: "instructor", label: "Instructor", color: "text-orange-700", bg: "bg-orange-50" },
   ].filter((card) => !card.tourOnly || showTourOnlyRoleCards)
+  const participantCapacity = event?.capacity?.participants ?? event?.participant_capacity
+  const eventParticipantsTotal = registered + waitlisted
+  const percentFull = participantCapacity
+    ? Math.min((registered / participantCapacity) * 100, 100)
+    : 0
   const capacityColor =
     participantCapacity && registered >= participantCapacity
       ? "bg-danger"
