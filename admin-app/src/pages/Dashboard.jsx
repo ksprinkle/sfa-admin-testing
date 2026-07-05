@@ -1117,7 +1117,7 @@ useEffect(() => {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4" style={{ display: "none" }}>
         <StatCard
           label="Registered"
           value={registered}
