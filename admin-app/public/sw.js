@@ -1,4 +1,4 @@
-const CACHE_NAME = "sfa-admin-shell-v2"
+const CACHE_NAME = "sfa-admin-shell-v3"
 const APP_SHELL = ["/", "/manifest.json", "/vite.svg"]
 
 self.addEventListener("install", (event) => {

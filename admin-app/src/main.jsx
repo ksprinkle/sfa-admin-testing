@@ -75,9 +75,11 @@ if ("serviceWorker" in navigator) {
     if (import.meta.env.PROD) {
       // Register from app base path so GitHub Pages subpath resolves to /<base>/sw.js.
       const swPath = `${import.meta.env.BASE_URL}sw.js`
-      navigator.serviceWorker.register(swPath).catch((err) => {
-        console.error("Service worker registration failed:", err)
-      })
+      navigator.serviceWorker.register(swPath)
+        .then((registration) => registration.update())
+        .catch((err) => {
+          console.error("Service worker registration failed:", err)
+        })
       return
     }
 
