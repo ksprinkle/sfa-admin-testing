@@ -570,6 +570,22 @@ useEffect(() => {
     ? "grid grid-cols-2 gap-3 mb-6 lg:grid-cols-4"
     : "grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 xl:grid-cols-4"
 
+  let filterSummary = null
+  if (currentParticipantFilter || currentVolunteerType) {
+    const parts = []
+    if (currentParticipantFilter) {
+      parts.push(`Participants: ${currentParticipantFilter.charAt(0).toUpperCase() + currentParticipantFilter.slice(1)}`)
+    }
+    if (currentVolunteerType) {
+      parts.push(`Role: ${currentVolunteerType.charAt(0).toUpperCase() + currentVolunteerType.slice(1)}`)
+    }
+    filterSummary = (
+      <div className="mb-2 rounded border border-blue-200 bg-blue-50 p-2 text-xs font-medium text-blue-800">
+        Showing: {parts.join(", ")}
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 space-y-6">
       {filterSummary}
