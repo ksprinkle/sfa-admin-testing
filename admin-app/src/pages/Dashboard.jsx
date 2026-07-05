@@ -450,39 +450,9 @@ useEffect(() => {
   }, [])
 
 
-  if (loading) {
-    return <div className="p-4">Loading...</div>;
-  }
-
-  // Show current filter summary if any
-  let filterSummary = null;
-  if (currentParticipantFilter || currentVolunteerType) {
-    let parts = [];
-    if (currentParticipantFilter) {
-      parts.push(`Participants: ${currentParticipantFilter.charAt(0).toUpperCase() + currentParticipantFilter.slice(1)}`);
-    }
-    if (currentVolunteerType) {
-      parts.push(`Role: ${currentVolunteerType.charAt(0).toUpperCase() + currentVolunteerType.slice(1)}`);
-    }
-    filterSummary = (
-      <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-blue-800 text-xs font-medium">
-        Showing: {parts.join(", ")}
-      </div>
-    );
-  }
-
-  const participantCapacity = event?.capacity?.participants ?? event?.participant_capacity;
-  const hasMultipleLiveEvents = liveEvents.length > 1
-  const selectedFeaturedImageUrl = normalizeExternalUrl(event?.featured_image)
-  const eventParticipantsTotal = registered + waitlisted
-  const percentFull = participantCapacity
-    ? Math.min((registered / participantCapacity) * 100, 100)
-    : 0;
-
   const totalEvents = events.length
-
   const publishedEvents = events.filter(
-    e => e.status?.toLowerCase() === "published"
+    (candidate) => candidate.status?.toLowerCase() === "published"
   ).length
 
   const draftEvents = events.filter(
@@ -961,7 +931,7 @@ useEffect(() => {
           </div>
 
           {/* Volunteer Type Breakdown */}
-          <div className="bg-white rounded-xl shadow p-4 space-y-3">
+          <div className="hidden bg-white rounded-xl shadow p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-gray-800">Volunteer Breakdown</h2>
