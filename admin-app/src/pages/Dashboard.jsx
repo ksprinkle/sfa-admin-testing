@@ -280,8 +280,12 @@ function Dashboard() {
         const item = result.value
         const matchingEvent = liveSummaryCandidates.find((evt) => String(evt.id) === String(item?.event_id))
         const eventTypeKey = String(matchingEvent?.event_type || "unspecified").trim().toLowerCase() || "unspecified"
-        const existing = summariesByType[eventTypeKey] || {
-          label: formatEventType(eventTypeKey),
+        const eventKey = `event:${matchingEvent?.id || item?.event_id || eventTypeKey}`
+        const existing = summariesByType[eventKey] || {
+          label: matchingEvent?.title || `Event ${matchingEvent?.id || item?.event_id || "Unknown"}`,
+          subLabel: matchingEvent?.start_date || "",
+          eventId: matchingEvent?.id || item?.event_id || null,
+          eventTypeKey,
           volunteers: 0,
           versatile: 0,
           roleCounts: { ...DEFAULT_VOLUNTEER_COUNTS },
@@ -303,14 +307,18 @@ function Dashboard() {
           existing.flexibleGroupCounts,
           normalizeFlexibleVolunteerGroupCounts(item.volunteer_flexible_group_counts)
         )
-        summariesByType[eventTypeKey] = existing
+        summariesByType[eventKey] = existing
       }
 
       const hasLiveSummaryData = Object.keys(summariesByType).length > 0
       if (!hasLiveSummaryData) {
         const fallbackTypeKey = String(active?.event_type || "unspecified").trim().toLowerCase() || "unspecified"
-        summariesByType[fallbackTypeKey] = {
-          label: formatEventType(fallbackTypeKey),
+        const fallbackKey = `event:${active?.id || fallbackTypeKey}`
+        summariesByType[fallbackKey] = {
+          label: active?.title || formatEventType(fallbackTypeKey),
+          subLabel: active?.start_date || "",
+          eventId: active?.id || null,
+          eventTypeKey: fallbackTypeKey,
           volunteers: Number(summary.volunteer_count) || 0,
           versatile: Number(summary.versatile_volunteer_count) || 0,
           roleCounts: normalizeVolunteerTypeCounts(summary.volunteer_type_counts),
@@ -497,12 +505,38 @@ useEffect(() => {
   const volunteerBreakdownTypeOptions = [
     { key: "all", label: "All Live Events" },
     ...Object.keys(volunteerBreakdownByType)
-      .sort((a, b) => a.localeCompare(b))
-      .map((key) => ({ key, label: volunteerBreakdownByType[key]?.label || formatEventType(key) })),
+      .sort((a, b) => (volunteerBreakdownByType[a]?.label || "").localeCompare(volunteerBreakdownByType[b]?.label || ""))
+      .map((key) => {
+        const row = volunteerBreakdownByType[key]
+        return {
+          key,
+          label: row?.subLabel ? `${row.label} (${row.subLabel})` : (row?.label || key),
+        }
+      }),
   ]
 
   const filteredBreakdown = (() => {
     if (volunteerBreakdownTypeFilter === "all") {
+      const allRows = Object.values(volunteerBreakdownByType)
+      if (allRows.length > 0) {
+        return allRows.reduce(
+          (acc, row) => ({
+            volunteers: acc.volunteers + (Number(row?.volunteers) || 0),
+            versatile: acc.versatile + (Number(row?.versatile) || 0),
+            roleCounts: mergeCountMaps(acc.roleCounts, row?.roleCounts || {}),
+            groupCounts: mergeCountMaps(acc.groupCounts, row?.groupCounts || {}),
+            flexibleGroupCounts: mergeCountMaps(acc.flexibleGroupCounts, row?.flexibleGroupCounts || {}),
+          }),
+          {
+            volunteers: 0,
+            versatile: 0,
+            roleCounts: { ...DEFAULT_VOLUNTEER_COUNTS },
+            groupCounts: { ...DEFAULT_VOLUNTEER_GROUP_COUNTS },
+            flexibleGroupCounts: { ...DEFAULT_VOLUNTEER_FLEXIBLE_GROUP_COUNTS },
+          }
+        )
+      }
+
       return {
         volunteers,
         versatile: versatileVolunteers,
@@ -522,7 +556,18 @@ useEffect(() => {
     }
   })()
 
-  const hasLiveTourBreakdown = Boolean(volunteerBreakdownByType.tour)
+  const selectedVolunteerBreakdown =
+    volunteerBreakdownTypeFilter === "all"
+      ? null
+      : volunteerBreakdownByType[volunteerBreakdownTypeFilter] || null
+  const volunteerBreakdownContextLabel = selectedVolunteerBreakdown
+    ? (selectedVolunteerBreakdown.subLabel
+        ? `${selectedVolunteerBreakdown.label} (${selectedVolunteerBreakdown.subLabel})`
+        : selectedVolunteerBreakdown.label)
+    : "All Live Events"
+
+  const hasLiveTourBreakdown = Object.values(volunteerBreakdownByType)
+    .some((row) => row?.eventTypeKey === "tour")
   const showTourOnlyRoleCards = volunteerBreakdownTypeFilter === "tour"
     || (volunteerBreakdownTypeFilter === "all" && hasLiveTourBreakdown)
 
@@ -920,7 +965,7 @@ useEffect(() => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-gray-800">Volunteer Breakdown</h2>
-                <p className="text-xs text-secondary">Group and role totals for this event</p>
+                <p className="text-xs text-secondary">Group and role totals for {volunteerBreakdownContextLabel}</p>
               </div>
               <span className="text-xs font-medium text-secondary">{filteredBreakdown.volunteers} total • {filteredBreakdown.versatile} flexible</span>
             </div>
@@ -1129,7 +1174,7 @@ useEffect(() => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-gray-800">Volunteer Breakdown</h2>
-            <p className="text-xs text-secondary">Group and role totals for this event</p>
+            <p className="text-xs text-secondary">Group and role totals for {volunteerBreakdownContextLabel}</p>
           </div>
           <span className="text-xs font-medium text-secondary">{filteredBreakdown.volunteers} total ΓÇó {filteredBreakdown.versatile} flexible</span>
         </div>
