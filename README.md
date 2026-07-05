@@ -16,7 +16,7 @@ The application is built as a **Progressive Web App (PWA)** so it can run on **p
       - Event image hosting standardized in `docs/images/` with public URL pattern:
             - `https://ksprinkle.github.io/sfa-admin-testing/images/<filename>.jpg`
       - Added a header Feedback button in the admin app that opens tester form:
-            - `./event-creation-feedback-form.html`
+            - `./beta-uat-feedback-form.html`
 
 ## Recent Updates (April 2026)
 

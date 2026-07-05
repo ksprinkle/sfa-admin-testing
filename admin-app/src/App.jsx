@@ -794,7 +794,7 @@ function App() {
       { id: "exec-metrics", label: "Open Executive Metrics", description: "Jump to executive metrics section", group: "Operations", to: "/executive-dashboard?focus=metrics" },
       { id: "communications-deliveries", label: "Open Communications Deliveries", description: "Jump to delivery health workflow", group: "Operations", to: "/communications?focus=deliveries" },
       { id: "new-event", label: "Create Event", description: "Start a new event", group: "Actions", to: "/events/new" },
-      { id: "open-feedback-form", label: "Open Feedback Form", description: "Open event creation feedback form in a new tab", group: "Operations", actionKey: "open-feedback-form" },
+      { id: "open-feedback-form", label: "Open Feedback Form", description: "Open beta UAT feedback form in a new tab", group: "Operations", actionKey: "open-feedback-form" },
       { id: "refresh-search-sources", label: "Refresh Search Sources", description: "Reload events, participants, and volunteer data", group: "Operations", actionKey: "refresh-search-sources" },
       { id: "refresh-page", label: "Refresh Current Page", description: "Reload the current page", group: "Operations", actionKey: "refresh-page" },
       { id: "sign-out", label: "Sign Out", description: "End your admin session", group: "Operations", actionKey: "sign-out" },
@@ -927,7 +927,7 @@ function App() {
 
     try {
       if (command.actionKey === "open-feedback-form") {
-        window.open("./event-creation-feedback-form.html", "_blank")
+        window.open("./beta-uat-feedback-form.html", "_blank")
         return
       }
 

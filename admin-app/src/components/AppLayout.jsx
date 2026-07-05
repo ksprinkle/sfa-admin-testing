@@ -56,7 +56,7 @@ function AppLayout({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => window.open("./event-creation-feedback-form.html", "_blank")}
+                  onClick={() => window.open("./beta-uat-feedback-form.html", "_blank")}
                   className="rounded-md border border-white/35 bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
                   title="Share feedback about this testing session"
                 >

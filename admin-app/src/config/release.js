@@ -1,6 +1,6 @@
 export const FEEDBACK_RELEASE = {
   appName: "SFA Admin",
-  feature: "event_creation",
+  feature: "beta_uat",
   featureLabel: "Beta Evaluation",
   releaseLabel: "v0.2.0-rc.2 Beta Evaluation",
   version: "v0.2.0-rc.2",

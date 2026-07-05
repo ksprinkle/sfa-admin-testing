@@ -8,11 +8,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = ROOT / "sfa.db"
-FEATURE = "event_creation"
+FEATURE = "beta_uat"
 SCENARIO_VERSIONS = [
-    "v0.1-seed-healthy",
-    "v0.1-seed-ux",
-    "v0.1-seed-blocker",
+    "v0.2.0-rc.2-seed-healthy",
+    "v0.2.0-rc.2-seed-ux",
+    "v0.2.0-rc.2-seed-blocker",
 ]
 TASK_KEYS = ["task_1", "task_2", "task_3", "task_4"]
 
@@ -37,7 +37,7 @@ def compute_summary(responses: dict) -> dict:
 
 
 SCENARIOS = {
-    "v0.1-seed-healthy": [
+    "v0.2.0-rc.2-seed-healthy": [
         {
             "time_to_complete": 58,
             "responses": {
@@ -75,7 +75,7 @@ SCENARIOS = {
             },
         },
     ],
-    "v0.1-seed-ux": [
+    "v0.2.0-rc.2-seed-ux": [
         {
             "time_to_complete": 84,
             "responses": {
@@ -113,7 +113,7 @@ SCENARIOS = {
             },
         },
     ],
-    "v0.1-seed-blocker": [
+    "v0.2.0-rc.2-seed-blocker": [
         {
             "time_to_complete": 43,
             "responses": {
