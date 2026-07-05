@@ -6,6 +6,7 @@ function AppLayout({
   canPromoteUsers = false,
   onPromoteUser,
   onOpenCommandPalette,
+  notificationCenter = null,
   buildFingerprint,
   showHeader = true,
   searchPanel = null,
@@ -30,6 +31,7 @@ function AppLayout({
             {profile ? (
               <div className="flex flex-wrap items-center gap-3 lg:ml-auto">
                 <span className="hidden max-w-[260px] truncate text-sm text-white/90 sm:inline">{profile.email}</span>
+                {notificationCenter}
                 {onOpenCommandPalette ? (
                   <button
                     type="button"

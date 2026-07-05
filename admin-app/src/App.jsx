@@ -4,6 +4,7 @@ import BottomNav from "./components/BottomNav"
 import AppLayout from "./components/AppLayout"
 import GlobalSearch from "./components/GlobalSearch"
 import CommandPalette from "./components/CommandPalette"
+import NotificationCenter from "./components/NotificationCenter"
 import Dashboard from "./pages/Dashboard"
 import Events from "./pages/Events"
 import Participants from "./pages/Participants"
@@ -27,11 +28,16 @@ import {
   getStoredToken,
   promoteUserToAdminByEmail,
 } from "./api/auth"
-import { fetchAllParticipants, fetchEvents, fetchVolunteerDashboard } from "./api/events"
+import { fetchAllParticipants, fetchDashboardMetrics, fetchEvents, fetchVolunteerDashboard } from "./api/events"
+import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "./api/communications"
 import { getReleaseTag } from "./config/release"
 
 const GLOBAL_SEARCH_RECENTS_STORAGE_KEY = "sfa.globalSearchRecents"
 const GLOBAL_SEARCH_RECENTS_LIMIT = 10
+const NOTIFICATION_CENTER_READ_IDS_STORAGE_KEY = "sfa.notificationCenterReadIds"
+const DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.dashboardRefreshIntervalMs"
+const EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.executiveDashboardRefreshIntervalMs"
+const NOTIFICATION_FALLBACK_REFRESH_INTERVAL_MS = 60000
 
 function getBuildFingerprint() {
   const envFingerprint = import.meta.env.VITE_BUILD_ID || import.meta.env.VITE_APP_VERSION
@@ -292,6 +298,132 @@ function writeGlobalSearchRecents(items) {
   }
 }
 
+function readNotificationReadIds() {
+  if (typeof window === "undefined") return []
+
+  try {
+    const raw = window.localStorage.getItem(NOTIFICATION_CENTER_READ_IDS_STORAGE_KEY)
+    if (!raw) return []
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+
+    return parsed.filter((item) => typeof item === "string")
+  } catch {
+    return []
+  }
+}
+
+function writeNotificationReadIds(values) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(NOTIFICATION_CENTER_READ_IDS_STORAGE_KEY, JSON.stringify(Array.isArray(values) ? values : []))
+  } catch {
+    // Ignore storage write failures and keep in-memory state only.
+  }
+}
+
+function readNotificationRefreshIntervalMs() {
+  if (typeof window === "undefined") return NOTIFICATION_FALLBACK_REFRESH_INTERVAL_MS
+
+  const executiveIntervalMs = Number(window.localStorage.getItem(EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY))
+  if (Number.isFinite(executiveIntervalMs) && executiveIntervalMs > 0) {
+    return executiveIntervalMs
+  }
+
+  const dashboardIntervalMs = Number(window.localStorage.getItem(DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY))
+  if (Number.isFinite(dashboardIntervalMs) && dashboardIntervalMs > 0) {
+    return dashboardIntervalMs
+  }
+
+  return NOTIFICATION_FALLBACK_REFRESH_INTERVAL_MS
+}
+
+function normalizeNotificationSeverity(value) {
+  const normalized = String(value || "").trim().toLowerCase()
+  if (normalized.includes("critical") || normalized.includes("error") || normalized.includes("failed")) return "critical"
+  if (normalized.includes("warn") || normalized.includes("retry") || normalized.includes("defer") || normalized.includes("pending")) return "warning"
+  return "info"
+}
+
+function normalizeNotificationTimestamp(value) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+function buildOperationalNotifications({ metrics, messages, deliveries }) {
+  const activityNotifications = (Array.isArray(metrics?.recent_activity) ? metrics.recent_activity : []).map((entry, index) => {
+    const category = String(entry?.category || "").trim().toLowerCase()
+    const eventType = String(entry?.event_type || "").trim().toLowerCase()
+    const isDelivery = category.includes("delivery") || category.includes("provider") || eventType.includes("delivery") || eventType.includes("provider")
+    const severity = normalizeNotificationSeverity(entry?.status)
+
+    const activityParams = new URLSearchParams({
+      focus: "recent-activity",
+      status: String(entry?.status || ""),
+      category: String(entry?.category || ""),
+      event_type: String(entry?.event_type || ""),
+      event_id: entry?.event_id ? String(entry.event_id) : "",
+    })
+
+    return {
+      id: `telemetry:${entry?.id || entry?.event_id || `${entry?.occurred_at || ""}:${index}`}`,
+      source: "telemetry",
+      sourceLabel: "Telemetry",
+      type: "telemetry",
+      typeLabel: "Telemetry",
+      severity,
+      title: String(entry?.title || entry?.event_type || "Operational activity"),
+      description: String(entry?.summary || entry?.description || entry?.status || "Recent telemetry update"),
+      occurredAt: normalizeNotificationTimestamp(entry?.occurred_at),
+      to: isDelivery ? "/communications?focus=deliveries" : `/executive-dashboard?${activityParams.toString()}`,
+    }
+  })
+
+  const messageNotifications = (Array.isArray(messages) ? messages : []).slice(0, 12).map((message, index) => {
+    const status = String(message?.status || "draft")
+    const channel = String(message?.channel || "email").toUpperCase()
+
+    return {
+      id: `message:${message?.id || `${message?.created_at || ""}:${index}`}`,
+      source: "messaging",
+      sourceLabel: "Messaging",
+      type: "message",
+      typeLabel: "Messages",
+      severity: normalizeNotificationSeverity(status),
+      title: `Message ${status.replace(/_/g, " ")}`,
+      description: `${message?.subject || "Untitled message"} (${channel})`,
+      occurredAt: normalizeNotificationTimestamp(message?.created_at || message?.updated_at),
+      to: `/communications?focus=messages&message_id=${encodeURIComponent(String(message?.id || ""))}`,
+    }
+  })
+
+  const deliveryNotifications = (Array.isArray(deliveries) ? deliveries : []).slice(0, 16).map((delivery, index) => {
+    const status = String(delivery?.status || "queued")
+    const provider = String(delivery?.provider || delivery?.channel || "provider")
+
+    return {
+      id: `delivery:${delivery?.id || `${delivery?.created_at || delivery?.updated_at || ""}:${index}`}`,
+      source: "messaging",
+      sourceLabel: "Delivery",
+      type: "delivery",
+      typeLabel: "Deliveries",
+      severity: normalizeNotificationSeverity(status),
+      title: `Delivery ${status.replace(/_/g, " ")}`,
+      description: `Provider: ${provider}`,
+      occurredAt: normalizeNotificationTimestamp(delivery?.occurred_at || delivery?.updated_at || delivery?.created_at),
+      to: `/communications?focus=deliveries&delivery_id=${encodeURIComponent(String(delivery?.id || ""))}`,
+    }
+  })
+
+  return [...activityNotifications, ...messageNotifications, ...deliveryNotifications]
+    .sort((left, right) => new Date(right.occurredAt || 0).getTime() - new Date(left.occurredAt || 0).getTime())
+    .slice(0, 25)
+}
+
 function App() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -310,6 +442,12 @@ function App() {
   const [globalSearchError, setGlobalSearchError] = useState("")
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const commandPaletteReturnFocusRef = useRef(null)
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false)
+  const [notificationCenterLoading, setNotificationCenterLoading] = useState(false)
+  const [notificationCenterError, setNotificationCenterError] = useState("")
+  const [operationalNotifications, setOperationalNotifications] = useState([])
+  const [notificationReadIds, setNotificationReadIds] = useState(() => readNotificationReadIds())
+  const [notificationRefreshIntervalMs, setNotificationRefreshIntervalMs] = useState(() => readNotificationRefreshIntervalMs())
 
   useEffect(() => {
     const authChangedEvent = getAuthChangedEventName()
@@ -434,6 +572,119 @@ function App() {
   useEffect(() => {
     writeGlobalSearchRecents(globalSearchRecents)
   }, [globalSearchRecents])
+
+  useEffect(() => {
+    writeNotificationReadIds(notificationReadIds)
+  }, [notificationReadIds])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined
+
+    const syncRefreshInterval = () => {
+      const nextInterval = readNotificationRefreshIntervalMs()
+      setNotificationRefreshIntervalMs((current) => (current === nextInterval ? current : nextInterval))
+    }
+
+    const handleStorage = (event) => {
+      if (!event.key) return
+      if (
+        event.key === DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY
+        || event.key === EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY
+      ) {
+        syncRefreshInterval()
+      }
+    }
+
+    const handleWindowFocus = () => {
+      syncRefreshInterval()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        syncRefreshInterval()
+      }
+    }
+
+    const pollTimer = window.setInterval(syncRefreshInterval, 5000)
+
+    window.addEventListener("storage", handleStorage)
+    window.addEventListener("focus", handleWindowFocus)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("storage", handleStorage)
+      window.removeEventListener("focus", handleWindowFocus)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.clearInterval(pollTimer)
+    }
+  }, [])
+
+  const loadOperationalNotifications = useCallback(async () => {
+    if (!token) {
+      setOperationalNotifications([])
+      setNotificationCenterError("")
+      setNotificationCenterLoading(false)
+      return
+    }
+
+    setNotificationCenterLoading(true)
+    setNotificationCenterError("")
+
+    try {
+      const [metricsResult, messagesResult, deliveriesResult] = await Promise.allSettled([
+        fetchDashboardMetrics(12),
+        fetchCommunicationMessages(),
+        fetchCommunicationDeliveries(),
+      ])
+
+      const metrics = metricsResult.status === "fulfilled" ? metricsResult.value : {}
+      const messages = messagesResult.status === "fulfilled" ? messagesResult.value : []
+      const deliveries = deliveriesResult.status === "fulfilled" ? deliveriesResult.value : []
+
+      setOperationalNotifications(buildOperationalNotifications({ metrics, messages, deliveries }))
+
+      const failures = [
+        metricsResult.status === "rejected" ? "telemetry" : null,
+        messagesResult.status === "rejected" ? "messages" : null,
+        deliveriesResult.status === "rejected" ? "deliveries" : null,
+      ].filter(Boolean)
+
+      setNotificationCenterError(failures.length ? `Some notification sources are unavailable (${failures.join(", ")}).` : "")
+    } finally {
+      setNotificationCenterLoading(false)
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token) {
+      setNotificationCenterOpen(false)
+      setOperationalNotifications([])
+      return
+    }
+
+    let isDisposed = false
+
+    setNotificationRefreshIntervalMs(readNotificationRefreshIntervalMs())
+
+    loadOperationalNotifications().catch(() => {
+      if (isDisposed) return
+    })
+
+    const intervalId = notificationRefreshIntervalMs > 0
+      ? window.setInterval(() => {
+        loadOperationalNotifications().catch(() => {
+          if (isDisposed) return
+        })
+      }, notificationRefreshIntervalMs)
+      : null
+
+    return () => {
+      isDisposed = true
+      if (intervalId) {
+        window.clearInterval(intervalId)
+      }
+    }
+  }, [token, loadOperationalNotifications, notificationRefreshIntervalMs])
 
   useEffect(() => {
     const refreshBuildFingerprint = () => {
@@ -574,6 +825,46 @@ function App() {
     }
   }, [])
 
+  const unreadNotificationCount = useMemo(() => {
+    const readSet = new Set(notificationReadIds)
+    return operationalNotifications.filter((item) => !readSet.has(item.id)).length
+  }, [operationalNotifications, notificationReadIds])
+
+  const openNotificationCenter = useCallback(() => {
+    setNotificationCenterOpen(true)
+  }, [])
+
+  const closeNotificationCenter = useCallback(() => {
+    setNotificationCenterOpen(false)
+  }, [])
+
+  const handleMarkNotificationRead = useCallback((notificationId) => {
+    if (!notificationId) return
+
+    setNotificationReadIds((current) => {
+      if (current.includes(notificationId)) return current
+      return [notificationId, ...current].slice(0, 500)
+    })
+  }, [])
+
+  const handleMarkAllNotificationsRead = useCallback(() => {
+    const allIds = operationalNotifications.map((item) => item.id).filter(Boolean)
+    setNotificationReadIds(allIds.slice(0, 500))
+  }, [operationalNotifications])
+
+  useEffect(() => {
+    const availableIds = new Set(operationalNotifications.map((item) => item.id))
+    setNotificationReadIds((current) => current.filter((id) => availableIds.has(id)))
+  }, [operationalNotifications])
+
+  const handleNotificationSelect = useCallback((item) => {
+    if (!item?.to) return
+
+    handleMarkNotificationRead(item.id)
+    closeNotificationCenter()
+    navigate(item.to)
+  }, [closeNotificationCenter, navigate, handleMarkNotificationRead])
+
   useEffect(() => {
     if (!token) {
       setCommandPaletteOpen(false)
@@ -687,6 +978,32 @@ function App() {
         canPromoteUsers={Boolean(token && profile?.role === "admin")}
         onPromoteUser={handlePromoteUser}
         onOpenCommandPalette={token ? openCommandPalette : undefined}
+        notificationCenter={token ? (
+          <NotificationCenter
+            isOpen={notificationCenterOpen}
+            loading={notificationCenterLoading}
+            error={notificationCenterError}
+            notifications={operationalNotifications}
+            unreadCount={unreadNotificationCount}
+            readIds={notificationReadIds}
+            onToggle={() => {
+              if (notificationCenterOpen) {
+                closeNotificationCenter()
+              } else {
+                openNotificationCenter()
+              }
+            }}
+            onClose={closeNotificationCenter}
+            onRefresh={() => {
+              loadOperationalNotifications().catch(() => {
+                // Errors are surfaced through notificationCenterError state.
+              })
+            }}
+            onSelect={handleNotificationSelect}
+            onMarkRead={handleMarkNotificationRead}
+            onMarkAllRead={handleMarkAllNotificationsRead}
+          />
+        ) : null}
         buildFingerprint={token ? buildFingerprint : undefined}
         showHeader={Boolean(token)}
         searchPanel={token ? (
