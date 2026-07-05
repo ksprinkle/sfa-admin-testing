@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { fetchAllParticipants, checkInParticipant, promoteParticipant, 
   removeParticipant, verifyWaiver, updateParticipantPriority, updateParticipantType,
   fetchParticipantRemovalLog, exportParticipantRemovalLogCsv, fetchEvents,
+  updateParticipantSession,
   fetchAdminEvent, createAdminParticipant } from "../api/events"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import BackButton from "../components/BackButton"
@@ -129,6 +130,12 @@ function formatEventType(eventType) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ")
+}
+
+function escapeCsvField(value) {
+  const normalized = String(value ?? "")
+  if (!/[",\n]/.test(normalized)) return normalized
+  return `"${normalized.replaceAll('"', '""')}"`
 }
 
 function normalizeEventStatus(status) {
@@ -401,6 +408,14 @@ const PARTICIPANTS_CACHE_KEY = "sfa.offline.participants.cache"
 const PARTICIPANT_ACTION_QUEUE_KEY = "sfa.offline.participants.queue"
 const NON_RETRYABLE_STATUS_CODES = new Set([400, 404])
 const RECOVERABLE_STATUS_CODES = new Set([409, 429, 500, 502, 503, 504])
+const BULK_ACTION_LABELS = {
+  checkin: "Bulk check-in",
+  promote: "Bulk promote",
+  verify_waiver: "Bulk waiver verification",
+  remove: "Bulk removal",
+  assign_session: "Bulk session assignment",
+  export_csv: "Bulk export",
+}
 
 function buildQueueItemId(action, entityId, updatedAt) {
   return String(action?.id || `${String(action?.type || "action")}:${String(entityId || "unknown")}:${Number(updatedAt || Date.now())}`)
@@ -661,10 +676,12 @@ export default function Participants() {
   const [createEventMeta, setCreateEventMeta] = useState({ title: "", event_type: "" })
   const [createToast, setCreateToast] = useState(null)
   const participantRowRefs = useRef({})
+  const selectAllVisibleCheckboxRef = useRef(null)
   const focusAppliedRef = useRef(false)
   const actionSyncRef = useRef(false)
   const participantActionLocksRef = useRef(new Set())
   const createToastTimerRef = useRef(null)
+  const bulkFeedbackTimerRef = useRef(null)
   const retriedCreateQueueIdsRef = useRef(new Set())
 
   const pendingQueueCount = queuedParticipantActions.filter((item) => item.syncStatus !== "failed").length
@@ -723,6 +740,9 @@ export default function Participants() {
     return () => {
       if (createToastTimerRef.current) {
         window.clearTimeout(createToastTimerRef.current)
+      }
+      if (bulkFeedbackTimerRef.current) {
+        window.clearTimeout(bulkFeedbackTimerRef.current)
       }
     }
   }, [])
@@ -1118,6 +1138,28 @@ export default function Participants() {
   const [showAssistanceNeededOnly, setShowAssistanceNeededOnly] = useState(false)
   const [eventAssociationFilter, setEventAssociationFilter] = useState("upcoming_active")
   const [allEventsForFilters, setAllEventsForFilters] = useState([])
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState([])
+  const [bulkActionInProgress, setBulkActionInProgress] = useState("")
+  const [bulkFeedback, setBulkFeedback] = useState(null)
+
+  const clearBulkFeedbackTimer = useCallback(() => {
+    if (bulkFeedbackTimerRef.current) {
+      window.clearTimeout(bulkFeedbackTimerRef.current)
+      bulkFeedbackTimerRef.current = null
+    }
+  }, [])
+
+  const showBulkFeedback = useCallback((payload, autoHideMs = 0) => {
+    clearBulkFeedbackTimer()
+    setBulkFeedback(payload)
+
+    if (autoHideMs > 0) {
+      bulkFeedbackTimerRef.current = window.setTimeout(() => {
+        setBulkFeedback(null)
+        bulkFeedbackTimerRef.current = null
+      }, autoHideMs)
+    }
+  }, [clearBulkFeedbackTimer])
 
   const refreshFilterEvents = useCallback(async () => {
     try {
@@ -1381,6 +1423,125 @@ export default function Participants() {
       return a.first_name.localeCompare(b.first_name)
     });
 
+  const selectedParticipantIdSet = useMemo(() => {
+    return new Set(selectedParticipantIds.map((id) => String(id)))
+  }, [selectedParticipantIds])
+
+  const visibleParticipantIds = useMemo(() => {
+    return filteredParticipants.map((participant) => String(participant.id))
+  }, [filteredParticipants])
+
+  const selectedParticipants = useMemo(() => {
+    return participants.filter((participant) => selectedParticipantIdSet.has(String(participant.id)))
+  }, [participants, selectedParticipantIdSet])
+
+  const selectedCheckInIds = useMemo(() => {
+    return selectedParticipants
+      .filter((participant) => !participant.checked_in)
+      .map((participant) => String(participant.id))
+  }, [selectedParticipants])
+
+  const selectedPromoteIds = useMemo(() => {
+    return selectedParticipants
+      .filter((participant) => participant.is_waitlisted)
+      .map((participant) => String(participant.id))
+  }, [selectedParticipants])
+
+  const selectedWaiverIds = useMemo(() => {
+    return selectedParticipants
+      .filter((participant) => !participant.waiver_verified)
+      .map((participant) => String(participant.id))
+  }, [selectedParticipants])
+
+  const selectedRemovableIds = useMemo(() => {
+    return selectedParticipants.map((participant) => String(participant.id))
+  }, [selectedParticipants])
+
+  const selectedParticipantsWithEvent = useMemo(() => {
+    return selectedParticipants.filter((participant) => String(participant.event_id || "").trim())
+  }, [selectedParticipants])
+
+  const selectedParticipantEventIds = useMemo(() => {
+    return Array.from(
+      new Set(
+        selectedParticipantsWithEvent
+          .map((participant) => String(participant.event_id || ""))
+          .filter(Boolean)
+      )
+    )
+  }, [selectedParticipantsWithEvent])
+
+  const selectedSessionAssignmentOptions = useMemo(() => {
+    const allowedEventIds = new Set(selectedParticipantEventIds)
+    return allEventsForFilters
+      .flatMap((event) => {
+        const eventId = String(event.id || "")
+        if (!eventId) return []
+        if (allowedEventIds.size > 0 && !allowedEventIds.has(eventId)) return []
+
+        return (Array.isArray(event.sessions) ? event.sessions : []).map((session, index) => ({
+          id: String(session.id || ""),
+          event_id: eventId,
+          event_title: event.title || eventId,
+          name: session.name || `Session ${index + 1}`,
+        }))
+      })
+      .filter((session) => session.id)
+      .sort((left, right) => {
+        const byEvent = String(left.event_title || "").localeCompare(String(right.event_title || ""))
+        if (byEvent !== 0) return byEvent
+        return String(left.name || "").localeCompare(String(right.name || ""))
+      })
+  }, [allEventsForFilters, selectedParticipantEventIds])
+
+  const selectedVisibleCount = useMemo(() => {
+    return visibleParticipantIds.filter((id) => selectedParticipantIdSet.has(String(id))).length
+  }, [visibleParticipantIds, selectedParticipantIdSet])
+
+  const isAllVisibleSelected = visibleParticipantIds.length > 0
+    && selectedVisibleCount === visibleParticipantIds.length
+
+  const isPartiallyVisibleSelected = selectedVisibleCount > 0
+    && selectedVisibleCount < visibleParticipantIds.length
+
+  const hasAnySelected = selectedParticipantIds.length > 0
+
+  useEffect(() => {
+    const validIds = new Set(participants.map((participant) => String(participant.id)))
+    setSelectedParticipantIds((previous) => previous.filter((id) => validIds.has(String(id))))
+  }, [participants])
+
+  useEffect(() => {
+    if (selectAllVisibleCheckboxRef.current) {
+      selectAllVisibleCheckboxRef.current.indeterminate = isPartiallyVisibleSelected
+    }
+  }, [isPartiallyVisibleSelected])
+
+  const toggleParticipantSelection = (participantId) => {
+    const normalizedId = String(participantId)
+    setSelectedParticipantIds((previous) => (
+      previous.includes(normalizedId)
+        ? previous.filter((id) => id !== normalizedId)
+        : [...previous, normalizedId]
+    ))
+  }
+
+  const toggleSelectAllVisible = () => {
+    if (isAllVisibleSelected) {
+      const visibleSet = new Set(visibleParticipantIds)
+      setSelectedParticipantIds((previous) => previous.filter((id) => !visibleSet.has(String(id))))
+      return
+    }
+
+    const merged = new Set(selectedParticipantIds.map((id) => String(id)))
+    visibleParticipantIds.forEach((id) => merged.add(String(id)))
+    setSelectedParticipantIds(Array.from(merged))
+  }
+
+  const clearSelectedParticipants = () => {
+    setSelectedParticipantIds([])
+  }
+
   // Keep removal history aligned with currently selected participant event filters.
   useEffect(() => {
     setRemovalLogFilters((prev) => ({
@@ -1499,9 +1660,11 @@ export default function Participants() {
     updateParticipantsLocal((prev) => prev.map((p) =>
       p.id === participantId ? { ...p, checked_in: true, is_waitlisted: false } : p
     ))
+    let succeeded = false
     try {
       await checkInParticipant(participantId)
       await refreshParticipants()
+      succeeded = true
     } catch (err) {
       console.error(err)
       const msg = err.message || "Failed to check in participant"
@@ -1510,18 +1673,22 @@ export default function Participants() {
         const nextQueue = enqueueParticipantAction({ type: "checkin", participantId })
         persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: check-in saved locally and queued for sync.")
+        succeeded = true
       } else if (msg.includes("Waiver not verified")) {
         updateParticipantsLocal((prev) => prev.map((p) =>
           p.id === participantId ? { ...p, checked_in: false } : p
         ))
         setActionError("Cannot check in: waiver must be verified first.")
+        succeeded = false
       } else {
         await refreshParticipants()
         setActionError(`Check-in failed: ${msg}`)
+        succeeded = false
       }
     } finally {
       participantActionLocksRef.current.delete(actionKey)
     }
+    return succeeded
   }
 
   async function handleRemove(participant) {
@@ -1595,22 +1762,27 @@ export default function Participants() {
     updateParticipantsLocal((prev) => prev.map((p) =>
       p.id === participantId ? { ...p, is_waitlisted: false } : p
     ))
+    let succeeded = false
     try {
       await promoteParticipant(participantId)
       await refreshParticipants()
+      succeeded = true
     } catch (err) {
       console.error(err)
       if (isOfflineError(err)) {
         const nextQueue = enqueueParticipantAction({ type: "promote", participantId })
         persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: promotion saved locally and queued for sync.")
-        return
+        succeeded = true
+      } else {
+        await refreshParticipants()
+        setActionError(`Failed to promote: ${err.message || "Unknown error"}`)
+        succeeded = false
       }
-      await refreshParticipants()
-      setActionError(`Failed to promote: ${err.message || "Unknown error"}`)
     } finally {
       participantActionLocksRef.current.delete(actionKey)
     }
+    return succeeded
   }
 
   async function handleVerifyWaiver(participantId) {
@@ -1622,21 +1794,418 @@ export default function Participants() {
     updateParticipantsLocal((prev) => prev.map((p) =>
       p.id === participantId ? { ...p, waiver_verified: true } : p
     ))
+    let succeeded = false
     try {
       await verifyWaiver(participantId)
       await refreshParticipants()
+      succeeded = true
     } catch (err) {
       console.error(err)
       if (isOfflineError(err)) {
         const nextQueue = enqueueParticipantAction({ type: "verify_waiver", participantId })
         persistQueuedParticipantActions(nextQueue)
         setActionError("Offline: waiver verification saved locally and queued for sync.")
-        return
+        succeeded = true
+      } else {
+        await refreshParticipants()
+        setActionError(`Failed to verify waiver: ${err.message || "Unknown error"}`)
+        succeeded = false
       }
-      await refreshParticipants()
-      setActionError(`Failed to verify waiver: ${err.message || "Unknown error"}`)
     } finally {
       participantActionLocksRef.current.delete(actionKey)
+    }
+    return succeeded
+  }
+
+  async function runBulkParticipantAction(actionKey, participantIds, actionHandler) {
+    if (!participantIds.length) return
+
+    const actionLabel = BULK_ACTION_LABELS[actionKey] || "Bulk action"
+    const total = participantIds.length
+    let successCount = 0
+    let failureCount = 0
+    const succeededIds = []
+
+    setBulkActionInProgress(actionKey)
+    showBulkFeedback({
+      tone: "info",
+      message: `${actionLabel} in progress`,
+      detail: `0/${total} completed`,
+    })
+
+    try {
+      for (let index = 0; index < participantIds.length; index += 1) {
+        const participantId = participantIds[index]
+        // Existing handlers already include optimistic updates and offline queue behavior.
+        const result = await actionHandler(participantId)
+        if (result) {
+          successCount += 1
+          succeededIds.push(String(participantId))
+        } else {
+          failureCount += 1
+        }
+
+        showBulkFeedback({
+          tone: "info",
+          message: `${actionLabel} in progress`,
+          detail: `${index + 1}/${total} completed • ${successCount} succeeded • ${failureCount} failed`,
+        })
+      }
+
+      if (succeededIds.length > 0) {
+        setSelectedParticipantIds((previous) => previous.filter((id) => !succeededIds.includes(String(id))))
+      }
+
+      if (failureCount === 0) {
+        showBulkFeedback({
+          tone: "success",
+          message: `${actionLabel} complete`,
+          detail: `${successCount}/${total} succeeded`,
+        }, 5000)
+      } else if (successCount > 0) {
+        showBulkFeedback({
+          tone: "warning",
+          message: `${actionLabel} partially complete`,
+          detail: `${successCount}/${total} succeeded • ${failureCount} failed`,
+        }, 7000)
+      } else {
+        showBulkFeedback({
+          tone: "error",
+          message: `${actionLabel} failed`,
+          detail: `${failureCount}/${total} failed`,
+        }, 7000)
+      }
+    } finally {
+      setBulkActionInProgress("")
+    }
+  }
+
+  async function handleBulkAssignSession() {
+    if (!selectedParticipantsWithEvent.length) {
+      setActionError("Select at least one participant with an event to assign sessions.")
+      return
+    }
+
+    if (!selectedSessionAssignmentOptions.length) {
+      setActionError("No session options are available for the selected participants.")
+      return
+    }
+
+    const optionsPrompt = selectedSessionAssignmentOptions
+      .slice(0, 30)
+      .map((session, index) => `${index + 1}) ${session.event_title} - ${session.name}`)
+      .join("\n")
+    const promptMessage = [
+      `Assign session for ${selectedParticipantsWithEvent.length} selected participant(s).`,
+      "Choose a session number:",
+      optionsPrompt,
+      "0) Unassign from session",
+    ].join("\n")
+
+    const response = window.prompt(promptMessage, "1")
+    if (response === null) return
+
+    const selectedIndex = Number.parseInt(String(response).trim(), 10)
+    if (!Number.isFinite(selectedIndex)) {
+      setActionError("Session assignment cancelled: invalid selection.")
+      return
+    }
+
+    const unassign = selectedIndex === 0
+    const selectedOption = unassign ? null : selectedSessionAssignmentOptions[selectedIndex - 1]
+    if (!unassign && !selectedOption) {
+      setActionError("Session assignment cancelled: selection is out of range.")
+      return
+    }
+
+    const eligibleParticipants = unassign
+      ? selectedParticipantsWithEvent
+      : selectedParticipantsWithEvent.filter((participant) => String(participant.event_id || "") === String(selectedOption.event_id || ""))
+
+    if (!eligibleParticipants.length) {
+      setActionError("No selected participants match the chosen session event.")
+      return
+    }
+
+    setActionError("")
+    setBulkActionInProgress("assign_session")
+    const total = eligibleParticipants.length
+    const actionLabel = BULK_ACTION_LABELS.assign_session
+
+    showBulkFeedback({
+      tone: "info",
+      message: `${actionLabel} in progress`,
+      detail: `0/${total} completed`,
+    })
+
+    const succeededIds = []
+    let failedCount = 0
+
+    try {
+      for (let index = 0; index < eligibleParticipants.length; index += 1) {
+        const participant = eligibleParticipants[index]
+        const participantId = String(participant.id)
+        try {
+          await updateParticipantSession(participantId, unassign ? null : selectedOption.id)
+          succeededIds.push(participantId)
+        } catch (err) {
+          failedCount += 1
+          console.error("Failed to assign session", participantId, err)
+        }
+
+        showBulkFeedback({
+          tone: "info",
+          message: `${actionLabel} in progress`,
+          detail: `${index + 1}/${total} completed • ${succeededIds.length} succeeded • ${failedCount} failed`,
+        })
+      }
+
+      if (succeededIds.length > 0) {
+        setSelectedParticipantIds((previous) => previous.filter((id) => !succeededIds.includes(String(id))))
+      }
+
+      if (failedCount === 0) {
+        showBulkFeedback({
+          tone: "success",
+          message: `${actionLabel} complete`,
+          detail: `${succeededIds.length}/${total} succeeded`,
+        }, 5000)
+      } else if (succeededIds.length > 0) {
+        showBulkFeedback({
+          tone: "warning",
+          message: `${actionLabel} partially complete`,
+          detail: `${succeededIds.length}/${total} succeeded • ${failedCount} failed`,
+        }, 7000)
+      } else {
+        showBulkFeedback({
+          tone: "error",
+          message: `${actionLabel} failed`,
+          detail: `${failedCount}/${total} failed`,
+        }, 7000)
+      }
+    } finally {
+      await refreshParticipants()
+      setBulkActionInProgress("")
+    }
+  }
+
+  async function handleBulkRemoveParticipants() {
+    if (!selectedParticipants.length) {
+      setActionError("Select participants before bulk removal.")
+      return
+    }
+
+    const reasonPrompt = [
+      `Remove ${selectedParticipants.length} selected participant(s) from active roster?`,
+      "Choose one reason for all selected participants:",
+      "1) No-show",
+      "2) Changed mind",
+      "3) Duplicate registration",
+      "4) Admin correction",
+      "5) Safety issue",
+      "6) Other",
+    ].join("\n")
+
+    const reasonChoice = window.prompt(reasonPrompt, "1")
+    if (reasonChoice === null) return
+
+    const selectedReason = REMOVAL_REASON_OPTIONS[(reasonChoice || "").trim()]
+    if (!selectedReason) {
+      setActionError("Bulk removal cancelled: invalid reason selection.")
+      return
+    }
+
+    let reasonNote = window.prompt("Optional note applied to all selected removals (required if reason is Other):", "")
+    if (reasonNote === null) reasonNote = ""
+
+    if (selectedReason.code === "other" && !(reasonNote || "").trim()) {
+      setActionError("A note is required when removal reason is Other.")
+      return
+    }
+
+    const actionLabel = BULK_ACTION_LABELS.remove
+    const participantsToRemove = [...selectedParticipants]
+    const total = participantsToRemove.length
+    const succeededIds = []
+    let failedCount = 0
+    let onlineSuccessCount = 0
+
+    setActionError("")
+    setBulkActionInProgress("remove")
+    showBulkFeedback({
+      tone: "info",
+      message: `${actionLabel} in progress`,
+      detail: `0/${total} completed`,
+    })
+
+    try {
+      for (let index = 0; index < participantsToRemove.length; index += 1) {
+        const participant = participantsToRemove[index]
+        const participantId = String(participant.id)
+
+        try {
+          await removeParticipant(participantId, selectedReason.code, (reasonNote || "").trim())
+          succeededIds.push(participantId)
+          onlineSuccessCount += 1
+        } catch (err) {
+          if (isOfflineError(err)) {
+            const nextQueue = enqueueParticipantAction({
+              type: "remove",
+              participantId,
+              reasonCode: selectedReason.code,
+              reasonNote: (reasonNote || "").trim(),
+            })
+            persistQueuedParticipantActions(nextQueue)
+            succeededIds.push(participantId)
+          } else {
+            failedCount += 1
+            console.error("Bulk removal failed", participantId, err)
+          }
+        }
+
+        showBulkFeedback({
+          tone: "info",
+          message: `${actionLabel} in progress`,
+          detail: `${index + 1}/${total} completed • ${succeededIds.length} succeeded • ${failedCount} failed`,
+        })
+      }
+
+      if (succeededIds.length > 0) {
+        updateParticipantsLocal((prev) => prev.filter((participant) => !succeededIds.includes(String(participant.id))))
+        setSelectedParticipantIds((previous) => previous.filter((id) => !succeededIds.includes(String(id))))
+      }
+
+      if (navigator.onLine && onlineSuccessCount > 0) {
+        await refreshParticipants()
+        await refreshRemovalLog()
+      }
+
+      if (failedCount === 0) {
+        showBulkFeedback({
+          tone: "success",
+          message: `${actionLabel} complete`,
+          detail: `${succeededIds.length}/${total} succeeded`,
+        }, 5000)
+      } else if (succeededIds.length > 0) {
+        showBulkFeedback({
+          tone: "warning",
+          message: `${actionLabel} partially complete`,
+          detail: `${succeededIds.length}/${total} succeeded • ${failedCount} failed`,
+        }, 7000)
+      } else {
+        showBulkFeedback({
+          tone: "error",
+          message: `${actionLabel} failed`,
+          detail: `${failedCount}/${total} failed`,
+        }, 7000)
+      }
+    } finally {
+      setBulkActionInProgress("")
+    }
+  }
+
+  function handleBulkCommunications() {
+    if (!selectedParticipants.length) {
+      setActionError("Select participants before opening communications.")
+      return
+    }
+
+    const selectedCount = selectedParticipants.length
+    const previewNames = selectedParticipants
+      .slice(0, 3)
+      .map((participant) => `${participant.first_name || ""} ${participant.last_name || ""}`.trim() || participant.email || String(participant.id))
+      .filter(Boolean)
+    const namePreviewText = previewNames.length ? ` (${previewNames.join(", ")}${selectedCount > previewNames.length ? ", ..." : ""})` : ""
+
+    showBulkFeedback({
+      tone: "success",
+      message: "Bulk communications draft prepared",
+      detail: `${selectedCount} selected participant(s) loaded for messaging`,
+    }, 4000)
+
+    navigate("/communications", {
+      state: {
+        composerDraft: {
+          recipientGroup: "Custom Segment",
+          subject: `Participant follow-up (${selectedCount})`,
+          messageBody: `Prepared from Participants bulk selection for ${selectedCount} participant(s).${namePreviewText}`,
+          recipientEstimate: selectedCount,
+        },
+      },
+    })
+  }
+
+  function handleExportSelectedParticipantsCsv() {
+    if (!selectedParticipants.length) {
+      setActionError("Select participants before exporting.")
+      return
+    }
+
+    setBulkActionInProgress("export_csv")
+    showBulkFeedback({
+      tone: "info",
+      message: `${BULK_ACTION_LABELS.export_csv} in progress`,
+      detail: `Preparing ${selectedParticipants.length} row(s)`,
+    })
+
+    try {
+      const header = [
+        "participant_id",
+        "first_name",
+        "last_name",
+        "email",
+        "event_id",
+        "event_title",
+        "session_id",
+        "session_name",
+        "role",
+        "checked_in",
+        "is_waitlisted",
+        "waiver_verified",
+      ]
+
+      const rows = selectedParticipants.map((participant) => ([
+        participant.id,
+        participant.first_name,
+        participant.last_name,
+        participant.email,
+        participant.event_id,
+        participant.event_title,
+        participant.session_id,
+        participant.session_name,
+        participant.role,
+        participant.checked_in,
+        participant.is_waitlisted,
+        participant.waiver_verified,
+      ].map((value) => escapeCsvField(value)).join(",")))
+
+      const csvContent = [header.join(","), ...rows].join("\n")
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const dateStamp = new Date().toISOString().slice(0, 10)
+      link.href = url
+      link.download = `participants-selected-${dateStamp}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      showBulkFeedback({
+        tone: "success",
+        message: `${BULK_ACTION_LABELS.export_csv} complete`,
+        detail: `${selectedParticipants.length} row(s) exported`,
+      }, 5000)
+    } catch (err) {
+      console.error(err)
+      setActionError("Export failed: unable to generate CSV.")
+      showBulkFeedback({
+        tone: "error",
+        message: `${BULK_ACTION_LABELS.export_csv} failed`,
+        detail: "Unable to generate CSV.",
+      }, 7000)
+    } finally {
+      setBulkActionInProgress("")
     }
   }
 
@@ -2081,6 +2650,37 @@ export default function Participants() {
         </div>
       )}
 
+      {bulkFeedback && (
+        <div
+          className={`mb-3 rounded border px-4 py-2 text-sm flex items-center justify-between gap-3 ${
+            bulkFeedback.tone === "success"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+              : bulkFeedback.tone === "warning"
+                ? "border-amber-300 bg-amber-50 text-amber-800"
+                : bulkFeedback.tone === "error"
+                  ? "border-red-300 bg-red-50 text-red-700"
+                  : "border-sky-300 bg-sky-50 text-sky-800"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <div>
+            <p className="font-semibold">{bulkFeedback.message}</p>
+            {bulkFeedback.detail ? <p className="text-xs">{bulkFeedback.detail}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              clearBulkFeedbackTimer()
+              setBulkFeedback(null)
+            }}
+            className="text-xs font-semibold opacity-80 hover:opacity-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {actionError && (
         <div className="mb-3 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm flex justify-between items-center">
           <span>{actionError}</span>
@@ -2275,12 +2875,102 @@ export default function Participants() {
     </div>
 
 {/* Table of participants with columns for name, email, event, status, and actions */}
+      {hasAnySelected && (
+        <div className="sticky top-2 z-20 mb-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-blue-900">
+              {selectedParticipantIds.length} selected
+              {visibleParticipantIds.length > 0 ? ` • ${selectedVisibleCount} in current view` : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => runBulkParticipantAction("checkin", selectedCheckInIds, handleCheckIn)}
+              disabled={bulkActionInProgress !== "" || selectedCheckInIds.length === 0}
+              className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Check In ({selectedCheckInIds.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => runBulkParticipantAction("promote", selectedPromoteIds, handlePromote)}
+              disabled={bulkActionInProgress !== "" || selectedPromoteIds.length === 0}
+              className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Promote ({selectedPromoteIds.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => runBulkParticipantAction("verify_waiver", selectedWaiverIds, handleVerifyWaiver)}
+              disabled={bulkActionInProgress !== "" || selectedWaiverIds.length === 0}
+              className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Verify Waivers ({selectedWaiverIds.length})
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkRemoveParticipants}
+              disabled={bulkActionInProgress !== "" || selectedRemovableIds.length === 0}
+              className="rounded border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Remove ({selectedRemovableIds.length})
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkAssignSession}
+              disabled={bulkActionInProgress !== "" || selectedParticipantsWithEvent.length === 0}
+              className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Assign Session ({selectedParticipantsWithEvent.length})
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkCommunications}
+              disabled={bulkActionInProgress !== "" || selectedParticipants.length === 0}
+              className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Message ({selectedParticipants.length})
+            </button>
+            <button
+              type="button"
+              onClick={handleExportSelectedParticipantsCsv}
+              disabled={bulkActionInProgress !== "" || selectedParticipants.length === 0}
+              className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={clearSelectedParticipants}
+              disabled={bulkActionInProgress !== ""}
+              className="rounded border border-blue-300 bg-white px-2 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear Selection
+            </button>
+            {bulkActionInProgress ? (
+              <span className="text-xs text-blue-700">
+                {bulkFeedback?.detail || "Running bulk action..."}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow overflow-auto max-h-[70vh]">
 
-        <table className="w-full min-w-[980px] text-sm">
+        <table className="w-full min-w-[1040px] text-sm">
 
           <thead className="bg-gray-50 border-b sticky top-0 z-10">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <th className="w-12 px-2 py-3 text-center">
+                <input
+                  ref={selectAllVisibleCheckboxRef}
+                  type="checkbox"
+                  checked={isAllVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  aria-checked={isPartiallyVisibleSelected ? "mixed" : isAllVisibleSelected}
+                  aria-label="Select all visible participants"
+                />
+              </th>
               <th className="w-36 px-2 py-3">Name</th>
               <th className="w-44 px-2 py-3">Email</th>
               <th className="w-20 px-1.5 py-3">Event</th>
@@ -2292,6 +2982,7 @@ export default function Participants() {
               <th className="w-16 px-2 py-3 text-center">Actions</th>
             </tr>
             <tr className="border-t text-[10px] text-gray-600">
+              <th className="px-2 pb-2" />
               <th className="px-2 pb-2 align-top">
                 <div className="inline-flex flex-wrap items-center gap-2">
                   {PARTICIPANT_TYPE_OPTIONS.map((opt) => (
@@ -2362,6 +3053,14 @@ export default function Participants() {
                       : "bg-amber-50/35 hover:bg-amber-100/50"
                   }`}
                 >
+                  <td className="w-12 px-2 py-2 text-center align-top">
+                    <input
+                      type="checkbox"
+                      checked={selectedParticipantIdSet.has(String(p.id))}
+                      onChange={() => toggleParticipantSelection(p.id)}
+                      aria-label={`Select ${p.first_name} ${p.last_name}`}
+                    />
+                  </td>
                   <td className="w-36 px-2 py-2 font-medium text-gray-900" title={`${p.first_name} ${p.last_name}`}>
                     <span className="mb-1 inline-flex items-center gap-1.5">
                       <SyncStateIndicator state={queueStateByParticipant[String(p.id)] || "synced"} />

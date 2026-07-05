@@ -45,7 +45,17 @@ function getDefaultTemplate(templates, deliveryMethod) {
   return templates.find((template) => normalizeChannel(template.channel) === channel) || null
 }
 
-function MessageComposerModal({ isOpen, onClose, onNext }) {
+function buildInitialForm(initialDraft) {
+  return {
+    ...DEFAULT_FORM,
+    recipientGroup: initialDraft?.recipientGroup || DEFAULT_FORM.recipientGroup,
+    deliveryMethod: initialDraft?.deliveryMethod || DEFAULT_FORM.deliveryMethod,
+    subject: initialDraft?.subject || "",
+    messageBody: initialDraft?.messageBody || "",
+  }
+}
+
+function MessageComposerModal({ isOpen, initialDraft = null, onClose, onNext }) {
   const [form, setForm] = useState(DEFAULT_FORM)
   const [templates, setTemplates] = useState([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -74,24 +84,19 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
         if (isCancelled) return
 
         setTemplates(nextTemplates)
-
-        const defaultTemplate = getDefaultTemplate(nextTemplates, DEFAULT_FORM.deliveryMethod)
         setForm((current) => {
-          if (current.templateId) {
+          if (current.templateId || String(current.subject || "").trim() || String(current.messageBody || "").trim()) {
             return current
           }
 
+          const defaultTemplate = getDefaultTemplate(nextTemplates, current.deliveryMethod || DEFAULT_FORM.deliveryMethod)
           if (!defaultTemplate) {
-            return {
-              ...DEFAULT_FORM,
-              deliveryMethod: current.deliveryMethod || DEFAULT_FORM.deliveryMethod,
-            }
+            return current
           }
 
           const content = getTemplateContent(defaultTemplate)
           return {
-            recipientGroup: DEFAULT_FORM.recipientGroup,
-            deliveryMethod: DEFAULT_FORM.deliveryMethod,
+            ...current,
             templateId: String(defaultTemplate.id),
             subject: content.subject,
             messageBody: content.messageBody,
@@ -109,13 +114,13 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
       }
     }
 
-    setForm(DEFAULT_FORM)
+    setForm(buildInitialForm(initialDraft))
     loadTemplates()
 
     return () => {
       isCancelled = true
     }
-  }, [isOpen])
+  }, [isOpen, initialDraft])
 
   useEffect(() => {
     if (!isOpen) return undefined
@@ -136,10 +141,15 @@ function MessageComposerModal({ isOpen, onClose, onNext }) {
   const previewBody = form.messageBody.trim() || "Your message preview will appear here as you type."
   const previewRecipient = form.recipientGroup || "Recipient group"
   const previewDeliveryMethod = form.deliveryMethod || "Email"
-  const recipientSummary = recipientSummaryByGroup[form.recipientGroup] || {
-    estimate: "Custom Selection",
-    label: "Estimated recipient count",
-  }
+  const recipientSummary = form.recipientGroup === "Custom Segment" && Number(initialDraft?.recipientEstimate || 0) > 0
+    ? {
+        estimate: String(initialDraft.recipientEstimate),
+        label: "Selected recipients",
+      }
+    : recipientSummaryByGroup[form.recipientGroup] || {
+        estimate: "Custom Selection",
+        label: "Estimated recipient count",
+      }
 
   const handleChange = (event) => {
     const { name, value } = event.target

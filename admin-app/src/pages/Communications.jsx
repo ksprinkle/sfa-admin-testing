@@ -1,39 +1,9 @@
 import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import Button from "../components/Button"
 import Card from "../components/Card"
 import MessageComposerModal from "../components/communications/MessageComposerModal"
 import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "../api/communications"
-
-const deliverySummary = [
-  { label: "Queued", value: "128", tone: "border-sky-200 bg-sky-50", valueClass: "text-sky-900" },
-  { label: "Delivered", value: "1,482", tone: "border-emerald-200 bg-emerald-50", valueClass: "text-emerald-900" },
-  { label: "Opened", value: "1,041", tone: "border-indigo-200 bg-indigo-50", valueClass: "text-indigo-900" },
-  { label: "Failed", value: "9", tone: "border-rose-200 bg-rose-50", valueClass: "text-rose-900" },
-]
-
-const recentMessages = [
-  {
-    subject: "Volunteer schedule reminder",
-    channel: "Email",
-    status: "Delivered",
-    audience: "178 volunteers",
-    sentAt: "Today, 8:30 AM",
-  },
-  {
-    subject: "Weather update for Saturday event",
-    channel: "SMS",
-    status: "Queued",
-    audience: "94 participants",
-    sentAt: "Today, 7:10 AM",
-  },
-  {
-    subject: "Template preview request",
-    channel: "Email",
-    status: "Draft",
-    audience: "Internal review",
-    sentAt: "Yesterday, 4:25 PM",
-  },
-]
 
 const templateUsage = [
   { name: "Event reminder", usage: "34 sends", lastUsed: "2 hours ago", tone: "bg-sky-100 text-sky-900" },
@@ -112,12 +82,35 @@ function summarizeDeliveries(messages, deliveries) {
 }
 
 function Communications() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [composerOpen, setComposerOpen] = useState(false)
+  const [composerDraft, setComposerDraft] = useState(null)
   const [messages, setMessages] = useState([])
   const [deliveries, setDeliveries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
+
+  useEffect(() => {
+    const draft = location.state?.composerDraft
+    if (!draft || typeof draft !== "object") return
+
+    setComposerDraft({
+      recipientGroup: draft.recipientGroup,
+      subject: draft.subject,
+      messageBody: draft.messageBody,
+      recipientEstimate: draft.recipientEstimate,
+    })
+    setComposerOpen(true)
+
+    const count = Number(draft.recipientEstimate || 0)
+    if (count > 0) {
+      setStatusMessage(`Loaded message draft for ${count} selected participant(s).`)
+    }
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   const loadCommunicationsData = async () => {
     setLoading(true)
@@ -161,7 +154,15 @@ function Communications() {
 
   return (
     <div className="space-y-4 pb-20">
-      <MessageComposerModal isOpen={composerOpen} onClose={() => setComposerOpen(false)} onNext={handleMessageSent} />
+      <MessageComposerModal
+        isOpen={composerOpen}
+        initialDraft={composerDraft}
+        onClose={() => {
+          setComposerOpen(false)
+          setComposerDraft(null)
+        }}
+        onNext={handleMessageSent}
+      />
 
       {statusMessage ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
