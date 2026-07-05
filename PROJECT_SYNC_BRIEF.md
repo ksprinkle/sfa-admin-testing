@@ -2,6 +2,164 @@
 This document reflects the CURRENT WORKING STATE of the system.
 Do not regress or redesign existing working infrastructure (auth, deployment, imports).
 
+## Governance Snapshot (2026-07-03 - Phase 8 Closed)
+
+Authoritative state:
+- Phase 8 closeout is approved and recorded as closed.
+- Canonical baseline is now `v1.21.0-phase9-operational-dashboard-foundation-closeout`.
+- Baseline advancement execution is completed and recorded.
+- No implementation authorizations remain active.
+- Migration execution remains unauthorized.
+- Deferred scope remains deferred and out of scope.
+
+Deferred scope boundaries reaffirmed:
+- SMS provider implementation
+- Push notification provider
+- Campaign management
+- Bulk messaging
+- Advanced retry policies
+- Delivery analytics
+- Event operations enhancements
+- Administrative automation and workflow optimization
+- Executive reporting/dashboard expansion
+- Cross-module communication and integration workflows
+
+## Session Delta (Working - July 5, Admin PWA Beta RC Preparation)
+
+Status: Release-prep updates applied in working tree
+
+Scope guardrails:
+- Release preparation only.
+- No new feature implementation.
+- No architecture redesign.
+- Preserve historical governance and phase records unchanged.
+
+Behavior and documentation summary:
+- Updated Admin PWA application version metadata for beta release candidate alignment.
+- Updated release label and feedback scenario version metadata used by header/dashboard feedback flows.
+- Added a dedicated Admin PWA release note document for v0.2.0-rc.1 summarizing delivered scope since v0.1.0.
+- Updated the practical readiness and feedback/testing checklist for RC validation and go/no-go gating.
+- Added a candidate baseline document for release tracking while preserving the historical v1.0.0 baseline document.
+
+Validation evidence:
+- Frontend lint and build validation rerun for release candidate prep.
+- Release preflight script fixed for strict-mode parameter handling and rerun.
+- Release preflight now correctly fails only on the expected non-clean working-tree gate.
+- No code feature additions were introduced in this release-prep update set.
+
+Release-prep commit evidence in current lineage:
+- `be77f16` (tag: `v0.1.0`) previous released baseline.
+- `85323ef` command palette and shell enhancements integrated.
+- `72c807b` cross-feature UI polish and stabilization.
+
+Candidate tag recommendation:
+- `v0.2.0-rc.1`
+
+## Session Delta (Working - July 3, Phase 9 Increment 2 Metrics Aggregation Services)
+
+Status: Implemented and validated in the working tree
+
+Scope guardrails:
+- Read-only telemetry consumption only.
+- No persistence schema changes.
+- No migrations.
+- No execution pipeline behavior changes.
+- No external monitoring integrations.
+- No deferred scope expansion.
+- Preserve extensible dashboard architecture.
+
+Behavior summary:
+- Added a read-only dashboard metrics aggregator service and supporting aggregation contracts.
+- Added dashboard activity and metrics snapshot contracts for event counts, status distributions, category/provider/channel counts, and recent activity summaries.
+- Integrated DashboardService with the dashboard metrics aggregator while preserving registry-based widget composition.
+- Kept dashboard models/service boundaries immutable and planning-friendly.
+
+Validation evidence:
+- Dashboard-focused unit tests passed: `tests.test_dashboard_metrics_aggregator`, `tests.test_dashboard_service`, `tests.test_dashboard_registry`, `tests.test_dashboard_overview`.
+- Static diagnostics reported no errors in the new dashboard aggregator/service/model/test files.
+
+File touchpoints:
+- `api/services/dashboard_metrics_aggregator.py`
+- `api/services/dashboard_service.py`
+- `api/models/dashboard.py`
+- `api/models/__init__.py`
+- `tests/test_dashboard_metrics_aggregator.py`
+- `tests/test_dashboard_service.py`
+- `tests/test_dashboard_registry.py`
+- `tests/test_dashboard_overview.py`
+
+Canonical baseline:
+- `v1.21.0-phase9-operational-dashboard-foundation-closeout`
+
+## Session Delta (Working - July 3, Phase 9 Increment 3 Administrative Diagnostics)
+
+Status: Implemented and validated in the working tree
+
+Scope guardrails:
+- Read-only telemetry consumption only.
+- No persistence schema changes.
+- No migrations.
+- No execution pipeline changes.
+- No external integrations.
+- No deferred scope expansion.
+
+Behavior summary:
+- Added read-only dashboard diagnostics models and services that consume dashboard metrics snapshots and telemetry-derived overview data.
+- Added health/status summaries with graceful empty-dataset handling.
+- Added diagnostic findings for empty telemetry, missing dashboard configuration, and failure activity.
+- Kept diagnostics strictly read-only and non-invasive to telemetry or execution behavior.
+
+Validation evidence:
+- Dashboard diagnostics test slice passed: `tests.test_dashboard_diagnostics`.
+- Existing dashboard foundation tests continued to pass in the combined slice.
+- Static diagnostics reported no errors in the new diagnostics files.
+
+File touchpoints:
+- `api/models/dashboard_diagnostics.py`
+- `api/services/dashboard_diagnostics.py`
+- `api/models/__init__.py`
+- `tests/test_dashboard_diagnostics.py`
+
+Canonical baseline:
+- `v1.21.0-phase9-operational-dashboard-foundation-closeout`
+
+## Session Delta (Working - July 3, Phase 9 Increment 4 Dashboard Presentation Integration)
+
+Status: Implemented and validated in the working tree
+
+Scope guardrails:
+- Read-only presentation/API exposure only.
+- No schema changes.
+- No migrations.
+- No execution pipeline changes.
+- No external integrations.
+- No UI redesign.
+- No persistence modifications.
+
+Behavior summary:
+- Added read-only admin dashboard API endpoints for overview, metrics, diagnostics summary, and diagnostics report.
+- Added presentation schemas for dashboard overview, metrics snapshot, health summary, diagnostics report, and supporting nested contracts.
+- Wired API responses to the existing dashboard service, metrics aggregation service, and diagnostics service.
+- Preserved read-only telemetry consumption and extensible dashboard architecture.
+
+Validation evidence:
+- Dashboard presentation/API test slice passed: `tests.test_admin_dashboard_router`.
+- Existing dashboard diagnostics and foundation tests continued to pass in the combined slice.
+- Static diagnostics reported no errors in the new presentation/API files.
+
+File touchpoints:
+- `api/routers/admin_dashboard.py`
+- `api/schemas/dashboard.py`
+- `api/main.py`
+- `tests/test_admin_dashboard_router.py`
+- `api/services/dashboard_service.py`
+- `api/services/dashboard_metrics_aggregator.py`
+- `api/services/dashboard_diagnostics.py`
+- `api/models/dashboard_diagnostics.py`
+
+Canonical baseline:
+- `v1.21.0-phase9-operational-dashboard-foundation-closeout`
+
 ## Copilot Intake Starter
 
 Copy and paste these 3 lines into Copilot at session start:
@@ -1264,6 +1422,737 @@ Governance state:
 Closeout approval:
 - Increment 6 closeout review: approved
 - Baseline advancement recommended: `v1.17.0-phase6-increment6-circuit-breaker-boundary`
+
+## Session Delta (Planning - June 17, Phase 6 Increment 7 Candidate Comparison Review)
+
+Status: Candidate comparison complete; candidate selected; design-review packet pending; implementation not authorized
+
+Candidates evaluated:
+- Candidate A: Observability Expansion
+- Candidate B: Operational Dashboard Boundary
+- Candidate C: Analytics and Reporting Boundary
+
+Evaluation framework:
+- Dependency readiness (High)
+- Architectural leverage (High)
+- Scope containment (High)
+- Regression risk (Medium)
+- Future enablement value (High)
+- Preservation of abstraction boundaries (High)
+- Testability (Medium)
+
+Ranking and selection:
+- 1) Observability Expansion
+- 2) Operational Dashboard Boundary
+- 3) Analytics and Reporting Boundary
+- Selected candidate: Observability Expansion
+
+Governance state:
+- Increment 7 candidate comparison: complete
+- Increment 7 candidate selection: complete
+- Increment 7 design-review packet: pending
+- Increment 7 implementation: not authorized
+
+Next gate:
+- Increment 7 Design Review Packet Drafting
+
+## Session Delta (Planning - June 17, Phase 6 Increment 7 Design Review Packet Draft)
+
+Status: Draft complete; design review pending; implementation not authorized
+
+Candidate:
+- Observability Expansion
+
+Objective:
+- Define provider-agnostic observability boundaries for execution lifecycle and resiliency decisions without changing provider contracts/public APIs.
+
+Dependency verification:
+- Execution Pipeline Foundation: complete
+- Execution Outcome Classification: complete
+- Retry Decision Integration: complete
+- Retry Execution Orchestration: complete
+- Provider Failover Boundary: complete
+- Circuit Breaker Boundary: complete
+- Provider Abstraction Layer: complete
+- Provider Registry: complete
+
+Proposed components under review:
+- ObservabilityEvent
+- ExecutionTelemetryContext
+- ObservabilityStage
+- MetricsEmitter
+- ExecutionLifecycleRecorder
+
+Explicit non-goals:
+- No dashboards
+- No analytics/reporting projections
+- No persistence/schema changes
+- No external monitoring integrations
+- No provider contract changes
+- No public API changes
+
+Governance state:
+- Increment 7 design-review packet: drafted
+- Increment 7 design review: approved
+- Increment 7 implementation: not authorized
+
+Next gate:
+- Increment 7 Implementation Planning
+
+## Session Delta (Planning - June 17, Phase 6 Increment 7 Design Review Approval)
+
+Status: Design review approved; implementation planning pending; implementation not authorized
+
+Reviewed increment:
+- Observability Expansion
+
+Design review result:
+- Dependency verification: approved
+- Architectural progression with observability boundary insertion: approved
+- Component boundary set (`ObservabilityEvent`, `ExecutionTelemetryContext`, `MetricsEmitter`, `ExecutionLifecycleRecorder`, `ObservabilityStage`): approved
+- Non-goal preservation: approved
+- Acceptance criteria and risk analysis: approved
+
+Governance transition:
+- Increment 7 design review: approved
+- Next gate: Increment 7 Implementation Planning
+- Increment 7 implementation authorization: not granted
+- Increment 7 implementation: blocked
+
+## Session Delta (Planning - June 17, Phase 6 Increment 7 Implementation Planning Packet Draft)
+
+Status: Implementation-planning packet drafted; planning review pending; implementation not authorized
+
+Reviewed increment:
+- Observability Expansion
+
+Planning packet deliverables:
+- File-level implementation scope defined (new/modified/test/governance boundaries).
+- Event-model definitions drafted across execution lifecycle and resiliency stages.
+- Telemetry context lifecycle defined from execution context through metrics emission.
+- Metrics emission boundaries documented for execution/retry/failover/circuit signals.
+- Test matrix defined for lifecycle, resiliency, provider-agnostic generation, and pipeline integration paths.
+- Regression validation plan defined for unchanged provider contracts/implementations, public APIs, retry/failover/circuit behavior.
+
+Containment rules affirmed:
+- Event payloads remain provider-agnostic and deterministic.
+- Telemetry boundaries remain additive and non-invasive.
+- Dashboards, analytics, persistence changes, and external integrations remain deferred.
+
+Governance state:
+- Increment 7 implementation-planning packet: drafted
+- Increment 7 implementation-planning review: approved
+- Increment 7 implementation authorization: not granted
+- Increment 7 implementation: blocked
+
+Next gate:
+- Increment 7 Implementation Authorization Review
+
+## Session Delta (Planning - June 17, Phase 6 Increment 7 Implementation Planning Review Approval)
+
+Status: Implementation planning review approved; implementation authorization pending
+
+Reviewed increment:
+- Observability Expansion
+
+Planning review result:
+- File-level scope boundaries: approved
+- Event model definitions: approved
+- Telemetry context lifecycle: approved
+- Metrics emission boundaries: approved
+- Test matrix: approved
+- Regression validation plan: approved
+- Exit criteria: approved
+- Explicit authorization gate: approved
+
+Scope validation:
+- Included scope remains execution/resiliency lifecycle telemetry generation and provider-agnostic observability boundaries.
+- Excluded scope remains deferred (dashboards, analytics/reporting, persistence changes, external integrations, provider contract changes, public API changes).
+
+Governance transition:
+- Increment 7 implementation-planning review: approved
+- Next gate: Increment 7 Implementation Authorization Review
+- Implementation authorization: not granted
+- Implementation: blocked
+
+## Session Delta (Planning - June 17, Phase 6 Increment 7 Implementation Authorization Review Approval)
+
+Status: Implementation authorization review approved; implementation start not yet authorized
+
+Reviewed increment:
+- Observability Expansion
+
+Authorization review decisions:
+- Scope authorization review: pass
+- Architectural readiness review: pass
+- Dependency review: pass
+- Test readiness review: pass
+- Regression protection review: pass
+- Deferred concern compliance review: pass
+
+Risk assessment:
+- Architectural risk: low
+- Regression risk: low
+- Coupling risk: low
+- Operational risk: low
+
+Governance transition:
+- Increment 7 implementation authorization review: approved
+- Next gate: Explicit Implementation Start Authorization
+- Implementation start authorization: not yet granted
+- Coding/implementation: blocked pending explicit start authorization
+
+## Session Delta (Planning - June 17, Phase 6 Increment 7 Implementation Start Authorization)
+
+Status: Explicit implementation start authorization granted; implementation may begin
+
+Reviewed increment:
+- Observability Expansion
+
+Preconditions verification:
+- Candidate comparison: complete
+- Candidate selection: complete
+- Design review: approved
+- Implementation-planning packet: drafted
+- Implementation-planning review: approved
+- Implementation authorization review: approved
+- Explicit start authorization requested: complete
+
+Governance transition:
+- Increment 7 implementation start authorization: granted
+- Current gate: Increment 7 Implementation
+- Implementation status: authorized / in progress
+- Next gate: Increment 7 Implementation Review / Closeout
+
+Scope controls reaffirmed:
+- In scope remains telemetry/observer boundary implementation and associated tests only.
+- Out-of-scope items remain deferred (dashboards, analytics/reporting, persistence changes, external integrations/OpenTelemetry, provider/public API changes).
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Observability Foundation)
+
+Status: In progress
+
+Implemented in this session:
+- Added `api/services/execution_observability.py` with observer and metrics abstractions plus no-op defaults.
+- Added safe event-emission helper to ensure observer failures do not alter pipeline outcomes.
+- Added execution lifecycle emission in `api/services/execution_pipeline.py` (`execution_started`, `outcome_classified`, `execution_completed`).
+- Added retry/failover/circuit lifecycle emission in `api/services/execution_pipeline_stages.py`.
+- Updated `api/services/reminder_execution.py` to propagate `reminder_id` into execution telemetry context at dispatch entry.
+- Added test coverage in `tests/test_execution_observability.py` and expanded `tests/test_execution_pipeline.py` for event emission and observer failure containment.
+
+Validation:
+- Focused suite executed:
+  - `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_observability`
+  - Result: 38 tests, OK
+
+Scope compliance:
+- No provider contract changes.
+- No public API changes.
+- No persistence/schema changes.
+- No retry/failover/circuit behavior redesign; observability remains additive and optional.
+
+Next gate:
+- Increment 7 Implementation Review / Closeout (after full implementation completion and validation evidence package)
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Implementation Progress Review)
+
+Status: In progress; verification expansion completed
+
+Verification coverage completed:
+- successful execution telemetry path
+- classified failure telemetry path
+- retry execution telemetry path
+- retry exhaustion telemetry path
+- failover execution telemetry path
+- circuit-open telemetry path
+- circuit-blocked telemetry path
+- event ordering assertions
+- telemetry context propagation assertions
+- observer failure isolation assertions
+- provider-agnostic operation assertions
+
+Validation:
+- Focused suite executed:
+  - `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_observability`
+  - Result: 46 tests, OK
+
+Governance position:
+- Increment 7 implementation remains active/in progress.
+- No governance transition executed.
+- Next gate remains Increment 7 Implementation Review / Closeout.
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Closeout Package Draft Preparation)
+
+Status: Draft package prepared; gate unchanged
+
+Prepared artifact:
+- `docs/releases/PHASE6_INCREMENT7_IMPLEMENTATION_REVIEW_CLOSEOUT_PACKAGE_DRAFT_2026-06-17.md`
+
+Package draft includes:
+- final implemented file inventory
+- scope compliance summary
+- test evidence (focused suite: 46 tests, OK)
+- regression verification summary
+- deferred concern compliance statement
+- ADR inventory (ADR-055 through ADR-060)
+- final implementation summary draft
+- proposed canonical baseline identifier draft (`v1.18.0-phase6-increment7-observability-expansion`)
+
+Governance position:
+- Increment 7 implementation remains active/in progress
+- No gate transition executed
+- Next gate remains Increment 7 Implementation Review / Closeout
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Pre-Submission Checklist Completion)
+
+Status: Completed; gate unchanged
+
+Prepared artifact:
+- `docs/releases/PHASE6_INCREMENT7_IMPLEMENTATION_REVIEW_PRE_SUBMISSION_CHECKLIST_2026-06-17.md`
+
+Checklist outcome:
+- implementation completion readiness checks passed
+- evidence validation checks passed
+- repository validation checks passed
+- governance validation checks passed
+
+Validation refresh:
+- Focused suite re-run:
+  - `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_observability`
+  - Result: 46 tests, OK
+
+Governance position:
+- Increment 7 remains Implementation Active / In Progress
+- Closeout review not submitted
+- Closeout approval not granted
+- Next gate remains Increment 7 Implementation Review / Closeout
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Submission-Ready Closeout Packet Preparation)
+
+Status: Submission-ready packet prepared; not submitted
+
+Prepared artifact:
+- `docs/releases/PHASE6_INCREMENT7_IMPLEMENTATION_REVIEW_CLOSEOUT_PACKET_SUBMISSION_READY_2026-06-17.md`
+
+Preparation outcome:
+- closeout packet converted from draft structure to submission-ready format
+- explicit control section added: implementation completion pending, submission not executed, approval not granted
+- evidence sections finalized: inventory, scope compliance, validation, regression, deferred concerns, ADR inventory, proposed baseline tag
+
+Governance position:
+- Increment 7 remains Implementation Active / In Progress
+- Closeout submission not executed
+- Closeout approval not granted
+- Next gate remains Increment 7 Implementation Review / Closeout
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Implementation Completion Declaration Draft Preparation)
+
+Status: Declaration draft prepared; not executed
+
+Prepared artifact:
+- `docs/releases/PHASE6_INCREMENT7_IMPLEMENTATION_COMPLETION_DECLARATION_DRAFT_2026-06-17.md`
+
+Preparation outcome:
+- explicit implementation-completion declaration language staged for future execution
+- scope completion, boundary compliance, and validation references pre-structured
+- declaration execution intentionally left pending
+
+Governance position:
+- Increment 7 remains Implementation Active / In Progress
+- Implementation completion declaration not executed
+- Closeout submission not executed
+- Closeout approval not granted
+- Next gate remains Increment 7 Implementation Review / Closeout
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Implementation Completion Declaration Execution)
+
+Status: Executed; implementation gate exited
+
+Executed artifact:
+- `docs/releases/PHASE6_INCREMENT7_IMPLEMENTATION_COMPLETION_DECLARATION_EXECUTED_2026-06-17.md`
+
+Transition outcome:
+- Increment 7 implementation: complete
+- Implementation completion declaration: executed
+- Current gate: Increment 7 Implementation Review / Closeout Submission
+- Closeout submission: pending (not yet executed)
+- Closeout review: pending
+- Closeout approval: pending
+
+Governance position:
+- Implementation gate exited
+- Next governance action: formal closeout packet submission
+- Canonical baseline remains `v1.17.0-phase6-increment6-circuit-breaker-boundary` until closeout approval and baseline advancement decision
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Closeout Submission Execution)
+
+Status: Submitted; closeout review active
+
+Executed artifact:
+- `docs/releases/PHASE6_INCREMENT7_IMPLEMENTATION_REVIEW_CLOSEOUT_SUBMISSION_EXECUTED_2026-06-17.md`
+
+Transition outcome:
+- Closeout submission: submitted
+- Closeout review: active
+- Closeout approval: pending
+- Current gate: Increment 7 Implementation Review / Closeout Review
+
+Governance position:
+- Implementation complete
+- Closeout review in progress
+- Canonical baseline remains `v1.17.0-phase6-increment6-circuit-breaker-boundary` pending approval decision
+- Proposed baseline `v1.18.0-phase6-increment7-observability-expansion` remains unadopted until approval
+
+## Session Delta (Implementation - June 17, Phase 6 Increment 7 Closeout Review Approval)
+
+Status: Approved; increment closed
+
+Executed artifact:
+- `docs/releases/PHASE6_INCREMENT7_IMPLEMENTATION_REVIEW_CLOSEOUT_APPROVED_2026-06-17.md`
+
+Transition outcome:
+- Closeout review: complete
+- Closeout approval: granted
+- Increment 7: closed
+- Phase 6: complete
+- Baseline advancement: approved
+
+Canonical baseline transition:
+- Previous: `v1.17.0-phase6-increment6-circuit-breaker-boundary`
+- New canonical baseline: `v1.18.0-phase6-increment7-observability-expansion`
+
+Governance position:
+- Increment 7 governance lifecycle complete
+- Phase 6 complete
+- Next governance activity: Phase 6 closeout recording and transition planning for subsequent phase
+
+## Session Delta (Planning - June 17, Phase-Level Transition Preparation)
+
+Status: Phase-level artifacts drafted; no Phase 7 authorization changes
+
+Prepared artifacts:
+- `PHASE6_CLOSEOUT_MEMORANDUM_2026-06-17.md`
+- `PHASE7_CANDIDATE_EVALUATION_PACKET_DRAFT.md`
+
+Phase-level outcomes recorded:
+- Formal Phase 6 closeout memorandum drafted with executive summary, increment 1-7 completion, architecture evolution, validation summary, ADR summary (055-067), deferred register, and canonical baseline adoption record.
+- Phase 7 candidate-evaluation packet drafted with unselected candidate set, comparison framework, dependency/risk notes, and deferred-concern mapping.
+
+Governance position:
+- Phase 6 remains closed
+- Canonical baseline remains `v1.18.0-phase6-increment7-observability-expansion`
+- Phase 7 candidate evaluation: drafting only
+- Phase 7 design: not started
+- Phase 7 implementation: not authorized
+
+## Session Delta (Planning - June 17, Phase 7 Candidate Evaluation Review)
+
+Status: Completed
+
+Reviewed artifact:
+- `PHASE7_CANDIDATE_EVALUATION_PACKET_DRAFT.md`
+
+Review artifact:
+- `PHASE7_CANDIDATE_EVALUATION_REVIEW_2026-06-17.md`
+
+Review outcome:
+- Packet accepted for candidate selection.
+
+Governance controls reaffirmed:
+- No candidate selected.
+- No Phase 7 design authorization.
+- No Phase 7 implementation authorization.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+
+Next governance activity:
+- Phase 7 Candidate Selection Review
+
+## Session Delta (Planning - June 17, Phase 7 Candidate Selection Review)
+
+Status: Completed
+
+Reviewed artifact:
+- `PHASE7_CANDIDATE_EVALUATION_PACKET_DRAFT.md`
+
+Review artifact:
+- `PHASE7_CANDIDATE_SELECTION_REVIEW_2026-06-17.md`
+
+Required deliverables recorded:
+- Candidate comparison findings.
+- Selected candidate.
+- Selection rationale.
+- Deferred candidate list.
+- Design-review target definition.
+
+Review outcome:
+- Selected candidate: Candidate C - Persistence-backed telemetry.
+
+Governance controls reaffirmed:
+- Phase 7 design review remains pending.
+- No Phase 7 design authorization granted.
+- No Phase 7 implementation authorization granted.
+- No implementation activity started.
+- Phase 6 closeout remains unchanged.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+
+Next governance activity:
+- Phase 7 Design Review Packet Drafting (selected candidate scope only; still planning-only until separate design authorization).
+
+## Session Delta (Planning - June 17, Phase 7 Design Review)
+
+Status: Completed
+
+Review subject:
+- Persistence-Backed Telemetry Architecture Foundation
+
+Review artifact:
+- `PHASE7_DESIGN_REVIEW_2026-06-17.md`
+
+Required deliverables recorded:
+- Architectural objectives.
+- Scope boundaries.
+- Telemetry persistence model.
+- Storage abstraction strategy.
+- Schema and migration approach.
+- Compatibility analysis with existing observability architecture.
+- Deferred concerns and exclusions.
+- Design review decision and rationale.
+
+Review decision:
+- Approved for Design Authorization Review.
+
+Governance controls reaffirmed:
+- Design authorization remains not granted.
+- Implementation authorization remains not granted.
+- Implementation remains not authorized.
+- No schema migration execution approved.
+- Phase 6 closeout remains unchanged.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+
+Next governance activity:
+- Phase 7 Design Authorization Review (decision-only gate; no implementation authorization in this step).
+
+## Session Delta (Planning - June 17, Phase 7 Design Authorization Review)
+
+Status: Completed
+
+Review subject:
+- Persistence-Backed Telemetry Architecture Foundation
+
+Review artifact:
+- `PHASE7_DESIGN_AUTHORIZATION_REVIEW_2026-06-17.md`
+
+Required decision package recorded:
+- Authorization decision.
+- Decision rationale.
+- Risk assessment.
+- Required conditions.
+- Deferred concerns.
+- Explicit implementation constraints.
+- Governance impact statement.
+
+Authorization decision:
+- Approved with Conditions.
+- Design Authorization: granted.
+
+Governance controls reaffirmed:
+- Implementation authorization remains not granted.
+- Implementation remains not authorized.
+- No coding authorized by this review.
+- No schema migration execution approved.
+- No implementation planning execution started.
+- Phase 6 closeout remains unchanged.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+
+Next governance activity:
+- Phase 7 Implementation Authorization Review (decision-only gate; contingent on design-condition evidence).
+
+## Session Delta (Planning - June 17, Phase 7 Implementation Authorization Review)
+
+Status: Completed
+
+Review subject:
+- Persistence-Backed Telemetry Architecture Foundation
+
+Review artifact:
+- `PHASE7_IMPLEMENTATION_AUTHORIZATION_REVIEW_2026-06-17.md`
+
+Required decision package recorded:
+- Authorization decision.
+- Condition-to-evidence mapping.
+- Readiness assessment.
+- Risk assessment.
+- Required implementation controls.
+- Deferred concerns.
+- Governance impact statement.
+- Explicit implementation-start constraints.
+
+Authorization decision:
+- Approved with Conditions.
+- Implementation Authorization: granted.
+
+Governance controls reaffirmed:
+- Implementation-start authorization remains not granted.
+- Implementation remains not authorized.
+- No coding activity authorized by this review.
+- No schema migration execution approved.
+- No implementation execution kickoff authorized.
+- Phase 6 closeout remains unchanged.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+
+Next governance activity:
+- Phase 7 Implementation Start Authorization Review (explicit start gate; no start before this decision).
+
+## Session Delta (Planning - June 17, Phase 7 Implementation Start Authorization Review)
+
+Status: Completed
+
+Review subject:
+- Persistence-Backed Telemetry Architecture Foundation
+
+Review artifact:
+- `PHASE7_IMPLEMENTATION_START_AUTHORIZATION_REVIEW_2026-06-17.md`
+
+Required decision package recorded:
+- Authorization decision.
+- Condition satisfaction evidence.
+- Scope validation.
+- Risk-control validation.
+- Repository readiness findings.
+- Testing and validation requirements.
+- Go/No-Go rationale.
+- Governance impact statement.
+
+Authorization decision:
+- Approved with Conditions.
+- Implementation Start Authorization: granted.
+
+Governance state transition:
+- Implementation: authorized / in progress.
+
+Governance controls reaffirmed:
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+- Phase 6 closeout remains unchanged.
+- Scope remains limited to Persistence-Backed Telemetry Architecture Foundation.
+- No implementation completion recorded.
+- No implementation review/closeout outcome recorded.
+
+Next governance activity:
+- Phase 7 Implementation Progress Review (execution evidence checkpoint).
+
+## Session Delta (Implementation - June 17, Phase 7 Implementation Progress Review)
+
+Status: Completed
+
+Review subject:
+- Persistence-Backed Telemetry Architecture Foundation
+
+Review artifact:
+- `PHASE7_IMPLEMENTATION_PROGRESS_REVIEW_2026-06-17.md`
+
+Required evidence package recorded:
+- Progress summary.
+- Implemented work inventory.
+- Scope-compliance assessment.
+- Design-conformance assessment.
+- Condition-compliance assessment.
+- Validation/test evidence.
+- Risk-control status.
+- Repository-state assessment.
+- Remaining-work assessment.
+- Governance impact statement.
+
+Review outcome:
+- Progress acceptable with corrective actions.
+
+Validation evidence:
+- Focused suite executed: `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_observability`
+- Result: `Ran 46 tests`, `OK`.
+
+Governance controls reaffirmed:
+- Implementation remains authorized / in progress.
+- Implementation completion not declared.
+- No implementation closeout/review decision recorded.
+- No closeout approval recorded.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+- Phase 6 closeout remains unchanged.
+
+Next governance activity:
+- Continue implementation under corrective actions, then execute next implementation progress review checkpoint.
+
+## Session Delta (Implementation - June 20, Phase 7 Precondition Artifacts Closure)
+
+Status: Completed
+
+Artifacts published:
+- `PHASE7_SCOPE_FREEZE_PACKET_2026-06-20.md`
+- `PHASE7_TELEMETRY_TAXONOMY_APPENDIX_2026-06-20.md`
+- `PHASE7_TELEMETRY_RETENTION_DEFAULTS_2026-06-20.md`
+
+Priority-1 closure mapping:
+1. Scope Freeze Packet:
+- scope freeze corrective action closed.
+- implementation-start scope-freeze artifact requirement satisfied.
+
+2. Taxonomy Appendix:
+- taxonomy/schema ownership publication requirement satisfied.
+- taxonomy corrective action closed.
+
+3. Retention Defaults:
+- retention/governance publication requirement satisfied.
+- retention defaults corrective action closed.
+
+Governance state impact:
+- Phase 7 implementation remains authorized / in progress.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+- Phase 6 closeout unchanged.
+- No completion/closeout transition executed.
+
+Remaining corrective actions still active:
+- produce persistence model/store implementation artifacts.
+- draft migration checklist artifact with execution gate preserved.
+- expand persistence-specific test matrix and evidence.
+
+Next governance activity:
+- continue implementation and run next implementation progress review to verify remaining corrective-action closure.
+
+## Session Delta (Implementation - June 20, Phase 7 Implementation Progress Review)
+
+Status: Completed
+
+Review subject:
+- Persistence-Backed Telemetry Architecture Foundation
+
+Review artifact:
+- `PHASE7_IMPLEMENTATION_PROGRESS_REVIEW_2026-06-20.md`
+
+Evidence highlights:
+- TelemetryRecord/TelemetryStore foundation implemented (`api/services/telemetry_store.py`).
+- Store-backed observability integration added (`api/services/execution_observability.py`).
+- Persistence suite added (`tests/test_telemetry_store.py`) and observability persistence integration test added.
+- Priority-1/2/3/4 artifacts published for scope freeze, taxonomy, retention defaults, migration checklist, test matrix, and closure evidence.
+
+Validation evidence:
+- Focused+persist suite executed: `python -m unittest tests.test_execution_pipeline tests.test_execution_pipeline_stages tests.test_execution_observability tests.test_telemetry_store`
+- Result: `Ran 53 tests`, `OK`.
+
+Review outcome:
+- Progress acceptable, continue implementation.
+
+Governance controls reaffirmed:
+- Implementation remains authorized / in progress.
+- Implementation completion not declared.
+- No closeout submission/review/approval recorded.
+- Canonical baseline unchanged (`v1.18.0-phase6-increment7-observability-expansion`).
+- Phase 6 closeout remains unchanged.
+
+Remaining implementation focus:
+- production-oriented persistence adapter path.
+- persistence migration artifacts for review (execution still gated).
+- expanded persistence integration tests as implementation grows.
+
+Next governance activity:
+- continue implementation and execute subsequent implementation progress review after meaningful additional progress.
 
 ## Session Delta (Planning - June 17, Phase 6 Increment 3 Design Review Packet Draft)
 

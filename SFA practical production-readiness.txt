@@ -1,53 +1,74 @@
-SFA practical production-readiness checklist for beach-day cellular use.
+SFA Admin PWA beta release candidate readiness and feedback checklist.
+
+Release Candidate Target
+
+Candidate version: v0.2.0-rc.1
+Previous released baseline: v0.1.0
+Goal: verify the current Admin PWA feature set is stable for beta/RC tagging and deployment.
 
 Must-Have Setup
 
-Host the API on a public URL (not laptop/local network).
+Host the API on a public URL (not a local network address).
 Host the admin frontend on a public URL.
 Use HTTPS for frontend and API.
 Ensure websocket uses WSS in production.
-Point frontend API base URL to production API domain.
-Configure CORS to allow only your production frontend origin.
+Point frontend API base URL to the production API domain.
+Configure CORS to allow only production frontend origins.
 Use a managed production database with backups.
-Run database migrations on deploy.
-Set secure auth secrets as environment variables.
-Add basic monitoring/logging so you can see API errors live.
+Run database migrations during deployment.
+Set auth and security secrets as environment variables.
+Keep runtime monitoring/logging enabled for API and websocket errors.
+
 Config Checklist
 
 Frontend env:
 VITE_API_URL=https://your-api-domain
+
 Backend env:
 DB connection string
 JWT/auth secret
 allowed CORS origin(s)
 production mode flags
+
 Networking:
-websocket endpoint reachable through your reverse proxy
-idle timeout settings that do not kill websockets too aggressively
-Operational Safeguards
+websocket endpoint reachable through reverse proxy
+idle timeout settings that do not terminate websocket sessions too aggressively
 
-Keep the existing offline queue and retry logic (already done).
-Keep periodic polling fallback even with websocket (already done).
-Add a small “pending offline check-ins” indicator on screen (already partly present).
-Add an admin “sync now” button (manual recovery path).
-Set token/session expiry long enough for event day, or provide quick re-login flow.
-Have a secondary admin device logged in as backup.
-Beach-Day Test Script (Run Before Event)
+Feature Validation Checklist (v0.2.0-rc.1)
 
-Open app on two devices over cellular.
-Confirm both load and authenticate.
-Device A: airplane mode ON, check in 3 participants.
-Verify queue count increases and UI updates locally.
-Device A: airplane mode OFF.
-Confirm queued check-ins sync automatically.
-Device B: confirm changes appear without manual refresh.
-Repeat with weak signal area if possible.
-Force-close and reopen app with pending queue to verify recovery.
-Verify no duplicate check-ins and waiver rules still enforced.
+Global navigation and command workflow:
+Validate command palette opens from header and global keyboard shortcut.
+Validate fuzzy filtering, keyboard navigation, highlight rendering, and direct command execution.
+Validate command targets resolve to expected pages/workflows.
+
+Operational visibility:
+Validate notification center opens from header and shows unread state.
+Validate mark-as-read and mark-all-read behaviors.
+Validate type filtering and workflow deep links.
+Validate read state persists across refresh and polling cycles.
+
+Core event operations:
+Validate Events, Event Detail, Participants, Check-In, Fast Assign, Communications, and Dashboard routes load correctly.
+Validate critical actions show clear success/error feedback and remain responsive on phone and laptop layouts.
+Validate no obvious regressions in event-day check-in and queue-based offline recovery.
+
+Build and quality gates:
+Run lint and resolve blocking issues.
+Run production build and verify static output generation.
+Confirm no new critical diagnostics in edited UI files.
+
+Feedback Collection
+
+Use the in-app feedback workflow and event-creation feedback form for operator notes.
+Collect at least one pass from a mobile viewport and one pass from desktop/tablet.
+Record environment, route, action, expected behavior, actual behavior, and severity for each issue.
+Confirm all release-blocking issues are resolved or explicitly waived before tagging.
+
 Go/No-Go Criteria
 
-No data loss after offline -> reconnect.
-Cross-device sync appears automatically within expected interval.
-Queue drains to zero after reconnect.
-Staff can continue checking in during network interruptions.
-Backend logs show no repeated auth/CORS/websocket failures.
+No data-loss behavior observed in offline to reconnect flows.
+Cross-device updates appear within expected refresh interval.
+Unread/read notification behavior remains consistent across sessions.
+Command palette navigation is keyboard-accessible and deterministic.
+Build and lint gates pass for the candidate commit.
+Repository release scope is clearly identified for tagging.
