@@ -20,41 +20,41 @@ const gitShortHash = getGitShortHash()
 const buildId = `v${appVersion}-${gitShortHash}`
 
 // https://vite.dev/config/
-export default defineConfig(({ command, mode }) => {
-  const isBuild = command === 'build'
-  const isRenderBuild = isBuild && mode === 'render'
+export default defineConfig(({ command }) => ({
+  // GitHub Pages deployment: use /sfa-admin-testing/ base path in production,
+  // localhost in development. main.jsx uses basename={import.meta.env.BASE_URL}
+  // to configure react-router, and package.json deploy script copies index.html→404.html.
+  base: command === 'build' ? '/sfa-admin-testing/' : '/',
 
-  return {
-    // Render serves the app at the domain root and expects output in dist/.
-    // GitHub Pages serves from /sfa-admin-testing/ and publishes from ../docs/.
-    base: isRenderBuild ? '/' : isBuild ? '/sfa-admin-testing/' : '/',
-
-    build: {
-      outDir: isRenderBuild ? 'dist' : '../docs',
-      emptyOutDir: true,
-      assetsDir: 'assets',
-      rollupOptions: {
-        output: {
-          assetFileNames: 'assets/[name]-[hash][extname]',
-          chunkFileNames: 'assets/[name]-[hash].js',
-          entryFileNames: 'assets/[name]-[hash].js',
-        },
-      },
-      minify: 'terser',
-      cssMinify: true,
-    },
-
-    plugins: [react()],
-
-    define: {
-      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
-      'import.meta.env.VITE_BUILD_ID': JSON.stringify(buildId),
-    },
-
-    server: {
-      proxy: {
-        '/api': 'http://localhost:8000',
+  build: {
+    // Build to repo-root docs/ so GitHub Pages can serve from /docs on master.
+    outDir: '../docs',
+    emptyOutDir: true,
+    // Ensure assets are versioned for cache busting on GitHub Pages
+    assetsDir: 'assets',
+    // Optimize chunk splitting for subpath deployment
+    rollupOptions: {
+      output: {
+        // Preserve asset paths relative to base directory
+        assetFileNames: 'assets/[name]-[hash][extname]',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
       },
     },
-  }
-})
+    minify: 'terser',
+    cssMinify: true,
+  },
+
+  plugins: [react()],
+
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    'import.meta.env.VITE_BUILD_ID': JSON.stringify(buildId),
+  },
+
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
+  },
+}))

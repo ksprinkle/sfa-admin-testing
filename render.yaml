@@ -27,22 +27,6 @@ services:
           name: sfa-db
           property: connectionString
 
-  - type: static
-    name: sfa-admin
-    rootDir: admin-app
-    buildCommand: npm ci && npm run build:render
-    publishPath: dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: sfa-api
-          property: url
-
 
 databases:
   - name: sfa-db

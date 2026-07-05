@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:render": "vite build --mode render",
     "deploy": "npm run build && node -e \"const fs=require('fs');const path=require('path');const out=path.resolve('..','docs');console.log('docs prepared for GitHub Pages at repo root');\"",
     "lint": "eslint .",
     "preview": "vite preview"
