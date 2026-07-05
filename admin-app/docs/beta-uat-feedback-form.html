@@ -836,6 +836,64 @@
 
         <div class="section-head" style="margin-top:16px;">
           <span class="pill">SECTION 2</span>
+          <div class="section-title">CORE EVENT OPERATIONS</div>
+        </div>
+        <p class="hint">Evaluate core event creation and management workflows used by operators.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th class="status-ok">Worked as expected</th>
+              <th class="status-warn">Confusing</th>
+              <th class="status-bad">Didn't work</th>
+              <th class="status-skip" style="color:#5f6f8e">Not tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Create Chapter Event</span></td>
+              <td class="choice"><input type="radio" name="core_ops_task_1" value="worked" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_1" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_1" value="failed" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_1" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon square"></span> Create Tour Event</span></td>
+              <td class="choice"><input type="radio" name="core_ops_task_2" value="worked" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_2" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_2" value="failed" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_2" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon circle"></span> Review Generated Sessions</span></td>
+              <td class="choice"><input type="radio" name="core_ops_task_3" value="worked" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_3" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_3" value="failed" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_3" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Review Event Summary</span></td>
+              <td class="choice"><input type="radio" name="core_ops_task_4" value="worked" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_4" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_4" value="failed" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_4" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon square"></span> Update Event Details and verify changes save correctly</span></td>
+              <td class="choice"><input type="radio" name="core_ops_task_5" value="worked" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_5" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_5" value="failed" /></td>
+              <td class="choice"><input type="radio" name="core_ops_task_5" value="not_tested" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="field">
+          <label for="coreOpsComments">Core Event Operations comments</label>
+          <textarea id="coreOpsComments" name="core_ops_comments" placeholder="Brief notes"></textarea>
+        </div>
+
+        <div class="section-head" style="margin-top:16px;">
+          <span class="pill">SECTION 3</span>
           <div class="section-title">EXECUTIVE DASHBOARD</div>
         </div>
         <p class="hint">Today Overview, live telemetry, auto-refresh, Recent Activity, Attention Panel, Quick Actions, and Dashboard Preferences.</p>
@@ -872,7 +930,7 @@
         </div>
 
         <div class="section-head" style="margin-top:16px;">
-          <span class="pill">SECTION 3</span>
+          <span class="pill">SECTION 4</span>
           <div class="section-title">SEARCH &amp; KEYBOARD NAVIGATION</div>
         </div>
         <table>
@@ -908,7 +966,7 @@
         </div>
 
         <div class="section-head" style="margin-top:16px;">
-          <span class="pill">SECTION 4</span>
+          <span class="pill">SECTION 5</span>
           <div class="section-title">EVENT OPERATIONS</div>
         </div>
         <p class="hint">Events, Participants, Volunteers, Sessions, Check-In, Fast Assign, and Bulk Participant Actions.</p>
@@ -945,7 +1003,7 @@
         </div>
 
         <div class="section-head" style="margin-top:16px;">
-          <span class="pill">SECTION 5</span>
+          <span class="pill">SECTION 6</span>
           <div class="section-title">COMMUNICATIONS CENTER</div>
         </div>
         <table>
@@ -974,7 +1032,7 @@
         </div>
 
         <div class="section-head" style="margin-top:16px;">
-          <span class="pill">SECTION 6</span>
+          <span class="pill">SECTION 7</span>
           <div class="section-title">OVERALL EXPERIENCE</div>
         </div>
         <table>
@@ -1416,7 +1474,19 @@
         function buildExportPayload() {
           const current = getFormPayload();
           const saved = getSavedData();
-          const hasSelections = Boolean(current.task_1 || current.task_2 || current.task_3 || current.task_4 || current.comfortable || current.overall_rating);
+          const hasSelections = Boolean(
+            current.task_1 ||
+              current.task_2 ||
+              current.task_3 ||
+              current.task_4 ||
+              current.core_ops_task_1 ||
+              current.core_ops_task_2 ||
+              current.core_ops_task_3 ||
+              current.core_ops_task_4 ||
+              current.core_ops_task_5 ||
+              current.comfortable ||
+              current.overall_rating
+          );
           const formData = hasSelections ? current : saved;
           return {
             timestamp: new Date().toISOString(),

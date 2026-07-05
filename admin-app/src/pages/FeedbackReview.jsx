@@ -38,6 +38,17 @@ const FEEDBACK_SCHEMAS = {
         ],
       },
       {
+        key: "core_event_operations",
+        label: "Core Event Operations",
+        tasks: [
+          { key: "core_ops_task_1", label: "Create Chapter Event" },
+          { key: "core_ops_task_2", label: "Create Tour Event" },
+          { key: "core_ops_task_3", label: "Review Generated Sessions" },
+          { key: "core_ops_task_4", label: "Review Event Summary" },
+          { key: "core_ops_task_5", label: "Update Event Details and verify changes save correctly" },
+        ],
+      },
+      {
         key: "executive_dashboard",
         label: "Executive Dashboard",
         tasks: [
@@ -78,6 +89,7 @@ const FEEDBACK_SCHEMAS = {
     ],
     commentFields: [
       { key: "task_notes", label: "Login & Navigation comments" },
+      { key: "core_ops_comments", label: "Core Event Operations comments" },
       { key: "dashboard_comments", label: "Executive Dashboard comments" },
       { key: "search_comments", label: "Search & Keyboard comments" },
       { key: "operations_comments", label: "Event Operations comments" },
