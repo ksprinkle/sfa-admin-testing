@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SFA Admin Test - Event Creation Feedback</title>
+    <title>SFA Admin PWA v0.2.0-rc.2 - Beta UAT</title>
     <style>
       :root {
         --bg: #edf3fb;
@@ -759,21 +759,23 @@
         </div>
         <div class="hero-band"></div>
         <div class="hero-body">
-          <h2>SFA Admin Test - Event Creation + Templates (v0.1)</h2>
-          <p class="lead">This is a quick test of event creation from both the Events page and Event Templates in the SFA Admin app.</p>
+          <h2>SFA Admin PWA UAT - Beta Evaluation (v0.2.0-rc.2)</h2>
+          <p class="lead">This is a full User Acceptance Testing pass across the SFA Admin PWA beta experience.</p>
 
           <div class="steps">
             <div class="step"><span class="dot">1</span> Open the app</div>
-            <div class="step"><span class="dot">2</span> Complete the tasks below</div>
-            <div class="step"><span class="dot">3</span> Share your quick feedback</div>
+            <div class="step"><span class="dot">2</span> Run the area checklists below</div>
+            <div class="step"><span class="dot">3</span> Submit your UAT summary</div>
           </div>
 
-          <div class="time"><span class="clock" aria-hidden="true"></span> This should take about 2-4 minutes.</div>
-          <p class="small-note">Please test both direct event creation and template-based flows, including annual generation.</p>
+          <div class="time"><span class="clock" aria-hidden="true"></span> This should take about 7-9 minutes.</div>
+          <p class="small-note">Please test each area quickly and mark untested items as Not Tested.</p>
           <div class="context-banner">
-            <span class="ctx-label">Test Focus:</span> Event Creation + Templates
+            <span class="ctx-label">Test Focus:</span> Full Application Beta Evaluation
             <span class="ctx-sep">·</span>
-            <span class="ctx-label">Version:</span> v0.1
+            <span class="ctx-label">Version:</span> v0.2.0-rc.2
+            <span class="ctx-sep">·</span>
+            <span class="ctx-label">Feature:</span> Beta Evaluation
           </div>
         </div>
       </section>
@@ -781,9 +783,9 @@
       <form id="feedbackForm" class="card section">
         <div class="section-head">
           <span class="pill">SECTION 1</span>
-          <div class="section-title">QUICK TASKS</div>
+          <div class="section-title">LOGIN &amp; NAVIGATION</div>
         </div>
-        <p class="hint">Complete each task in the app, then select the result. For annual templates, confirm map/weather/surf links carry into created events.</p>
+        <p class="hint">Complete each task and select one outcome.</p>
 
         <table>
           <thead>
@@ -797,28 +799,28 @@
           </thead>
           <tbody>
             <tr>
-              <td><span class="task"><span class="task-icon"></span> 1. Create an Event from the main Events page</span></td>
+              <td><span class="task"><span class="task-icon"></span> Sign in and land on the correct start page</span></td>
               <td class="choice"><input type="radio" name="task_1" value="worked" /></td>
               <td class="choice"><input type="radio" name="task_1" value="confusing" /></td>
               <td class="choice"><input type="radio" name="task_1" value="failed" /></td>
               <td class="choice"><input type="radio" name="task_1" value="not_tested" /></td>
             </tr>
             <tr>
-              <td><span class="task"><span class="task-icon square"></span> 2. Create a one-off Event from an Event Template</span></td>
+              <td><span class="task"><span class="task-icon square"></span> Move between key areas (Dashboard, Events, Participants, Communications)</span></td>
               <td class="choice"><input type="radio" name="task_2" value="worked" /></td>
               <td class="choice"><input type="radio" name="task_2" value="confusing" /></td>
               <td class="choice"><input type="radio" name="task_2" value="failed" /></td>
               <td class="choice"><input type="radio" name="task_2" value="not_tested" /></td>
             </tr>
             <tr>
-              <td><span class="task"><span class="task-icon circle"></span> 3. Generate a new year from an annual Event Template</span></td>
+              <td><span class="task"><span class="task-icon circle"></span> Open and use Global Search to find pages and records</span></td>
               <td class="choice"><input type="radio" name="task_3" value="worked" /></td>
               <td class="choice"><input type="radio" name="task_3" value="confusing" /></td>
               <td class="choice"><input type="radio" name="task_3" value="failed" /></td>
               <td class="choice"><input type="radio" name="task_3" value="not_tested" /></td>
             </tr>
             <tr>
-              <td><span class="task"><span class="task-icon"></span> 4. Confirm generated details and links (map, weather, surf report)</span></td>
+              <td><span class="task"><span class="task-icon"></span> Open and execute actions from the Universal Command Palette</span></td>
               <td class="choice"><input type="radio" name="task_4" value="worked" /></td>
               <td class="choice"><input type="radio" name="task_4" value="confusing" /></td>
               <td class="choice"><input type="radio" name="task_4" value="failed" /></td>
@@ -828,22 +830,190 @@
         </table>
 
         <div class="field">
-          <label for="taskNotes">If anything was confusing or didn't work, what happened?</label>
-          <textarea id="taskNotes" name="task_notes" placeholder="Your answer"></textarea>
+          <label for="taskNotes">Login &amp; Navigation comments</label>
+          <textarea id="taskNotes" name="task_notes" placeholder="Brief notes"></textarea>
+        </div>
+
+        <div class="section-head" style="margin-top:16px;">
+          <span class="pill">SECTION 2</span>
+          <div class="section-title">EXECUTIVE DASHBOARD</div>
+        </div>
+        <p class="hint">Today Overview, live telemetry, auto-refresh, Recent Activity, Attention Panel, Quick Actions, and Dashboard Preferences.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th class="status-ok">Worked as expected</th>
+              <th class="status-warn">Confusing</th>
+              <th class="status-bad">Didn't work</th>
+              <th class="status-skip" style="color:#5f6f8e">Not tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Today Overview and live telemetry render useful real-time context</span></td>
+              <td class="choice"><input type="radio" name="dashboard_task_1" value="worked" /></td>
+              <td class="choice"><input type="radio" name="dashboard_task_1" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="dashboard_task_1" value="failed" /></td>
+              <td class="choice"><input type="radio" name="dashboard_task_1" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon square"></span> Attention Panel, Recent Activity, Quick Actions, and Preferences behave as expected</span></td>
+              <td class="choice"><input type="radio" name="dashboard_task_2" value="worked" /></td>
+              <td class="choice"><input type="radio" name="dashboard_task_2" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="dashboard_task_2" value="failed" /></td>
+              <td class="choice"><input type="radio" name="dashboard_task_2" value="not_tested" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="field">
+          <label for="dashboardComments">Executive Dashboard comments</label>
+          <textarea id="dashboardComments" name="dashboard_comments" placeholder="Brief notes"></textarea>
+        </div>
+
+        <div class="section-head" style="margin-top:16px;">
+          <span class="pill">SECTION 3</span>
+          <div class="section-title">SEARCH &amp; KEYBOARD NAVIGATION</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th class="status-ok">Worked as expected</th>
+              <th class="status-warn">Confusing</th>
+              <th class="status-bad">Didn't work</th>
+              <th class="status-skip" style="color:#5f6f8e">Not tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Global Search results are relevant and navigation is clear</span></td>
+              <td class="choice"><input type="radio" name="search_task_1" value="worked" /></td>
+              <td class="choice"><input type="radio" name="search_task_1" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="search_task_1" value="failed" /></td>
+              <td class="choice"><input type="radio" name="search_task_1" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon circle"></span> Command Palette and keyboard navigation feel fast and usable</span></td>
+              <td class="choice"><input type="radio" name="search_task_2" value="worked" /></td>
+              <td class="choice"><input type="radio" name="search_task_2" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="search_task_2" value="failed" /></td>
+              <td class="choice"><input type="radio" name="search_task_2" value="not_tested" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="field">
+          <label for="searchComments">Search &amp; Keyboard comments</label>
+          <textarea id="searchComments" name="search_comments" placeholder="Brief notes"></textarea>
+        </div>
+
+        <div class="section-head" style="margin-top:16px;">
+          <span class="pill">SECTION 4</span>
+          <div class="section-title">EVENT OPERATIONS</div>
+        </div>
+        <p class="hint">Events, Participants, Volunteers, Sessions, Check-In, Fast Assign, and Bulk Participant Actions.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th class="status-ok">Worked as expected</th>
+              <th class="status-warn">Confusing</th>
+              <th class="status-bad">Didn't work</th>
+              <th class="status-skip" style="color:#5f6f8e">Not tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Event setup and roster operations (participants, volunteers, sessions) are reliable</span></td>
+              <td class="choice"><input type="radio" name="operations_task_1" value="worked" /></td>
+              <td class="choice"><input type="radio" name="operations_task_1" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="operations_task_1" value="failed" /></td>
+              <td class="choice"><input type="radio" name="operations_task_1" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon square"></span> Check-In, Fast Assign, and Bulk Participant Actions support event-day flow</span></td>
+              <td class="choice"><input type="radio" name="operations_task_2" value="worked" /></td>
+              <td class="choice"><input type="radio" name="operations_task_2" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="operations_task_2" value="failed" /></td>
+              <td class="choice"><input type="radio" name="operations_task_2" value="not_tested" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="field">
+          <label for="operationsComments">Event Operations comments</label>
+          <textarea id="operationsComments" name="operations_comments" placeholder="Brief notes"></textarea>
+        </div>
+
+        <div class="section-head" style="margin-top:16px;">
+          <span class="pill">SECTION 5</span>
+          <div class="section-title">COMMUNICATIONS CENTER</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th class="status-ok">Worked as expected</th>
+              <th class="status-warn">Confusing</th>
+              <th class="status-bad">Didn't work</th>
+              <th class="status-skip" style="color:#5f6f8e">Not tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Communications Center workflow supports message creation, review, and delivery tracking</span></td>
+              <td class="choice"><input type="radio" name="communications_task_1" value="worked" /></td>
+              <td class="choice"><input type="radio" name="communications_task_1" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="communications_task_1" value="failed" /></td>
+              <td class="choice"><input type="radio" name="communications_task_1" value="not_tested" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="field">
+          <label for="communicationsComments">Communications comments</label>
+          <textarea id="communicationsComments" name="communications_comments" placeholder="Brief notes"></textarea>
+        </div>
+
+        <div class="section-head" style="margin-top:16px;">
+          <span class="pill">SECTION 6</span>
+          <div class="section-title">OVERALL EXPERIENCE</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th class="status-ok">Worked as expected</th>
+              <th class="status-warn">Confusing</th>
+              <th class="status-bad">Didn't work</th>
+              <th class="status-skip" style="color:#5f6f8e">Not tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Overall experience is stable, understandable, and production-ready for beta users</span></td>
+              <td class="choice"><input type="radio" name="overall_task_1" value="worked" /></td>
+              <td class="choice"><input type="radio" name="overall_task_1" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="overall_task_1" value="failed" /></td>
+              <td class="choice"><input type="radio" name="overall_task_1" value="not_tested" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="field">
+          <label for="overallComments">Overall Experience comments</label>
+          <textarea id="overallComments" name="overall_comments" placeholder="Brief notes"></textarea>
         </div>
       </form>
 
       <section class="card section">
         <div class="section-head">
-          <span class="pill">SECTION 2</span>
-          <div class="section-title">QUICK IMPRESSIONS</div>
+          <span class="pill">SUMMARY</span>
+          <div class="section-title">BETA FEEDBACK SUMMARY</div>
         </div>
 
         <div class="qa">
           <div class="qa-row">
             <div class="qa-icon">?</div>
             <div class="field">
-              <label for="confusing">What felt most confusing?</label>
+              <label for="confusing">Biggest pain point</label>
               <input type="text" id="confusing" name="confusing" placeholder="Your answer" form="feedbackForm" />
             </div>
           </div>
@@ -851,18 +1021,26 @@
           <div class="qa-row">
             <div class="qa-icon">★</div>
             <div class="field">
-              <label for="missing">Anything missing that you expected?</label>
+              <label for="missing">Highest-priority enhancement</label>
               <input type="text" id="missing" name="missing" placeholder="Your answer" form="feedbackForm" />
+            </div>
+          </div>
+
+          <div class="qa-row">
+            <div class="qa-icon">❤</div>
+            <div class="field">
+              <label for="favoriteImprovement">Favorite improvement in this release</label>
+              <input type="text" id="favoriteImprovement" name="favorite_improvement" placeholder="Your answer" form="feedbackForm" />
             </div>
           </div>
 
           <div class="qa-row">
             <div class="qa-icon">👥</div>
             <div class="field">
-              <label>Would you feel comfortable using this for a real event?</label>
+              <label>Production readiness for beta operations</label>
               <div class="choice-group">
-                <label class="choice-pill"><input type="radio" name="comfortable" value="yes" form="feedbackForm" /> Yes</label>
-                <label class="choice-pill"><input type="radio" name="comfortable" value="not_yet" form="feedbackForm" /> Not yet</label>
+                <label class="choice-pill"><input type="radio" name="comfortable" value="yes" form="feedbackForm" /> Ready</label>
+                <label class="choice-pill"><input type="radio" name="comfortable" value="not_yet" form="feedbackForm" /> Needs work</label>
               </div>
             </div>
           </div>
@@ -879,10 +1057,10 @@
 
       <section class="card section">
         <div class="section-head">
-          <span class="pill">OVERALL</span>
+          <span class="pill">RATING</span>
           <div class="section-title">OVERALL EXPERIENCE</div>
         </div>
-        <p class="hint">How would you describe your overall experience using this feature?</p>
+        <p class="hint">How would you rate SFA Admin PWA v0.2.0-rc.2 Beta Evaluation overall?</p>
         <div class="rating-group">
           <label class="rating-btn rating-good">
             <input type="radio" name="overall_rating" value="good" form="feedbackForm" />
@@ -922,8 +1100,9 @@
         const RETURN_PATH_KEY = "sfa_feedback_return_path";
         const FALLBACK_RETURN_PATH = "/sfa-admin-testing/";
         const SAVING_INDICATOR_DELAY_MS = 180;
-        const FORM_VERSION = "v0.1";
+        const FORM_VERSION = "v0.2.0-rc.2";
         const FORM_FEATURE = "event_creation";
+        const FORM_FEATURE_LABEL = "Beta Evaluation";
         const _formOpenedAt = Date.now();
 
         const page = document.querySelector(".page");
@@ -1243,6 +1422,7 @@
             timestamp: new Date().toISOString(),
             version: FORM_VERSION,
             feature: FORM_FEATURE,
+            feature_label: FORM_FEATURE_LABEL,
             ...formData,
           };
         }
@@ -1316,7 +1496,7 @@
           }
           const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
           downloadFile(
-            `sfa-event-creation-feedback-${timestamp}.json`,
+            `sfa-admin-uat-feedback-${timestamp}.json`,
             "application/json",
             JSON.stringify(payload, null, 2)
           );
@@ -1343,7 +1523,7 @@
           const csv = `${header}\n${row}\n`;
           const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
           downloadFile(
-            `sfa-event-creation-feedback-${timestamp}.csv`,
+            `sfa-admin-uat-feedback-${timestamp}.csv`,
             "text/csv;charset=utf-8",
             csv
           );
