@@ -18,6 +18,29 @@ import math
 AUTO_PUBLISH_DAYS_BEFORE_START = 14
 
 
+def _is_chapter_event(event: Event) -> bool:
+    return str(event.event_type or "").strip().lower() == "chapter"
+
+
+def _is_within_auto_publish_window(
+    event: Event,
+    *,
+    today: date,
+    days_before_start: int,
+) -> bool:
+    if not event.start_date:
+        return False
+
+    latest_publish_date = today + timedelta(days=days_before_start)
+
+    # Chapter events should only auto-publish inside the explicit
+    # two-week window before start date.
+    if _is_chapter_event(event):
+        return today <= event.start_date <= latest_publish_date
+
+    return event.start_date <= latest_publish_date
+
+
 def _active_participant_counts(event: Event) -> tuple[int, int, int]:
     active_participants = [p for p in (event.participants or []) if p.removed_at is None]
     participant_count = len([p for p in active_participants if not p.is_waitlisted])
@@ -171,6 +194,11 @@ def auto_publish_and_open_participant_registration(
     changed = False
     for event in candidates:
         effective_end_date = event.end_date or event.start_date
+        should_auto_publish = _is_within_auto_publish_window(
+            event,
+            today=today,
+            days_before_start=days_before_start,
+        )
 
         if event.status == "published" and effective_end_date and effective_end_date < today:
             previous_status = event.status
@@ -193,11 +221,11 @@ def auto_publish_and_open_participant_registration(
             changed = True
             continue
 
-        if event.status == "draft":
+        if event.status == "draft" and should_auto_publish:
             event.status = "published"
             changed = True
 
-        if event.status == "published" and not event.participant_open:
+        if event.status == "published" and should_auto_publish and not event.participant_open:
             event.participant_open = True
             changed = True
 
