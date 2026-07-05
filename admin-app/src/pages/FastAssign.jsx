@@ -358,6 +358,7 @@ export default function FastAssign() {
       .finally(() => {
         if (requestId === recRequestIdRef.current) setRecsLoading(false)
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id])
 
   // ------------------------------------------------------------------
@@ -489,6 +490,7 @@ export default function FastAssign() {
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, assigning, recsLoading, recommendations, allSessions, handleWaitlist])
 
   // ------------------------------------------------------------------

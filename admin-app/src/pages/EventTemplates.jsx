@@ -7,7 +7,6 @@ import {
   createEventTemplate,
   deleteEventTemplate,
   fetchEventTemplates,
-  fetchEvents,
   generateAnnualEventsFromTemplate,
   updateEventTemplate,
 } from "../api/events"
@@ -18,10 +17,6 @@ function getTodayIsoDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
-
-function getCurrentYear() {
-  return new Date().getFullYear()
-}
 
 function getDaysInMonth(year, month) {
   const y = Number(year)
@@ -649,7 +644,7 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
     }
 
     return []
-  }, [previewDates, isTour, events, templateName, templateLocation, templateDate, templateId])
+  }, [previewDates, isTour, events, templateName, templateDate, templateId])
 
   const dateStatusMap = useMemo(() => {
     return (Array.isArray(normalizedDates) ? normalizedDates : []).reduce((acc, item) => {
@@ -705,13 +700,6 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
     setSelectedDate(null)
     setSelectedStatus(null)
   }
-
-  useEffect(() => {
-    setSelectedDate((prev) => {
-      if (!prev || prev.length < 10) return prev
-      return `${year}-${prev.slice(5)}`
-    })
-  }, [year])
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -794,7 +782,6 @@ function CalendarPreview({ previewDates, year, eventType, sessionInfo, templateD
 function EventTemplates() {
   const navigate = useNavigate()
   const [templates, setTemplates] = useState([])
-  const [events, setEvents] = useState([])
   const [allEvents, setAllEvents] = useState([])
   const [form, setForm] = useState(DEFAULT_FORM)
   const [templateDates, setTemplateDates] = useState({})
@@ -802,7 +789,6 @@ function EventTemplates() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [creatingTemplateEventId, setCreatingTemplateEventId] = useState("")
-  const [previewingTemplateId, setPreviewingTemplateId] = useState("")
   const [generatingTemplateId, setGeneratingTemplateId] = useState("")
   const [previewByTemplate, setPreviewByTemplate] = useState({})
   const [datePickerPreviewByTemplate, setDatePickerPreviewByTemplate] = useState({})
@@ -890,18 +876,8 @@ function EventTemplates() {
     }
   }
 
-  async function loadEvents() {
-    try {
-      const data = await fetchEvents()
-      setEvents(Array.isArray(data) ? data : [])
-    } catch (err) {
-      console.error("Failed to load events for Tour date derivation", err)
-    }
-  }
-
   useEffect(() => {
     loadTemplates()
-    loadEvents()
   }, [])
 
   useEffect(() => {
@@ -997,13 +973,13 @@ function EventTemplates() {
   }
 
   const handleDeleteTemplate = async (template) => {
-    const confirmed = window.confirm(`Delete template \"${template.name}\"?`)
+    const confirmed = window.confirm(`Delete template "${template.name}"?`)
     if (!confirmed) return
 
     const numericCode = String(Math.floor(1000 + Math.random() * 9000))
     const enteredCode = window.prompt(
       [
-        `To permanently delete \"${template.name}\", type either:`,
+        `To permanently delete "${template.name}", type either:`,
         "- delete",
         `- ${numericCode}`,
       ].join("\n"),
@@ -1072,7 +1048,6 @@ function EventTemplates() {
     try {
       const result = await generateAnnualEventsFromTemplate(template.id, year, false)
       setMessage(`Created ${result.created} event(s), skipped ${result.skipped} existing.`)
-      await loadEvents()
     } catch (err) {
       console.error(err)
       setError(err?.message || "Failed to generate annual events")
@@ -1458,7 +1433,7 @@ function EventTemplates() {
                 const datePickerPreviewDates = Array.isArray(datePickerPreview?.dates) ? datePickerPreview.dates : []
                 const selectedYear = templateYears[templateId] || String(selectedDateParts.year)
                 const creating = creatingTemplateEventId === templateId
-                const previewing = previewingTemplateId === templateId
+                const previewing = false
                 const generating = generatingTemplateId === templateId
                 const deleting = deletingTemplateId === templateId
                 const editing = editingTemplateId === templateId

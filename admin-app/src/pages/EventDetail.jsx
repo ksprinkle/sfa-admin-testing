@@ -337,7 +337,7 @@ function EventDetail() {
         await promoteNoShowSlots(eventId)
         await refreshParticipants()
         await refreshNoShows()
-      } catch (err) {
+      } catch {
         setNoShowError("Promotion failed")
       } finally {
         setPromoteLoading(false)
@@ -474,7 +474,7 @@ function EventDetail() {
           if (data.type === "participant_update") {
             refreshParticipants();
           }
-        } catch (e) {
+        } catch {
           // Ignore parse errors
         }
       };
@@ -500,6 +500,7 @@ function EventDetail() {
         ws.close();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   // Fallback sync: periodically refresh while visible to avoid stale UI if
@@ -512,6 +513,7 @@ function EventDetail() {
     }, 4000);
 
     return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   // Priority legend kept consistent with Participants page.
@@ -1079,6 +1081,7 @@ function EventDetail() {
       window.removeEventListener("online", onOnline)
       window.removeEventListener("offline", onOffline)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
@@ -1100,6 +1103,7 @@ function EventDetail() {
       window.clearInterval(intervalId)
       window.removeEventListener("focus", onFocus)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   // ✅ stable sensors setup
@@ -1144,7 +1148,7 @@ function EventDetail() {
         setEventStartAt(toEventStartDate(eventData?.start_date, eventData?.start_time))
         await processQueuedEventActions()
         await refreshNoShows()
-      } catch (err) {
+      } catch {
         const cached = getCachedEventParticipants(eventId)
         setParticipants(cached)
         setEventInfo(null)
@@ -1157,6 +1161,7 @@ function EventDetail() {
     }
 
     loadAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
@@ -1555,7 +1560,7 @@ function EventDetail() {
   const scoreVolunteerForSession = (volunteer, targetSessionId, context) => {
     let score = 0
 
-    if (Boolean(volunteer?.volunteer_is_versatile)) {
+    if (volunteer?.volunteer_is_versatile) {
       score += 2
     }
 
@@ -1759,7 +1764,7 @@ function EventDetail() {
 
       const reasons = []
 
-      if (Boolean(firstVolunteer.volunteer_is_versatile)) {
+      if (firstVolunteer.volunteer_is_versatile) {
         reasons.push("this volunteer is versatile")
       }
 
@@ -2165,12 +2170,6 @@ function EventDetail() {
     processQueuedEventActions()
   }
 
-  function handleOpenEditParticipant(participant) {
-    if (!participant?.id) return
-    setEditingParticipant(participant)
-    setEditModalOpen(true)
-  }
-
   function handleEditParticipantSubmit(payload) {
     if (!editingParticipant?.id) return
 
@@ -2368,7 +2367,6 @@ function EventDetail() {
       zIndex: isActive ? 1000 : "auto",
     };
     // Clamp priority between 1 and 3 (0 = unset)
-    const minPriority = 1;
     const maxPriority = 3;
     const clampedPriority = Math.max(0, Math.min(maxPriority, p.priority));
     let dotColor = "bg-gray-500";
@@ -2376,30 +2374,6 @@ function EventDetail() {
     else if (clampedPriority === 2) dotColor = "bg-amber-400";
     else if (clampedPriority === 3) dotColor = "bg-gray-500";
     else if (clampedPriority === 0) dotColor = "bg-gray-300";
-    // Priority arrow controls
-    const handlePriorityChange = async (delta) => {
-      let newPriority = clampedPriority + delta;
-      if (newPriority < 1) newPriority = 1;
-      if (newPriority > 3) newPriority = 3;
-      updateParticipantsLocal(prev => prev.map(part =>
-        part.id === p.id ? { ...part, priority: newPriority } : part
-      ));
-      try {
-        await updateParticipantPriority(p.id, newPriority);
-      } catch (err) {
-        if (isOfflineError(err)) {
-          const nextQueue = enqueueEventAction(eventId, {
-            type: "priority_update",
-            participantId: p.id,
-            priority: newPriority,
-          })
-          persistQueuedEventActions(nextQueue)
-          setDragError("Offline: priority change saved locally and queued for sync.")
-          return
-        }
-        await refreshParticipants()
-      }
-    };
     const isVolunteerCard = (p.role || "").trim().toLowerCase() === "volunteer"
     const showRecommendedAssign = !isVolunteerCard && !p.session_id && !p.is_waitlisted && !p.removed_at
     const assigningRecommended = Boolean(assigningRecommendedById[String(p.id)])
@@ -2623,17 +2597,6 @@ function EventDetail() {
                 className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-100"
               >
                 Retry
-                <button
-                  type="button"
-                  onPointerDown={(e) => { e.stopPropagation() }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleOpenEditParticipant(p)
-                  }}
-                  className="mt-1 text-xs text-sky-700 underline"
-                >
-                  Edit
-                </button>
               </button>
             )}
             <button

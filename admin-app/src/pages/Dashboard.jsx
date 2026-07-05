@@ -646,7 +646,7 @@ useEffect(() => {
           className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
           title="Refresh dashboard"
         >
-          Γå╗ Refresh
+          Refresh
         </button>
       </div>
 

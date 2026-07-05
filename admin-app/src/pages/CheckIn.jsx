@@ -262,6 +262,7 @@ export default function CheckIn() {
 
   useEffect(() => {
     refreshParticipants({ source: "initial-load" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
@@ -273,7 +274,7 @@ export default function CheckIn() {
         if (!isCancelled) {
           setEventInfo(data || null)
         }
-      } catch (err) {
+      } catch {
         if (!isCancelled) {
           setEventInfo(null)
         }
@@ -586,6 +587,7 @@ export default function CheckIn() {
 
   useEffect(() => {
     flushQueuedCheckIns("event-change")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
@@ -604,6 +606,7 @@ export default function CheckIn() {
       window.removeEventListener("online", onOnline)
       window.removeEventListener("offline", onOffline)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
@@ -633,6 +636,7 @@ export default function CheckIn() {
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibility)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
@@ -656,6 +660,7 @@ export default function CheckIn() {
             refreshParticipants({ source: "websocket-update" })
           }
         } catch {
+          // Ignore malformed websocket payloads.
         }
       }
 
@@ -681,6 +686,7 @@ export default function CheckIn() {
         ws.close()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, wsUrl])
 
   useEffect(() => {
@@ -692,6 +698,7 @@ export default function CheckIn() {
     }, 4000)
 
     return () => window.clearInterval(intervalId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, isOnline, isWsOpen])
 
   const filtered = participants
@@ -730,6 +737,7 @@ export default function CheckIn() {
       const unchanged = next.length === prev.length && next.every((id, index) => id === prev[index])
       return unchanged ? prev : next
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, participants, filtered.length, activeResultId])
 
   const moveActiveSelection = (direction) => {

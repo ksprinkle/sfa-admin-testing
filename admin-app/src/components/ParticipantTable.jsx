@@ -78,11 +78,6 @@ function ParticipantTable({ participants, onCheckIn }) {
                   <tbody>
                     {filteredParticipants.map(p => {
                       const clampedPriority = Math.max(0, Math.min(maxPriority, p.priority));
-                      let dotColor = "bg-gray-400";
-                      if (clampedPriority === 1) dotColor = "bg-red-500";
-                      else if (clampedPriority === 2) dotColor = "bg-yellow-400";
-                      else if (clampedPriority === 3) dotColor = "bg-gray-400";
-                      else if (clampedPriority === 0) dotColor = "bg-gray-300";
                       return (
                         <tr
                           key={p.id}

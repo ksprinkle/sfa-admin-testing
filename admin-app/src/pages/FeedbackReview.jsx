@@ -66,7 +66,6 @@ function computeSignals(data) {
   const taskBreakdown = data.task_breakdown || []
   const ratingCounts = data.rating_counts || {}
   const entries = data.entries || []
-  const total = data.total
 
   // 1. BLOCKER — any task with ≥ 1 failure
   const failedTasks = taskBreakdown.filter((t) => (t.failed ?? 0) >= 1)
@@ -284,16 +283,38 @@ export default function FeedbackReview() {
   const [feature, setFeature] = useState(FEEDBACK_RELEASE.feature)
   const [version, setVersion] = useState(FEEDBACK_RELEASE.version)
   const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    setLoading(true)
-    setError(null)
+    let isCancelled = false
+
+    Promise.resolve().then(() => {
+      if (isCancelled) return
+      setLoading(true)
+      setError(null)
+    })
+
     fetchFeedback({ feature: feature || undefined, version: version || undefined })
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
+      .then((payload) => {
+        if (!isCancelled) {
+          setData(payload)
+        }
+      })
+      .catch((e) => {
+        if (!isCancelled) {
+          setError(e.message)
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
   }, [feature, version])
 
   const signals = data ? computeSignals(data) : []

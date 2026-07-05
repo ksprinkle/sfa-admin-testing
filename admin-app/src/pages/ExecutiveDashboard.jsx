@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { fetchDashboardDiagnosticsReport, fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard, fetchVolunteerDashboard } from "../api/events"
 
@@ -128,40 +128,46 @@ function attentionTone(severity) {
 }
 
 function attentionWorkflowForItem(item) {
+  const buildExecutivePath = (focus, extraParams = {}) => {
+    const params = new URLSearchParams({ focus, ...extraParams })
+    return `/executive-dashboard?${params.toString()}`
+  }
+
   if (item.source === "activity") {
     const category = String(item.category || "").trim().toLowerCase()
     const eventType = String(item.eventType || "").trim().toLowerCase()
 
     if (category.includes("delivery") || category.includes("provider") || eventType.includes("delivery") || eventType.includes("provider")) {
-      return { to: "/communications", label: "Open Communications" }
+      return { to: "/communications", label: "Review delivery activity" }
     }
 
     if (category.includes("execution") || eventType.includes("execution") || eventType.includes("retry") || eventType.includes("queue")) {
-      return { to: "/executive-dashboard", label: "Review Dashboard" }
+      return { to: buildExecutivePath("recent-activity", { status: "retry,error,failed" }), label: "Inspect execution timeline" }
     }
 
-    return { to: "/executive-dashboard", label: "Review Dashboard" }
+    return { to: buildExecutivePath("recent-activity"), label: "Inspect activity detail" }
   }
 
   const code = String(item.code || "").trim().toLowerCase()
 
   if (code === "no_telemetry" || code === "no_recent_activity") {
-    return { to: "/feedback", label: "Review Feedback" }
+    return { to: "/feedback", label: "Check telemetry signals" }
   }
 
   if (code === "failures_present") {
-    return { to: "/executive-dashboard", label: "Review Dashboard" }
+    return { to: "/communications", label: "Investigate delivery failures" }
   }
 
   if (code === "no_metric_sources" || code === "no_widgets") {
-    return { to: "/executive-dashboard", label: "Review Setup" }
+    return { to: buildExecutivePath("metrics"), label: "Review metric source coverage" }
   }
 
-  return { to: "/executive-dashboard", label: "Review Dashboard" }
+  return { to: buildExecutivePath("attention"), label: "Open diagnostics detail" }
 }
 
 function ExecutiveDashboard() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [payload, setPayload] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -190,6 +196,9 @@ function ExecutiveDashboard() {
   const isMountedRef = useRef(false)
   const refreshInFlightRef = useRef(false)
   const refreshTimerRef = useRef(null)
+  const attentionSectionRef = useRef(null)
+  const metricsSectionRef = useRef(null)
+  const recentActivitySectionRef = useRef(null)
 
   const loadDashboard = useCallback(async ({ showLoading = false } = {}) => {
     if (refreshInFlightRef.current) {
@@ -516,6 +525,24 @@ function ExecutiveDashboard() {
     },
   ]
 
+  useEffect(() => {
+    const focus = String(searchParams.get("focus") || "").trim().toLowerCase()
+    if (!focus) return
+
+    const focusTargets = {
+      attention: attentionSectionRef.current,
+      metrics: metricsSectionRef.current,
+      "recent-activity": recentActivitySectionRef.current,
+    }
+
+    const target = focusTargets[focus]
+    if (target && typeof target.scrollIntoView === "function") {
+      window.requestAnimationFrame(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "start" })
+      })
+    }
+  }, [searchParams])
+
   return (
     <div className="space-y-4 pb-20">
       <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
@@ -766,7 +793,7 @@ function ExecutiveDashboard() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-6">
+      <section ref={attentionSectionRef} className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-amber-950">Attention</h3>
@@ -879,7 +906,7 @@ function ExecutiveDashboard() {
         ) : null}
       </section>
 
-      <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+      <section ref={metricsSectionRef} className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-gray-900">Metrics</h3>
@@ -914,7 +941,7 @@ function ExecutiveDashboard() {
         ) : null}
       </section>
 
-      <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+      <section ref={recentActivitySectionRef} className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-gray-900">Recent Activity</h3>
