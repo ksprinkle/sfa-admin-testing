@@ -2,9 +2,98 @@ import { useEffect, useState } from "react"
 import { fetchFeedback } from "../api/feedback"
 import { FEEDBACK_RELEASE, FEEDBACK_SCENARIO_VERSIONS, getReleaseTag } from "../config/release"
 
-const FEATURES = [FEEDBACK_RELEASE.feature]
+const FEEDBACK_SCHEMAS = {
+  event_creation: {
+    label: "Event Creation",
+    groups: [
+      {
+        key: "event_creation",
+        label: "Event Creation",
+        tasks: [
+          { key: "task_1", label: "Create Chapter Event" },
+          { key: "task_2", label: "Create Tour Event" },
+          { key: "task_3", label: "Review Generated Sessions" },
+          { key: "task_4", label: "Review Event Summary" },
+        ],
+      },
+    ],
+    commentFields: [
+      { key: "task_notes", label: "Notes" },
+      { key: "confusing", label: "Confusing" },
+      { key: "missing", label: "Missing" },
+      { key: "anything_else", label: "Other" },
+    ],
+  },
+  beta_uat: {
+    label: "Beta UAT",
+    groups: [
+      {
+        key: "login_navigation",
+        label: "Login & Navigation",
+        tasks: [
+          { key: "task_1", label: "Sign in and land on the correct start page" },
+          { key: "task_2", label: "Move between key areas" },
+          { key: "task_3", label: "Use Global Search" },
+          { key: "task_4", label: "Use Universal Command Palette" },
+        ],
+      },
+      {
+        key: "executive_dashboard",
+        label: "Executive Dashboard",
+        tasks: [
+          { key: "dashboard_task_1", label: "Understand current event and participant status at a glance" },
+          { key: "dashboard_task_2", label: "Use dashboard actions/links to jump into workflows" },
+        ],
+      },
+      {
+        key: "search_keyboard_navigation",
+        label: "Search & Keyboard Navigation",
+        tasks: [
+          { key: "search_task_1", label: "Find records quickly using search" },
+          { key: "search_task_2", label: "Use keyboard navigation and shortcuts confidently" },
+        ],
+      },
+      {
+        key: "event_operations",
+        label: "Event Operations",
+        tasks: [
+          { key: "operations_task_1", label: "Manage participants and sessions smoothly" },
+          { key: "operations_task_2", label: "Complete core event-day operations without blockers" },
+        ],
+      },
+      {
+        key: "communications_center",
+        label: "Communications Center",
+        tasks: [
+          { key: "communications_task_1", label: "Create/send communication updates as expected" },
+        ],
+      },
+      {
+        key: "overall_experience",
+        label: "Overall Experience",
+        tasks: [
+          { key: "overall_task_1", label: "Overall product flow felt cohesive and reliable" },
+        ],
+      },
+    ],
+    commentFields: [
+      { key: "task_notes", label: "Login & Navigation comments" },
+      { key: "dashboard_comments", label: "Executive Dashboard comments" },
+      { key: "search_comments", label: "Search & Keyboard comments" },
+      { key: "operations_comments", label: "Event Operations comments" },
+      { key: "communications_comments", label: "Communications comments" },
+      { key: "overall_comments", label: "Overall Experience comments" },
+      { key: "confusing", label: "Most confusing" },
+      { key: "missing", label: "Missing" },
+      { key: "favorite_improvement", label: "Favorite improvement" },
+      { key: "anything_else", label: "Other" },
+    ],
+  },
+}
+
+const FEATURES = Array.from(new Set([FEEDBACK_RELEASE.feature, ...Object.keys(FEEDBACK_SCHEMAS)]))
 const VERSIONS = [FEEDBACK_RELEASE.version, FEEDBACK_RELEASE.retestVersion, ...FEEDBACK_SCENARIO_VERSIONS]
-const TASK_KEYS = ["task_1", "task_2", "task_3", "task_4"]
+const STATUS_VALUES = ["worked", "confusing", "failed", "not_tested"]
 
 const RATING_EMOJI = { good: "👍", okay: "😐", frustrating: "👎" }
 const RATING_LABEL = { good: "Good", okay: "Okay", frustrating: "Frustrating" }
@@ -20,6 +109,38 @@ const STATUS_COLS = [
   { key: "failed", label: "Didn't Work", cls: "text-red-700" },
   { key: "not_tested", label: "Not Tested", cls: "text-slate-500" },
 ]
+
+function getSchema(feature) {
+  return FEEDBACK_SCHEMAS[feature] || FEEDBACK_SCHEMAS.event_creation
+}
+
+function getSchemaTasks(schema) {
+  return schema.groups.flatMap((group) => group.tasks.map((task) => ({ ...task, groupLabel: group.label })))
+}
+
+function buildTaskBreakdown(entries, schema) {
+  const tasks = getSchemaTasks(schema)
+  const counters = Object.fromEntries(
+    tasks.map((task) => [task.key, { worked: 0, confusing: 0, failed: 0, not_tested: 0 }])
+  )
+
+  for (const entry of entries || []) {
+    const responses = entry.responses || {}
+    for (const task of tasks) {
+      const val = responses[task.key]
+      if (STATUS_VALUES.includes(val)) {
+        counters[task.key][val] += 1
+      }
+    }
+  }
+
+  return tasks.map((task) => ({
+    key: task.key,
+    label: task.label,
+    group_label: task.groupLabel,
+    ...counters[task.key],
+  }))
+}
 
 function fmt(iso) {
   if (!iso) return "—"
@@ -59,11 +180,10 @@ function taskStatus(row) {
  * Derive action thresholds from aggregate data.
  * Returns an array of signals, highest severity first.
  */
-function computeSignals(data) {
+function computeSignals(data, taskBreakdown) {
   if (!data || data.total === 0) return []
 
   const signals = []
-  const taskBreakdown = data.task_breakdown || []
   const ratingCounts = data.rating_counts || {}
   const entries = data.entries || []
 
@@ -146,11 +266,10 @@ function computeSignals(data) {
   return signals
 }
 
-function computePatterns(data, avgTime) {
+function computePatterns(data, taskBreakdown, avgTime, taskKeys, commentFields) {
   if (!data || data.total === 0) return []
 
   const patterns = []
-  const taskBreakdown = data.task_breakdown || []
   const entries = data.entries || []
   const FAST_SECONDS = 60
 
@@ -166,7 +285,7 @@ function computePatterns(data, avgTime) {
   }
 
   const fastButWrong = entries.filter((entry) => entry.time_to_complete != null && entry.time_to_complete <= FAST_SECONDS)
-    .filter((entry) => ["task_1", "task_2", "task_3", "task_4"].some((key) => entry.responses?.[key] === "failed"))
+    .filter((entry) => taskKeys.some((key) => entry.responses?.[key] === "failed"))
   if (fastButWrong.length > 0) {
     patterns.push({
       icon: "🚩",
@@ -188,9 +307,7 @@ function computePatterns(data, avgTime) {
     })
   }
 
-  const hasAnyComments = entries.some((entry) =>
-    Boolean(entry.responses?.task_notes || entry.responses?.confusing || entry.responses?.missing || entry.responses?.anything_else)
-  )
+  const hasAnyComments = entries.some((entry) => commentFields.some((field) => Boolean(entry.responses?.[field.key])))
   if (!hasAnyComments) {
     patterns.push({
       icon: "💬",
@@ -208,12 +325,12 @@ function computePatterns(data, avgTime) {
   return patterns
 }
 
-function computeReleaseGate(data, signals) {
+function computeReleaseGate(data, signals, taskBreakdown) {
   if (!data || data.total === 0) return null
 
-  const totalFailed = (data.task_breakdown || []).reduce((sum, row) => sum + (row.failed ?? 0), 0)
-  const totalConfusing = (data.task_breakdown || []).reduce((sum, row) => sum + (row.confusing ?? 0), 0)
-  const totalAnswered = (data.task_breakdown || []).reduce(
+  const totalFailed = (taskBreakdown || []).reduce((sum, row) => sum + (row.failed ?? 0), 0)
+  const totalConfusing = (taskBreakdown || []).reduce((sum, row) => sum + (row.confusing ?? 0), 0)
+  const totalAnswered = (taskBreakdown || []).reduce(
     (sum, row) => sum + (row.worked ?? 0) + (row.confusing ?? 0) + (row.failed ?? 0),
     0
   )
@@ -231,34 +348,34 @@ function computeReleaseGate(data, signals) {
         icon: "🟢",
         title: "Retest Same Feature, Then Consider Moving On",
         detail: "Current data is within the release gate: no blockers, minimal UX issues, and no confidence issues.",
-        action: "Run one more full feedback cycle on v0.1.1 before starting the next feature phase.",
+        action: `Run one more full feedback cycle on ${FEEDBACK_RELEASE.retestVersion} before starting the next feature phase.`,
         tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
       }
     : {
         icon: "⏳",
         title: "Do Not Start New Features Yet",
         detail: `This feature has not cleared the release gate yet.${hasBlocker ? " Blockers remain." : ""}${hasUxIssue ? " UX confusion is still too high." : ""}${hasConfidenceIssue ? " Confidence is still weak." : ""}`,
-        action: "Deploy current build, collect one full feedback cycle over 24–48 hours, apply fixes, then retest the same feature as v0.1.1.",
+        action: `Deploy current build, collect one full feedback cycle over 24–48 hours, apply fixes, then retest the same feature as ${FEEDBACK_RELEASE.retestVersion}.`,
         tone: "border-indigo-200 bg-indigo-50 text-indigo-800",
       }
 }
 
-function computeTestCoverage(data) {
+function computeTestCoverage(data, taskBreakdown, taskKeys) {
   if (!data || data.total === 0) return null
-  const testedResponses = (data.task_breakdown || []).reduce(
+  const testedResponses = (taskBreakdown || []).reduce(
     (sum, row) => sum + (row.worked ?? 0) + (row.confusing ?? 0) + (row.failed ?? 0),
     0
   )
-  const possibleResponses = TASK_KEYS.length * data.total
+  const possibleResponses = taskKeys.length * data.total
   return possibleResponses > 0 ? testedResponses / possibleResponses : null
 }
 
-function computeStruggleScore(entries) {
+function computeStruggleScore(entries, taskKeys) {
   if (!entries || entries.length === 0) return null
   const total = entries.reduce((sum, entry) => {
     const responses = entry.responses || {}
-    const hasFailed = TASK_KEYS.some((key) => responses[key] === "failed")
-    const hasConfusing = TASK_KEYS.some((key) => responses[key] === "confusing")
+    const hasFailed = taskKeys.some((key) => responses[key] === "failed")
+    const hasConfusing = taskKeys.some((key) => responses[key] === "confusing")
     const slow = (entry.time_to_complete ?? 0) > 90
     return sum + (hasFailed ? 2 : 0) + (hasConfusing ? 1 : 0) + (slow ? 1 : 0)
   }, 0)
@@ -317,7 +434,11 @@ export default function FeedbackReview() {
     }
   }, [feature, version])
 
-  const signals = data ? computeSignals(data) : []
+  const schema = getSchema(feature || FEEDBACK_RELEASE.feature)
+  const schemaTasks = getSchemaTasks(schema)
+  const taskKeys = schemaTasks.map((task) => task.key)
+  const taskBreakdown = data ? buildTaskBreakdown(data.entries || [], schema) : []
+  const signals = data ? computeSignals(data, taskBreakdown) : []
 
   const avgTime = (() => {
     if (!data) return null
@@ -325,10 +446,10 @@ export default function FeedbackReview() {
     if (times.length === 0) return null
     return Math.round(times.reduce((a, b) => a + b, 0) / times.length)
   })()
-  const patterns = data ? computePatterns(data, avgTime) : []
-  const coverage = data ? computeTestCoverage(data) : null
-  const struggleScore = data ? computeStruggleScore(data.entries || []) : null
-  const releaseGate = data ? computeReleaseGate(data, signals) : null
+  const patterns = data ? computePatterns(data, taskBreakdown, avgTime, taskKeys, schema.commentFields) : []
+  const coverage = data ? computeTestCoverage(data, taskBreakdown, taskKeys) : null
+  const struggleScore = data ? computeStruggleScore(data.entries || [], taskKeys) : null
+  const releaseGate = data ? computeReleaseGate(data, signals, taskBreakdown) : null
 
   return (
     <div className="px-4 py-4 max-w-5xl mx-auto">
@@ -373,7 +494,7 @@ export default function FeedbackReview() {
           >
             <option value="">All</option>
             {FEATURES.map((f) => (
-              <option key={f} value={f}>{f}</option>
+              <option key={f} value={f}>{FEEDBACK_SCHEMAS[f]?.label || f}</option>
             ))}
           </select>
         </div>
@@ -401,7 +522,7 @@ export default function FeedbackReview() {
           <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="font-semibold text-slate-700">
-                {feature || "All features"} {version && `· ${version}`}
+                {(feature ? (FEEDBACK_SCHEMAS[feature]?.label || feature) : "All features")} {version && `· ${version}`}
               </span>
               <span className="text-xs text-slate-400">{data.total} response{data.total !== 1 ? "s" : ""}</span>
             </div>
@@ -490,12 +611,13 @@ export default function FeedbackReview() {
           )}
 
           {/* Task breakdown */}
-          {data.task_breakdown && data.task_breakdown.length > 0 && (
+          {taskBreakdown.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 overflow-x-auto">
-              <h2 className="font-semibold text-slate-700 mb-3">Task Breakdown</h2>
+              <h2 className="font-semibold text-slate-700 mb-3">Section Breakdown</h2>
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100">
+                    <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Section</th>
                     <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Task</th>
                     {STATUS_COLS.map((c) => (
                       <th key={c.key} className={`text-center py-2 px-3 font-semibold ${c.cls}`}>{c.label}</th>
@@ -504,10 +626,11 @@ export default function FeedbackReview() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.task_breakdown.map((row) => {
+                  {taskBreakdown.map((row) => {
                     const ts = taskStatus(row)
                     return (
                       <tr key={row.key} className="border-b border-slate-50 hover:bg-slate-50">
+                        <td className="py-2 pr-4 text-slate-500">{row.group_label}</td>
                         <td className="py-2 pr-4 text-slate-700 font-medium">{row.label}</td>
                         {STATUS_COLS.map((c) => (
                           <td key={c.key} className={`text-center py-2 px-3 font-bold tabular-nums ${c.cls}`}>
@@ -548,9 +671,9 @@ export default function FeedbackReview() {
                         <span className="text-xs text-slate-400">⏱ {fmtSeconds(entry.time_to_complete)}</span>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-                      {["task_1", "task_2", "task_3", "task_4"].map((k) => {
-                        const val = entry.responses?.[k]
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                      {schemaTasks.map((task) => {
+                        const val = entry.responses?.[task.key]
                         if (!val) return null
                         const color =
                           val === "worked" ? "text-emerald-700"
@@ -558,27 +681,22 @@ export default function FeedbackReview() {
                           : val === "failed" ? "text-red-700"
                           : "text-slate-400"
                         return (
-                          <div key={k} className="text-xs">
-                            <span className="text-slate-400">{k.replace("_", " ")}: </span>
+                          <div key={task.key} className="text-xs">
+                            <span className="text-slate-400">{task.groupLabel} · {task.label}: </span>
                             <span className={`font-semibold ${color}`}>{val.replace("_", " ")}</span>
                           </div>
                         )
                       })}
                     </div>
-                    {(entry.responses?.task_notes || entry.responses?.confusing || entry.responses?.missing || entry.responses?.anything_else) && (
+                    {schema.commentFields.some((field) => Boolean(entry.responses?.[field.key])) && (
                       <div className="flex flex-col gap-1 border-t border-slate-100 pt-2 mt-1">
-                        {entry.responses.task_notes && (
-                          <p className="text-slate-600"><span className="text-slate-400">Notes: </span>{entry.responses.task_notes}</p>
-                        )}
-                        {entry.responses.confusing && (
-                          <p className="text-slate-600"><span className="text-slate-400">Confusing: </span>{entry.responses.confusing}</p>
-                        )}
-                        {entry.responses.missing && (
-                          <p className="text-slate-600"><span className="text-slate-400">Missing: </span>{entry.responses.missing}</p>
-                        )}
-                        {entry.responses.anything_else && (
-                          <p className="text-slate-600"><span className="text-slate-400">Other: </span>{entry.responses.anything_else}</p>
-                        )}
+                        {schema.commentFields.map((field) => (
+                          entry.responses?.[field.key] ? (
+                            <p key={field.key} className="text-slate-600">
+                              <span className="text-slate-400">{field.label}: </span>{entry.responses[field.key]}
+                            </p>
+                          ) : null
+                        ))}
                       </div>
                     )}
                   </div>
