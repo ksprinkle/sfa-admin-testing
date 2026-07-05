@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Routes, Route, useLocation, useNavigate, Navigate } from "react-router-dom"
 import BottomNav from "./components/BottomNav"
 import AppLayout from "./components/AppLayout"
 import GlobalSearch from "./components/GlobalSearch"
+import CommandPalette from "./components/CommandPalette"
 import Dashboard from "./pages/Dashboard"
 import Events from "./pages/Events"
 import Participants from "./pages/Participants"
@@ -28,6 +29,9 @@ import {
 } from "./api/auth"
 import { fetchAllParticipants, fetchEvents, fetchVolunteerDashboard } from "./api/events"
 import { getReleaseTag } from "./config/release"
+
+const GLOBAL_SEARCH_RECENTS_STORAGE_KEY = "sfa.globalSearchRecents"
+const GLOBAL_SEARCH_RECENTS_LIMIT = 10
 
 function getBuildFingerprint() {
   const envFingerprint = import.meta.env.VITE_BUILD_ID || import.meta.env.VITE_APP_VERSION
@@ -257,6 +261,37 @@ function buildGlobalSearchSections(query, data) {
   return sections.filter((section) => section.items.length > 0)
 }
 
+function readGlobalSearchRecents() {
+  if (typeof window === "undefined") return []
+
+  try {
+    const raw = window.localStorage.getItem(GLOBAL_SEARCH_RECENTS_STORAGE_KEY)
+    if (!raw) return []
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+
+    return parsed
+      .filter((item) => item && typeof item === "object" && item.id && item.title && item.to)
+      .slice(0, GLOBAL_SEARCH_RECENTS_LIMIT)
+  } catch {
+    return []
+  }
+}
+
+function writeGlobalSearchRecents(items) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(
+      GLOBAL_SEARCH_RECENTS_STORAGE_KEY,
+      JSON.stringify(items.slice(0, GLOBAL_SEARCH_RECENTS_LIMIT))
+    )
+  } catch {
+    // Ignore storage write failures and keep in-memory state only.
+  }
+}
+
 function App() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -270,8 +305,11 @@ function App() {
     participants: [],
     volunteers: [],
   })
+  const [globalSearchRecents, setGlobalSearchRecents] = useState(() => readGlobalSearchRecents())
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false)
   const [globalSearchError, setGlobalSearchError] = useState("")
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const commandPaletteReturnFocusRef = useRef(null)
 
   useEffect(() => {
     const authChangedEvent = getAuthChangedEventName()
@@ -333,6 +371,42 @@ function App() {
     return () => window.clearTimeout(timeoutId)
   }, [globalSearchInput])
 
+  const loadGlobalSearchData = useCallback(async () => {
+    setGlobalSearchLoading(true)
+    setGlobalSearchError("")
+
+    try {
+      const [eventsResult, participantsResult, volunteerResult] = await Promise.allSettled([
+        fetchEvents(),
+        fetchAllParticipants(),
+        fetchVolunteerDashboard(),
+      ])
+
+      setGlobalSearchData((prev) => ({
+        events: eventsResult.status === "fulfilled" && Array.isArray(eventsResult.value)
+          ? eventsResult.value
+          : prev.events,
+        participants: participantsResult.status === "fulfilled" && Array.isArray(participantsResult.value)
+          ? participantsResult.value
+          : prev.participants,
+        volunteers: volunteerResult.status === "fulfilled" && Array.isArray(volunteerResult.value?.volunteers)
+          ? volunteerResult.value.volunteers
+          : prev.volunteers,
+      }))
+
+      const failures = [
+        eventsResult.status === "rejected" ? `events: ${eventsResult.reason?.message || "failed to load"}` : null,
+        participantsResult.status === "rejected" ? `participants: ${participantsResult.reason?.message || "failed to load"}` : null,
+        volunteerResult.status === "rejected" ? `volunteers: ${volunteerResult.reason?.message || "failed to load"}` : null,
+      ].filter(Boolean)
+
+      setGlobalSearchError(failures.length ? `Some search sources are unavailable. Showing best available results (${failures.join(", ")}).` : "")
+      return failures
+    } finally {
+      setGlobalSearchLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!token) {
       setGlobalSearchLoading(false)
@@ -348,51 +422,18 @@ function App() {
     }
 
     let isCancelled = false
-
-    const loadSearchData = async () => {
-      setGlobalSearchLoading(true)
-      setGlobalSearchError("")
-      try {
-        const [eventsResult, participantsResult, volunteerResult] = await Promise.allSettled([
-          fetchEvents(),
-          fetchAllParticipants(),
-          fetchVolunteerDashboard(),
-        ])
-
-        if (isCancelled) return
-
-        setGlobalSearchData((prev) => ({
-          events: eventsResult.status === "fulfilled" && Array.isArray(eventsResult.value)
-            ? eventsResult.value
-            : prev.events,
-          participants: participantsResult.status === "fulfilled" && Array.isArray(participantsResult.value)
-            ? participantsResult.value
-            : prev.participants,
-          volunteers: volunteerResult.status === "fulfilled" && Array.isArray(volunteerResult.value?.volunteers)
-            ? volunteerResult.value.volunteers
-            : prev.volunteers,
-        }))
-
-        const failures = [
-          eventsResult.status === "rejected" ? `events: ${eventsResult.reason?.message || "failed to load"}` : null,
-          participantsResult.status === "rejected" ? `participants: ${participantsResult.reason?.message || "failed to load"}` : null,
-          volunteerResult.status === "rejected" ? `volunteers: ${volunteerResult.reason?.message || "failed to load"}` : null,
-        ].filter(Boolean)
-
-        setGlobalSearchError(failures.length ? `Some search sources are unavailable. Showing best available results (${failures.join(", ")}).` : "")
-      } finally {
-        if (!isCancelled) {
-          setGlobalSearchLoading(false)
-        }
-      }
-    }
-
-    loadSearchData()
+    loadGlobalSearchData().catch(() => {
+      if (isCancelled) return
+    })
 
     return () => {
       isCancelled = true
     }
-  }, [token, globalSearchQuery])
+  }, [token, globalSearchQuery, loadGlobalSearchData])
+
+  useEffect(() => {
+    writeGlobalSearchRecents(globalSearchRecents)
+  }, [globalSearchRecents])
 
   useEffect(() => {
     const refreshBuildFingerprint = () => {
@@ -473,39 +514,195 @@ function App() {
     }
   }
 
+  const commandPaletteCommands = useMemo(() => {
+    const navigationCommands = [
+      { id: "go-dashboard", label: "Open Dashboard", description: "Go to dashboard home", group: "Navigation", to: "/" },
+      { id: "go-events", label: "Open Events", description: "View and manage events", group: "Navigation", to: "/events" },
+      { id: "go-participants", label: "Open Participants", description: "Manage participant roster", group: "Navigation", to: "/participants" },
+      { id: "go-volunteers", label: "Open Volunteer Dashboard", description: "View volunteer operations", group: "Navigation", to: "/volunteer-dashboard" },
+      { id: "go-executive", label: "Open Executive Dashboard", description: "View analytics and diagnostics", group: "Navigation", to: "/executive-dashboard" },
+      { id: "go-communications", label: "Open Communications", description: "Review delivery and messages", group: "Navigation", to: "/communications" },
+      { id: "go-feedback", label: "Open Feedback", description: "Review operator feedback", group: "Navigation", to: "/feedback" },
+      { id: "go-waivers", label: "Open Waiver Templates", description: "Manage waiver templates", group: "Navigation", to: "/waiver-templates" },
+      { id: "go-event-templates", label: "Open Event Templates", description: "Manage event templates", group: "Navigation", to: "/event-templates" },
+    ]
+
+    const recentSearchCommands = globalSearchRecents.map((item) => ({
+      id: `recent-search:${item.id}`,
+      label: item.title,
+      description: [item.subtitle, item.kind ? `Type: ${item.kind}` : "", item.lastUsedAt ? `Recent: ${formatSearchTime(item.lastUsedAt)}` : ""]
+        .filter(Boolean)
+        .join(" • "),
+      group: "Recent Searches",
+      to: item.to,
+    }))
+
+    const operationalCommands = [
+      { id: "events-live", label: "Open Live Events", description: "View published events", group: "Operations", to: "/events?status=published&type=all" },
+      { id: "exec-attention", label: "Open Executive Attention", description: "Jump to executive attention section", group: "Operations", to: "/executive-dashboard?focus=attention" },
+      { id: "exec-metrics", label: "Open Executive Metrics", description: "Jump to executive metrics section", group: "Operations", to: "/executive-dashboard?focus=metrics" },
+      { id: "communications-deliveries", label: "Open Communications Deliveries", description: "Jump to delivery health workflow", group: "Operations", to: "/communications?focus=deliveries" },
+      { id: "new-event", label: "Create Event", description: "Start a new event", group: "Actions", to: "/events/new" },
+      { id: "open-feedback-form", label: "Open Feedback Form", description: "Open event creation feedback form in a new tab", group: "Operations", actionKey: "open-feedback-form" },
+      { id: "refresh-search-sources", label: "Refresh Search Sources", description: "Reload events, participants, and volunteer data", group: "Operations", actionKey: "refresh-search-sources" },
+      { id: "refresh-page", label: "Refresh Current Page", description: "Reload the current page", group: "Operations", actionKey: "refresh-page" },
+      { id: "sign-out", label: "Sign Out", description: "End your admin session", group: "Operations", actionKey: "sign-out" },
+    ]
+
+    const adminOnlyCommands = profile?.role === "admin"
+      ? [{ id: "promote-user", label: "Promote User", description: "Promote a registered user to admin", group: "Operations", actionKey: "promote-user" }]
+      : []
+
+    return token
+      ? [...navigationCommands, ...recentSearchCommands, ...operationalCommands, ...adminOnlyCommands]
+      : []
+  }, [token, profile?.role, globalSearchRecents])
+
+  const openCommandPalette = useCallback(() => {
+    commandPaletteReturnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    setCommandPaletteOpen(true)
+  }, [])
+
+  const closeCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(false)
+
+    const previousFocus = commandPaletteReturnFocusRef.current
+    if (previousFocus && typeof previousFocus.focus === "function") {
+      window.setTimeout(() => previousFocus.focus(), 0)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!token) {
+      setCommandPaletteOpen(false)
+      return
+    }
+
+    const onKeyDown = (event) => {
+      const key = String(event.key || "").toLowerCase()
+      const target = event.target
+      const isEditableTarget = target instanceof HTMLElement
+        && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+
+      if ((event.ctrlKey || event.metaKey) && key === "k") {
+        if (event.repeat || isEditableTarget) return
+        event.preventDefault()
+        if (commandPaletteOpen) {
+          closeCommandPalette()
+        } else {
+          openCommandPalette()
+        }
+      }
+
+      if (key === "escape") {
+        closeCommandPalette()
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [token, commandPaletteOpen, openCommandPalette, closeCommandPalette])
+
   const searchSections = useMemo(() => buildGlobalSearchSections(globalSearchQuery, globalSearchData), [globalSearchQuery, globalSearchData])
 
   const handleGlobalSearchSelect = (item) => {
     if (!item?.to) return
+
+    setGlobalSearchRecents((current) => {
+      const entry = {
+        id: `${item.kind || "item"}:${item.id || item.to}`,
+        kind: item.kind || "search",
+        title: item.title || "Search result",
+        subtitle: item.subtitle || item.detail || "",
+        to: item.to,
+        lastUsedAt: new Date().toISOString(),
+      }
+
+      const next = [entry, ...current.filter((candidate) => candidate.id !== entry.id)]
+      return next.slice(0, GLOBAL_SEARCH_RECENTS_LIMIT)
+    })
+
     setGlobalSearchInput("")
     setGlobalSearchQuery("")
     navigate(item.to)
   }
 
+  const handleCommandPaletteSelect = async (command) => {
+    if (!command) return
+
+    closeCommandPalette()
+
+    try {
+      if (command.actionKey === "open-feedback-form") {
+        window.open("./event-creation-feedback-form.html", "_blank")
+        return
+      }
+
+      if (command.actionKey === "refresh-search-sources") {
+        const failures = await loadGlobalSearchData().catch(() => ["refresh failed"])
+        if (Array.isArray(failures) && failures.length > 0) {
+          window.alert(`Search sources refreshed with issues: ${failures.join(", ")}`)
+        }
+        return
+      }
+
+      if (command.actionKey === "refresh-page") {
+        window.location.reload()
+        return
+      }
+
+      if (command.actionKey === "sign-out") {
+        handleSignOut()
+        navigate("/login", { replace: true })
+        return
+      }
+
+      if (command.actionKey === "promote-user") {
+        await handlePromoteUser()
+        return
+      }
+
+      if (typeof command.action === "function") {
+        command.action()
+        return
+      }
+
+      if (command.to) {
+        navigate(command.to)
+      }
+    } catch (error) {
+      window.alert(error?.message || "Unable to execute command")
+    }
+  }
+
   return (
-    <AppLayout
-      title={getTitle()}
-      releaseTag={token ? getReleaseTag() : undefined}
-      profile={token ? profile : null}
-      onSignOut={handleSignOut}
-      canPromoteUsers={Boolean(token && profile?.role === "admin")}
-      onPromoteUser={handlePromoteUser}
-      buildFingerprint={token ? buildFingerprint : undefined}
-      showHeader={Boolean(token)}
-      searchPanel={token ? (
-        <GlobalSearch
-          query={globalSearchInput}
-          debouncedQuery={globalSearchQuery}
-          sections={searchSections}
-          loading={globalSearchLoading}
-          errorMessage={globalSearchError}
-          onQueryChange={setGlobalSearchInput}
-          onSelect={handleGlobalSearchSelect}
-        />
-      ) : null}
-      footer={token ? <BottomNav /> : null}
-    >
-      <Routes>
+    <>
+      <AppLayout
+        title={getTitle()}
+        releaseTag={token ? getReleaseTag() : undefined}
+        profile={token ? profile : null}
+        onSignOut={handleSignOut}
+        canPromoteUsers={Boolean(token && profile?.role === "admin")}
+        onPromoteUser={handlePromoteUser}
+        onOpenCommandPalette={token ? openCommandPalette : undefined}
+        buildFingerprint={token ? buildFingerprint : undefined}
+        showHeader={Boolean(token)}
+        searchPanel={token ? (
+          <GlobalSearch
+            query={globalSearchInput}
+            debouncedQuery={globalSearchQuery}
+            sections={searchSections}
+            loading={globalSearchLoading}
+            errorMessage={globalSearchError}
+            onQueryChange={setGlobalSearchInput}
+            onSelect={handleGlobalSearchSelect}
+          />
+        ) : null}
+        footer={token ? <BottomNav /> : null}
+      >
+        <Routes>
         <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
 
         {!token ? (
@@ -533,8 +730,18 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         )}
-      </Routes>
-    </AppLayout>
+        </Routes>
+      </AppLayout>
+
+      {token && commandPaletteOpen ? (
+        <CommandPalette
+          isOpen
+          commands={commandPaletteCommands}
+          onClose={closeCommandPalette}
+          onSelectCommand={handleCommandPaletteSelect}
+        />
+      ) : null}
+    </>
   )
 }
 

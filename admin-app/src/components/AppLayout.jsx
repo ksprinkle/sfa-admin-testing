@@ -5,6 +5,7 @@ function AppLayout({
   onSignOut,
   canPromoteUsers = false,
   onPromoteUser,
+  onOpenCommandPalette,
   buildFingerprint,
   showHeader = true,
   searchPanel = null,
@@ -29,6 +30,18 @@ function AppLayout({
             {profile ? (
               <div className="flex flex-wrap items-center gap-3 lg:ml-auto">
                 <span className="hidden max-w-[260px] truncate text-sm text-white/90 sm:inline">{profile.email}</span>
+                {onOpenCommandPalette ? (
+                  <button
+                    type="button"
+                    onClick={onOpenCommandPalette}
+                    className="rounded-md border border-white/35 bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
+                    title="Open command palette"
+                    aria-label="Open command palette"
+                    aria-keyshortcuts="Control+K Meta+K"
+                  >
+                    Commands (Ctrl/Cmd+K)
+                  </button>
+                ) : null}
                 {canPromoteUsers ? (
                   <button
                     type="button"
