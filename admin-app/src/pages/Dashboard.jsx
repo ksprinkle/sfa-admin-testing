@@ -556,6 +556,7 @@ useEffect(() => {
   ].filter((card) => !card.tourOnly || showTourOnlyRoleCards)
   const participantCapacity = event?.capacity?.participants ?? event?.participant_capacity
   const eventParticipantsTotal = registered + waitlisted
+  const hasMultipleLiveEvents = liveEvents.length > 1
   const percentFull = participantCapacity
     ? Math.min((registered / participantCapacity) * 100, 100)
     : 0
