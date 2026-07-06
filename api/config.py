@@ -138,6 +138,12 @@ class Settings:
         "http://127.0.0.1:5173",
     ]
 
+    # Production fallback so GitHub Pages frontend can call Render API even when
+    # CORS_ORIGINS is not explicitly configured yet.
+    DEFAULT_PROD_CORS_ORIGINS = [
+        _normalize_origin(os.getenv("PUBLIC_WEB_ORIGIN", "https://ksprinkle.github.io"))
+    ]
+
     # Email provider selection stays in configuration, not business logic.
     EMAIL_PROVIDER_KEY = os.getenv("EMAIL_PROVIDER_KEY", "email.noop")
     EMAIL_DEFAULT_SENDER = os.getenv("EMAIL_DEFAULT_SENDER", "no-reply@example.com")

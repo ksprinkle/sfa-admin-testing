@@ -69,7 +69,13 @@ from api.config import settings
 app = FastAPI(redirect_slashes=False)
 register_default_workflow_handlers()
 
-allowed_origins = settings.CORS_ORIGINS or settings.DEFAULT_DEV_CORS_ORIGINS
+if settings.CORS_ORIGINS:
+    allowed_origins = settings.CORS_ORIGINS
+elif settings.IS_PRODUCTION:
+    allowed_origins = settings.DEFAULT_PROD_CORS_ORIGINS
+else:
+    allowed_origins = settings.DEFAULT_DEV_CORS_ORIGINS
+
 allowed_origin_regex = (
     r"^http://(localhost|127\.0\.0\.1|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(:\d+)?$"
     if settings.DEBUG
