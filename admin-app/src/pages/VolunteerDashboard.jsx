@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { fetchVolunteerDashboard } from "../api/events"
+import { getStoredToken } from "../api/auth"
 
 const STATUS_LABELS = {
   ACTION_REQUIRED: "Action Required",
@@ -33,6 +34,15 @@ function VolunteerDashboard() {
 
   useEffect(() => {
     let isCancelled = false
+
+    const token = getStoredToken()
+    if (!token) {
+      setLoading(false)
+      setError("Please sign in again to load the volunteer dashboard.")
+      return () => {
+        isCancelled = true
+      }
+    }
 
     const loadProjection = async () => {
       setLoading(true)

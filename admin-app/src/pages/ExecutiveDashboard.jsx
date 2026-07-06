@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { fetchDashboardDiagnosticsReport, fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard, fetchVolunteerDashboard } from "../api/events"
+import { getStoredToken } from "../api/auth"
 
 const EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.executiveDashboardRefreshIntervalMs"
 const EXECUTIVE_DASHBOARD_REFRESH_OPTIONS = [
@@ -201,6 +202,15 @@ function ExecutiveDashboard() {
   const recentActivitySectionRef = useRef(null)
 
   const loadDashboard = useCallback(async ({ showLoading = false } = {}) => {
+    const token = getStoredToken()
+    if (!token) {
+      setLoading(false)
+      setIsRefreshing(false)
+      setError("Please sign in again to load the executive dashboard.")
+      setVolunteerDashboardError("Please sign in again to load the executive dashboard.")
+      return false
+    }
+
     if (refreshInFlightRef.current) {
       return false
     }
