@@ -69,10 +69,11 @@ from api.config import settings
 app = FastAPI(redirect_slashes=False)
 register_default_workflow_handlers()
 
-if settings.CORS_ORIGINS:
+if settings.IS_PRODUCTION:
+    configured_prod_origins = settings.CORS_ORIGINS or []
+    allowed_origins = list(dict.fromkeys(configured_prod_origins + settings.DEFAULT_PROD_CORS_ORIGINS))
+elif settings.CORS_ORIGINS:
     allowed_origins = settings.CORS_ORIGINS
-elif settings.IS_PRODUCTION:
-    allowed_origins = settings.DEFAULT_PROD_CORS_ORIGINS
 else:
     allowed_origins = settings.DEFAULT_DEV_CORS_ORIGINS
 

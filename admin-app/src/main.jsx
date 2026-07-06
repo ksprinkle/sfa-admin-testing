@@ -73,21 +73,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     if (import.meta.env.PROD) {
-      // Register from app base path so GitHub Pages subpath resolves to /<base>/sw.js.
-      const swPath = `${import.meta.env.BASE_URL}sw.js`
-      try {
-        const probe = await fetch(swPath, { method: "GET", cache: "no-store" })
-        if (!probe.ok) {
-          const registrations = await navigator.serviceWorker.getRegistrations()
-          await Promise.all(registrations.map((registration) => registration.unregister()))
-          return
-        }
-
-        const registration = await navigator.serviceWorker.register(swPath)
-        await registration.update()
-      } catch (err) {
-        console.error("Service worker registration failed:", err)
-      }
+      // Stability-first mode: keep production clients uncached to avoid stale
+      // GitHub Pages bundles and service-worker registration noise.
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.map((registration) => registration.unregister()))
       return
     }
 
