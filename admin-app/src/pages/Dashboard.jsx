@@ -581,7 +581,7 @@ useEffect(() => {
         ? `${selectedVolunteerBreakdown.label} (${selectedVolunteerBreakdown.subLabel})`
         : selectedVolunteerBreakdown.label)
     : "All Live Events"
-  const volunteerBreakdownEventIdForNavigation = selectedVolunteerBreakdown?.eventId || event?.id || null
+  const volunteerBreakdownEventIdForNavigation = selectedVolunteerBreakdown?.eventId || selectedMainSummary?.eventId || event?.id || null
 
   const hasLiveTourBreakdown = Object.values(volunteerBreakdownByType)
     .some((row) => row?.eventTypeKey === "tour")
