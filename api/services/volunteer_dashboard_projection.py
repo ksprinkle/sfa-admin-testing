@@ -6,10 +6,10 @@ from datetime import date
 import logging
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from api.models.participants import Participant
-from api.models.participant_waivers import ParticipantWaiver
 from api.schemas.volunteer_dashboard import (
     VolunteerDashboardProjectionOut,
     VolunteerDashboardSummaryOut,
@@ -104,7 +104,6 @@ def get_volunteer_dashboard_projection(db: Session, event_id: UUID | None = None
             .options(
                 joinedload(Participant.event),
                 joinedload(Participant.session),
-                joinedload(Participant.waiver).joinedload(ParticipantWaiver.verifier),
             )
             .filter(Participant.removed_at.is_(None))
             .all()
@@ -125,6 +124,73 @@ def get_volunteer_dashboard_projection(db: Session, event_id: UUID | None = None
                     continue
 
                 has_assignment = bool(participant.session_id)
+
+                    try:
+                        fallback_participants = db.query(Participant).filter(Participant.removed_at.is_(None)).all()
+                        fallback_rows: list[VolunteerDashboardVolunteerOut] = []
+
+                        for participant in fallback_participants:
+                            if _normalize_role(_safe_text(participant.role)) != "volunteer":
+                                continue
+                            if event_id and participant.event_id != event_id:
+                                continue
+
+                            has_assignment = bool(participant.session_id)
+                            waiver_verified = bool(participant.waiver_verified)
+                            has_primary_type = bool(_safe_text(participant.volunteer_type))
+                            checked_in = bool(participant.checked_in)
+                            computed_status, status_reasons = _compute_status(
+                                _StatusInputs(
+                                    has_event=True,
+                                    has_assignment=has_assignment,
+                                    waiver_verified=waiver_verified,
+                                    has_primary_volunteer_type=has_primary_type,
+                                    checked_in=checked_in,
+                                )
+                            )
+
+                            fallback_rows.append(
+                                VolunteerDashboardVolunteerOut(
+                                    participant_id=participant.id,
+                                    full_name=(
+                                        " ".join(
+                                            [part for part in [_safe_text(participant.first_name), _safe_text(participant.last_name)] if part]
+                                        ).strip()
+                                        or "Unknown Volunteer"
+                                    ),
+                                    email=_safe_text(participant.email),
+                                    event_id=participant.event_id,
+                                    event_title=None,
+                                    event_type=None,
+                                    session_id=participant.session_id,
+                                    session_name=None,
+                                    checked_in=checked_in,
+                                    waiver_verified=waiver_verified,
+                                    waiver_document_status=WAIVER_VERIFIED if waiver_verified else WAIVER_MISSING,
+                                    compliance_status=COMPLIANCE_NOT_TRACKED,
+                                    computed_status=computed_status,
+                                    status_reasons=status_reasons,
+                                    sort_key=f"{computed_status.value}:fallback:{participant.id}",
+                                )
+                            )
+
+                        fallback_rows.sort(key=lambda row: (row.sort_key, str(row.participant_id)))
+                        fallback_counter = Counter(row.computed_status for row in fallback_rows)
+
+                        return VolunteerDashboardProjectionOut(
+                            compliance_tracking_supported=False,
+                            summary=VolunteerDashboardSummaryOut(
+                                total_volunteers=len(fallback_rows),
+                                action_required=int(fallback_counter.get(VolunteerOperationalStatus.ACTION_REQUIRED, 0)),
+                                incomplete=int(fallback_counter.get(VolunteerOperationalStatus.INCOMPLETE, 0)),
+                                checked_in=int(fallback_counter.get(VolunteerOperationalStatus.CHECKED_IN, 0)),
+                                ready=int(fallback_counter.get(VolunteerOperationalStatus.READY, 0)),
+                            ),
+                            volunteers=fallback_rows,
+                        )
+                    except Exception:
+                        logger.exception("Volunteer dashboard secondary fallback failed; returning empty projection")
+
                 waiver_verified = bool(participant.waiver_verified)
                 has_primary_type = bool(_safe_text(participant.volunteer_type))
                 checked_in = bool(participant.checked_in)
@@ -190,13 +256,23 @@ def get_volunteer_dashboard_projection(db: Session, event_id: UUID | None = None
             "Volunteer dashboard projection failed; returning empty projection fallback",
             extra={"event_id": str(event_id) if event_id else None},
         )
+        baseline_query = db.query(Participant).filter(Participant.removed_at.is_(None))
+        baseline_query = baseline_query.filter(func.lower(func.trim(func.coalesce(Participant.role, ""))) == "volunteer")
+
+        if event_id:
+            baseline_query = baseline_query.filter(Participant.event_id == event_id)
+
+        baseline_total = int(baseline_query.count() or 0)
+        baseline_checked_in = int(baseline_query.filter(Participant.checked_in.is_(True)).count() or 0)
+        baseline_action_required = max(0, baseline_total - baseline_checked_in)
+
         return VolunteerDashboardProjectionOut(
             compliance_tracking_supported=False,
             summary=VolunteerDashboardSummaryOut(
-                total_volunteers=0,
-                action_required=0,
+                total_volunteers=baseline_total,
+                action_required=baseline_action_required,
                 incomplete=0,
-                checked_in=0,
+                checked_in=baseline_checked_in,
                 ready=0,
             ),
             volunteers=[],
