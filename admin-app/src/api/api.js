@@ -10,22 +10,26 @@ function joinApiUrl(path) {
 
 export async function apiFetch(path, options = {}) {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+  const headers = {
+    ...(options.headers || {}),
+    "Content-Type": "application/json",
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
 
   const res = await fetch(joinApiUrl(path), {
     ...options,
     cache: "no-store",
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }
+    headers,
   })
 
   if (res.status === 401) {
     console.warn("Token expired or invalid — logging out")
     clearAuthSession()
-    window.location.href = "/login"
-    return
+    const loginUrl = new URL("login", window.location.href)
+    window.location.href = loginUrl.toString()
   }
 
   return res
