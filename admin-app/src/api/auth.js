@@ -1,6 +1,6 @@
 import { getApiBase } from "./baseUrl"
 
-const API_BASE = getApiBase()
+const API_BASE = getApiBase().replace(/\/+$/, "")
 
 export const TOKEN_STORAGE_KEY = "token"
 export const PROFILE_STORAGE_KEY = "auth.profile"
@@ -8,6 +8,11 @@ const AUTH_CHANGED_EVENT = "auth:changed"
 
 function emitAuthChanged() {
   window.dispatchEvent(new window.CustomEvent(AUTH_CHANGED_EVENT))
+}
+
+function joinApiUrl(path) {
+  const normalizedPath = String(path || "")
+  return `${API_BASE}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`
 }
 
 export function getStoredToken() {
@@ -45,7 +50,7 @@ export async function login(username, password) {
   formData.append("password", password)
 
   // Use /api/auth/login to match backend
-  const res = await fetch(`${API_BASE}/api/auth/login`, {
+  const res = await fetch(joinApiUrl("/api/auth/login"), {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded"
@@ -76,7 +81,7 @@ export async function fetchMyProfile(token = getStoredToken()) {
     throw new Error("Missing token")
   }
 
-  const res = await fetch(`${API_BASE}/api/auth/me`, {
+  const res = await fetch(joinApiUrl("/api/auth/me"), {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -109,7 +114,7 @@ export async function promoteUserToAdminByEmail(email, token = getStoredToken())
     throw new Error("Email is required")
   }
 
-  const res = await fetch(`${API_BASE}/api/auth/admin/users/by-email/role-body`, {
+  const res = await fetch(joinApiUrl("/api/auth/admin/users/by-email/role-body"), {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
