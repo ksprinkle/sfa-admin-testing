@@ -581,6 +581,7 @@ useEffect(() => {
         ? `${selectedVolunteerBreakdown.label} (${selectedVolunteerBreakdown.subLabel})`
         : selectedVolunteerBreakdown.label)
     : "All Live Events"
+  const volunteerBreakdownEventIdForNavigation = selectedVolunteerBreakdown?.eventId || event?.id || null
 
   const hasLiveTourBreakdown = Object.values(volunteerBreakdownByType)
     .some((row) => row?.eventTypeKey === "tour")
@@ -1168,14 +1169,16 @@ useEffect(() => {
                   <div
                     key={key}
                     className={`${bg} rounded-lg p-3 text-center cursor-pointer transition hover:brightness-95`}
-                    onClick={() => navigate(`/events/${event.id}?participants=volunteers`)}
+                    onClick={() => volunteerBreakdownEventIdForNavigation && navigate(`/events/${volunteerBreakdownEventIdForNavigation}?participants=volunteers`)}
                     role="button"
                     tabIndex={0}
                     title={`Open volunteer roster for ${label}`}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault()
-                        navigate(`/events/${event.id}?participants=volunteers`)
+                        if (volunteerBreakdownEventIdForNavigation) {
+                          navigate(`/events/${volunteerBreakdownEventIdForNavigation}?participants=volunteers`)
+                        }
                       }
                     }}
                   >
@@ -1379,14 +1382,16 @@ useEffect(() => {
               <div
                 key={key}
                 className={`${bg} rounded-lg p-3 text-center cursor-pointer transition hover:brightness-95`}
-                onClick={() => navigate(`/events/${event.id}?participants=volunteers`)}
+                onClick={() => volunteerBreakdownEventIdForNavigation && navigate(`/events/${volunteerBreakdownEventIdForNavigation}?participants=volunteers`)}
                 role="button"
                 tabIndex={0}
                 title={`Open volunteer roster for ${label}`}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()
-                    navigate(`/events/${event.id}?participants=volunteers`)
+                    if (volunteerBreakdownEventIdForNavigation) {
+                      navigate(`/events/${volunteerBreakdownEventIdForNavigation}?participants=volunteers`)
+                    }
                   }
                 }}
               >
@@ -1408,14 +1413,16 @@ useEffect(() => {
             <div
               key={key}
               className={`${bg} rounded-lg p-3 text-center cursor-pointer transition hover:brightness-95`}
-              onClick={() => navigate(`/events/${event.id}?participants=volunteers&volunteer_role=${encodeURIComponent(key)}`)}
+              onClick={() => volunteerBreakdownEventIdForNavigation && navigate(`/events/${volunteerBreakdownEventIdForNavigation}?participants=volunteers&volunteer_role=${encodeURIComponent(key)}`)}
               role="button"
               tabIndex={0}
               title={`Open volunteer roster filtered to ${label}`}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault()
-                  navigate(`/events/${event.id}?participants=volunteers&volunteer_role=${encodeURIComponent(key)}`)
+                  if (volunteerBreakdownEventIdForNavigation) {
+                    navigate(`/events/${volunteerBreakdownEventIdForNavigation}?participants=volunteers&volunteer_role=${encodeURIComponent(key)}`)
+                  }
                 }
               }}
             >
