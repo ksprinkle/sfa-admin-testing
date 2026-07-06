@@ -1,4 +1,5 @@
 {
   "python.analysis.extraPaths": ["./api"],
-  "python.analysis.importFormat": "absolute"
+  "python.analysis.importFormat": "absolute",
+  "liveServer.settings.NoBrowser": true
 }

@@ -35,13 +35,13 @@ What it does:
 Starts backend in quiet mode:
 uvicorn with no access logs and warning-level logs
 Starts frontend in quieter mode:
-Vite with warn log level
-Opens each in its own PowerShell window by default
+Vite with error log level so it does not keep surfacing localhost URLs in the terminal
+Starts both servers without advertising a browser window
 How to run:
 
 From repo root:
 powershell -ExecutionPolicy Bypass -File start-dev-quiet.ps1
 Optional mode:
 
-Keep backend in current terminal and only open frontend in a new window:
+Keep backend in current terminal and run the frontend separately if you want to open it yourself:
 powershell -ExecutionPolicy Bypass -File start-dev-quiet.ps1 -NoNewWindows
