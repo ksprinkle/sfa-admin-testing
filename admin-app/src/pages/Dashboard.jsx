@@ -205,6 +205,8 @@ function Dashboard() {
   const [volunteerTypeCounts, setVolunteerTypeCounts] = useState(DEFAULT_VOLUNTEER_COUNTS)
   const [volunteerGroupCounts, setVolunteerGroupCounts] = useState(DEFAULT_VOLUNTEER_GROUP_COUNTS)
   const [volunteerFlexibleGroupCounts, setVolunteerFlexibleGroupCounts] = useState(DEFAULT_VOLUNTEER_FLEXIBLE_GROUP_COUNTS)
+  const [participantSummaryByEvent, setParticipantSummaryByEvent] = useState({})
+  const [mainSummaryEventFilter, setMainSummaryEventFilter] = useState("all")
   const [volunteerBreakdownByType, setVolunteerBreakdownByType] = useState({})
   const [volunteerBreakdownTypeFilter, setVolunteerBreakdownTypeFilter] = useState("all")
   const [layoutMode, setLayoutMode] = useState(() => readDashboardPreferences().layoutMode)
@@ -228,10 +230,12 @@ function Dashboard() {
   }
 
   const handleViewRoster = (eventId) => {
+    if (!eventId) return
     navigate(`/events/${eventId}${getFilterQuery()}`);
   };
 
   const handleCheckIn = (eventId) => {
+    if (!eventId) return
     navigate(`/events/${eventId}/checkin${getFilterQuery()}`);
   };
 
@@ -255,6 +259,8 @@ function Dashboard() {
         setVolunteers(0)
         setWaiversMissing(0)
         setVersatileVolunteers(0)
+        setParticipantSummaryByEvent({})
+        setMainSummaryEventFilter("all")
         setVolunteerTypeCounts(DEFAULT_VOLUNTEER_COUNTS)
         setVolunteerGroupCounts(DEFAULT_VOLUNTEER_GROUP_COUNTS)
         setVolunteerFlexibleGroupCounts(DEFAULT_VOLUNTEER_FLEXIBLE_GROUP_COUNTS)
@@ -269,6 +275,7 @@ function Dashboard() {
       const summary = await fetchEventSummary(active.id)
 
       const summariesByType = {}
+      const participantSummariesByEvent = {}
       const liveSummaryCandidates = (published.length > 0 ? published : [active]).filter(Boolean)
       const liveSummarySettled = await Promise.allSettled(
         liveSummaryCandidates.map((evt) => fetchEventSummary(evt.id))
@@ -308,6 +315,21 @@ function Dashboard() {
           normalizeFlexibleVolunteerGroupCounts(item.volunteer_flexible_group_counts)
         )
         summariesByType[eventKey] = existing
+
+        participantSummariesByEvent[eventKey] = {
+          label: matchingEvent?.title || `Event ${matchingEvent?.id || item?.event_id || "Unknown"}`,
+          subLabel: matchingEvent?.start_date || "",
+          eventId: matchingEvent?.id || item?.event_id || null,
+          registered: Number(item.registered_count ?? item.participant_count) || 0,
+          waitlisted: Number(item.waitlist_count) || 0,
+          checkedIn: Number(item.checked_in_count) || 0,
+          clearedToParticipate: Number(item.cleared_to_participate_count) || 0,
+          volunteers: Number(item.volunteer_count) || 0,
+          waiversMissing: Number(item.waivers_missing) || 0,
+          participantCapacity: Number(
+            matchingEvent?.capacity?.participants ?? matchingEvent?.participant_capacity
+          ) || 0,
+        }
       }
 
       const hasLiveSummaryData = Object.keys(summariesByType).length > 0
@@ -325,8 +347,32 @@ function Dashboard() {
           groupCounts: normalizeVolunteerGroupCounts(summary.volunteer_group_counts),
           flexibleGroupCounts: normalizeFlexibleVolunteerGroupCounts(summary.volunteer_flexible_group_counts),
         }
+
+        participantSummariesByEvent[fallbackKey] = {
+          label: active?.title || formatEventType(fallbackTypeKey),
+          subLabel: active?.start_date || "",
+          eventId: active?.id || null,
+          registered: Number(summary.registered_count ?? summary.participant_count) || 0,
+          waitlisted: Number(summary.waitlist_count) || 0,
+          checkedIn: Number(summary.checked_in_count) || 0,
+          clearedToParticipate: Number(summary.cleared_to_participate_count) || 0,
+          volunteers: Number(summary.volunteer_count) || 0,
+          waiversMissing: Number(summary.waivers_missing) || 0,
+          participantCapacity: Number(active?.capacity?.participants ?? active?.participant_capacity) || 0,
+        }
       }
 
+      setParticipantSummaryByEvent(participantSummariesByEvent)
+      const activeSummaryKey = `event:${active?.id}`
+      setMainSummaryEventFilter((previous) => {
+        if (previous !== "all" && participantSummariesByEvent[previous]) {
+          return previous
+        }
+        if (participantSummariesByEvent[activeSummaryKey]) {
+          return activeSummaryKey
+        }
+        return "all"
+      })
       setVolunteerBreakdownByType(summariesByType)
 
       setRegistered(summary.registered_count ?? summary.participant_count)
@@ -554,12 +600,108 @@ useEffect(() => {
     { key: "buddy", label: "Buddy", color: "text-cyan-700", bg: "bg-cyan-50" },
     { key: "instructor", label: "Instructor", color: "text-orange-700", bg: "bg-orange-50" },
   ].filter((card) => !card.tourOnly || showTourOnlyRoleCards)
-  const participantCapacity = event?.capacity?.participants ?? event?.participant_capacity
-  const eventParticipantsTotal = registered + waitlisted
+
+  const mainSummaryTypeOptions = [
+    { key: "all", label: "All Live Events" },
+    ...Object.keys(participantSummaryByEvent)
+      .sort((a, b) => (participantSummaryByEvent[a]?.label || "").localeCompare(participantSummaryByEvent[b]?.label || ""))
+      .map((key) => {
+        const row = participantSummaryByEvent[key]
+        return {
+          key,
+          label: row?.subLabel ? `${row.label} (${row.subLabel})` : (row?.label || key),
+        }
+      }),
+  ]
+
+  const selectedMainSummary =
+    mainSummaryEventFilter === "all"
+      ? null
+      : participantSummaryByEvent[mainSummaryEventFilter] || null
+
+  const mainSummaryStats = (() => {
+    if (mainSummaryEventFilter === "all") {
+      const allRows = Object.values(participantSummaryByEvent)
+      if (allRows.length > 0) {
+        const totalCapacity = allRows.reduce((sum, row) => sum + (Number(row?.participantCapacity) || 0), 0)
+        const hasAnyCapacity = allRows.some((row) => Number(row?.participantCapacity) > 0)
+
+        return allRows.reduce(
+          (acc, row) => ({
+            registered: acc.registered + (Number(row?.registered) || 0),
+            waitlisted: acc.waitlisted + (Number(row?.waitlisted) || 0),
+            checkedIn: acc.checkedIn + (Number(row?.checkedIn) || 0),
+            clearedToParticipate: acc.clearedToParticipate + (Number(row?.clearedToParticipate) || 0),
+            volunteers: acc.volunteers + (Number(row?.volunteers) || 0),
+            waiversMissing: acc.waiversMissing + (Number(row?.waiversMissing) || 0),
+            participantCapacity: hasAnyCapacity ? totalCapacity : 0,
+          }),
+          {
+            registered: 0,
+            waitlisted: 0,
+            checkedIn: 0,
+            clearedToParticipate: 0,
+            volunteers: 0,
+            waiversMissing: 0,
+            participantCapacity: hasAnyCapacity ? totalCapacity : 0,
+          }
+        )
+      }
+
+      return {
+        registered,
+        waitlisted,
+        checkedIn,
+        clearedToParticipate,
+        volunteers,
+        waiversMissing,
+        participantCapacity: Number(event?.capacity?.participants ?? event?.participant_capacity) || 0,
+      }
+    }
+
+    if (selectedMainSummary) {
+      return {
+        registered: selectedMainSummary.registered || 0,
+        waitlisted: selectedMainSummary.waitlisted || 0,
+        checkedIn: selectedMainSummary.checkedIn || 0,
+        clearedToParticipate: selectedMainSummary.clearedToParticipate || 0,
+        volunteers: selectedMainSummary.volunteers || 0,
+        waiversMissing: selectedMainSummary.waiversMissing || 0,
+        participantCapacity: selectedMainSummary.participantCapacity || 0,
+      }
+    }
+
+    return {
+      registered,
+      waitlisted,
+      checkedIn,
+      clearedToParticipate,
+      volunteers,
+      waiversMissing,
+      participantCapacity: Number(event?.capacity?.participants ?? event?.participant_capacity) || 0,
+    }
+  })()
+
+  const summaryRegistered = mainSummaryStats.registered
+  const summaryWaitlisted = mainSummaryStats.waitlisted
+  const summaryCheckedIn = mainSummaryStats.checkedIn
+  const summaryClearedToParticipate = mainSummaryStats.clearedToParticipate
+  const summaryVolunteers = mainSummaryStats.volunteers
+  const summaryWaiversMissing = mainSummaryStats.waiversMissing
+  const participantCapacity = mainSummaryStats.participantCapacity
+  const eventParticipantsTotal = summaryRegistered + summaryWaitlisted
+  const selectedMainSummaryContextLabel = selectedMainSummary
+    ? (selectedMainSummary.subLabel
+        ? `${selectedMainSummary.label} (${selectedMainSummary.subLabel})`
+        : selectedMainSummary.label)
+    : "All Live Events"
+  const mainSummaryEventIdForNavigation = selectedMainSummary?.eventId || null
+  const canOpenFilteredEventRoster = Boolean(mainSummaryEventIdForNavigation)
+
   const hasMultipleLiveEvents = liveEvents.length > 1
   const selectedFeaturedImageUrl = normalizeExternalUrl(event?.featured_image)
   const percentFull = participantCapacity
-    ? Math.min((registered / participantCapacity) * 100, 100)
+    ? Math.min((summaryRegistered / participantCapacity) * 100, 100)
     : 0
   const capacityColor =
     participantCapacity && registered >= participantCapacity
@@ -848,10 +990,10 @@ useEffect(() => {
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border border-ocean/30 bg-ocean/10 px-2 py-0.5 text-ocean">
-                Active: {participantCapacity ? `${registered}/${participantCapacity}` : `${registered}/no max`}
+                Active: {participantCapacity ? `${summaryRegistered}/${participantCapacity}` : `${summaryRegistered}/no max`}
               </span>
               <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800">
-                Waitlist: {waitlisted}
+                Waitlist: {summaryWaitlisted}
               </span>
               <span className="rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-secondary">
                 Participants: {eventParticipantsTotal}
@@ -908,48 +1050,80 @@ useEffect(() => {
             )}
           </div> : null}
 
+          {hasMultipleLiveEvents && (
+            <div className="bg-white rounded-xl shadow p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-800">Main Summary Filter</h2>
+                  <p className="text-xs text-secondary">Select which live event drives the main summary cards.</p>
+                </div>
+                <span className="text-xs font-medium text-secondary">Showing: {selectedMainSummaryContextLabel}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {mainSummaryTypeOptions.map((option) => {
+                  const selected = mainSummaryEventFilter === option.key
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setMainSummaryEventFilter(option.key)}
+                      className={`rounded-full border px-3 py-1 text-xs transition ${
+                        selected
+                          ? "border-blue-300 bg-blue-50 text-blue-800"
+                          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
+                      title={`Show main summary stats for ${option.label}`}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-4">
             <StatCard
               label="Registered"
-              value={registered}
+              value={summaryRegistered}
               color="text-ocean"
-              onClick={() => navigate(`/events/${event.id}?participants=registered`)}
-              title="Open event roster filtered to registered participants"
+              onClick={canOpenFilteredEventRoster ? () => navigate(`/events/${mainSummaryEventIdForNavigation}?participants=registered`) : undefined}
+              title={canOpenFilteredEventRoster ? "Open event roster filtered to registered participants" : "Choose a specific event in Main Summary Filter to open event roster"}
             />
             <StatCard
               label="Waitlisted"
-              value={waitlisted}
+              value={summaryWaitlisted}
               color="text-warning"
-              onClick={() => navigate(`/events/${event.id}?participants=waitlisted`)}
-              title="Open event roster filtered to waitlisted participants"
+              onClick={canOpenFilteredEventRoster ? () => navigate(`/events/${mainSummaryEventIdForNavigation}?participants=waitlisted`) : undefined}
+              title={canOpenFilteredEventRoster ? "Open event roster filtered to waitlisted participants" : "Choose a specific event in Main Summary Filter to open event roster"}
             />
             <StatCard
               label="Cleared to Participate"
-              value={clearedToParticipate}
+              value={summaryClearedToParticipate}
               color="text-success"
-              onClick={() => navigate(`/events/${event.id}?participants=cleared`)}
-              title="Open event roster filtered to waiver-verified checked-in participants"
+              onClick={canOpenFilteredEventRoster ? () => navigate(`/events/${mainSummaryEventIdForNavigation}?participants=cleared`) : undefined}
+              title={canOpenFilteredEventRoster ? "Open event roster filtered to waiver-verified checked-in participants" : "Choose a specific event in Main Summary Filter to open event roster"}
             />
             <StatCard
               label="Checked In"
-              value={checkedIn}
+              value={summaryCheckedIn}
               color="text-success"
-              onClick={() => navigate(`/events/${event.id}?participants=checked_in`)}
-              title="Open event roster filtered to checked-in participants"
+              onClick={canOpenFilteredEventRoster ? () => navigate(`/events/${mainSummaryEventIdForNavigation}?participants=checked_in`) : undefined}
+              title={canOpenFilteredEventRoster ? "Open event roster filtered to checked-in participants" : "Choose a specific event in Main Summary Filter to open event roster"}
             />
             <StatCard
               label="Volunteers"
-              value={volunteers}
+              value={summaryVolunteers}
               color="text-ocean"
-              onClick={() => navigate(`/events/${event.id}?participants=volunteers`)}
-              title="Open event roster filtered to volunteers"
+              onClick={canOpenFilteredEventRoster ? () => navigate(`/events/${mainSummaryEventIdForNavigation}?participants=volunteers`) : undefined}
+              title={canOpenFilteredEventRoster ? "Open event roster filtered to volunteers" : "Choose a specific event in Main Summary Filter to open event roster"}
             />
             <StatCard
               label="Waivers Missing"
-              value={waiversMissing}
+              value={summaryWaiversMissing}
               color="text-danger"
-              onClick={() => navigate(`/events/${event.id}?participants=waiver_missing`)}
-              title="Open event roster filtered to missing waivers"
+              onClick={canOpenFilteredEventRoster ? () => navigate(`/events/${mainSummaryEventIdForNavigation}?participants=waiver_missing`) : undefined}
+              title={canOpenFilteredEventRoster ? "Open event roster filtered to missing waivers" : "Choose a specific event in Main Summary Filter to open event roster"}
             />
           </div>
 
@@ -1056,11 +1230,11 @@ useEffect(() => {
                   />
                 </div>
                 <p className="text-xs text-secondary">
-                  {registered} of {participantCapacity} spots filled
+                  {summaryRegistered} of {participantCapacity} spots filled
                 </p>
               </>
             ) : (
-              <p className="text-xs text-secondary">No participant capacity set for this event.</p>
+              <p className="text-xs text-secondary">No participant capacity set for the selected summary filter.</p>
             )}
           </div>
 
@@ -1072,32 +1246,34 @@ useEffect(() => {
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-green-500"
-                style={{ width: `${registered > 0 ? (checkedIn / registered) * 100 : 0}%` }}
+                style={{ width: `${summaryRegistered > 0 ? (summaryCheckedIn / summaryRegistered) * 100 : 0}%` }}
               />
             </div>
 
             <p className="text-xs text-secondary">
-              {checkedIn} of {registered} registered participants checked in
+              {summaryCheckedIn} of {summaryRegistered} registered participants checked in
             </p>
           </div>
 
-          {waitlisted > 0 && (
+          {summaryWaitlisted > 0 && (
             <div className="bg-warning/10 border border-warning rounded-lg p-3 text-sm text-warning">
-              {waitlisted} participant(s) currently on waitlist
+              {summaryWaitlisted} participant(s) currently on waitlist
             </div>
           )}
 
           <div className="flex gap-4 mt-6">
 
             <button
-              onClick={() => handleViewRoster(event.id)}
+              onClick={() => handleViewRoster(mainSummaryEventIdForNavigation)}
+              disabled={!canOpenFilteredEventRoster}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
             >
               View Full Roster
             </button>
 
             <button
-              onClick={() => handleCheckIn(event.id)}
+              onClick={() => handleCheckIn(mainSummaryEventIdForNavigation)}
+              disabled={!canOpenFilteredEventRoster}
               className="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700"
             >
               Check In
@@ -1105,9 +1281,9 @@ useEffect(() => {
 
           </div>
 
-          {hasMultipleLiveEvents && (
+          {hasMultipleLiveEvents && !canOpenFilteredEventRoster && (
             <p className="text-xs text-secondary">
-              Main summary cards are showing the first live event. When multiple live events overlap, use the event-specific buttons above.
+              Select a specific event in Main Summary Filter to open roster and check-in actions.
             </p>
           )}
         </>
