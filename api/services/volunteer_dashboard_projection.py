@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date
+import logging
 from uuid import UUID
 
 from sqlalchemy.orm import Session, joinedload
@@ -21,6 +22,8 @@ COMPLIANCE_NOT_TRACKED = "Not Tracked"
 WAIVER_VERIFIED = "Verified"
 WAIVER_MISSING = "Missing"
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class _StatusInputs:
@@ -33,6 +36,14 @@ class _StatusInputs:
 
 def _normalize_role(value: str | None) -> str:
     return (value or "").strip().lower()
+
+
+def _safe_text(value: object, default: str = "") -> str:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
 
 
 def _event_is_operationally_current(event) -> bool:
@@ -101,51 +112,61 @@ def get_volunteer_dashboard_projection(db: Session, event_id: UUID | None = None
     volunteer_rows: list[VolunteerDashboardVolunteerOut] = []
 
     for participant in participants:
-        if _normalize_role(participant.role) != "volunteer":
-            continue
+        try:
+            if _normalize_role(_safe_text(participant.role)) != "volunteer":
+                continue
 
-        if event_id and participant.event_id != event_id:
-            continue
+            if event_id and participant.event_id != event_id:
+                continue
 
-        event = participant.event
-        if not event_id and not _event_is_operationally_current(event):
-            continue
+            event = participant.event
+            if not event_id and not _event_is_operationally_current(event):
+                continue
 
-        has_assignment = bool(participant.session_id)
-        waiver_verified = bool(participant.waiver_verified)
-        has_primary_type = bool((participant.volunteer_type or "").strip())
-        checked_in = bool(participant.checked_in)
+            has_assignment = bool(participant.session_id)
+            waiver_verified = bool(participant.waiver_verified)
+            has_primary_type = bool(_safe_text(participant.volunteer_type))
+            checked_in = bool(participant.checked_in)
 
-        status_inputs = _StatusInputs(
-            has_event=event is not None,
-            has_assignment=has_assignment,
-            waiver_verified=waiver_verified,
-            has_primary_volunteer_type=has_primary_type,
-            checked_in=checked_in,
-        )
-        computed_status, status_reasons = _compute_status(status_inputs)
-
-        sort_key = _build_sort_key(participant, computed_status)
-
-        volunteer_rows.append(
-            VolunteerDashboardVolunteerOut(
-                participant_id=participant.id,
-                full_name=f"{participant.first_name} {participant.last_name}".strip(),
-                email=participant.email,
-                event_id=participant.event_id,
-                event_title=(event.title if event else None),
-                event_type=(event.event_type if event else None),
-                session_id=participant.session_id,
-                session_name=(participant.session.name if participant.session else None),
-                checked_in=checked_in,
+            status_inputs = _StatusInputs(
+                has_event=event is not None,
+                has_assignment=has_assignment,
                 waiver_verified=waiver_verified,
-                waiver_document_status=WAIVER_VERIFIED if waiver_verified else WAIVER_MISSING,
-                compliance_status=COMPLIANCE_NOT_TRACKED,
-                computed_status=computed_status,
-                status_reasons=status_reasons,
-                sort_key=sort_key,
+                has_primary_volunteer_type=has_primary_type,
+                checked_in=checked_in,
             )
-        )
+            computed_status, status_reasons = _compute_status(status_inputs)
+
+            sort_key = _build_sort_key(participant, computed_status)
+            full_name = " ".join(
+                [part for part in [_safe_text(participant.first_name), _safe_text(participant.last_name)] if part]
+            ).strip() or "Unknown Volunteer"
+
+            volunteer_rows.append(
+                VolunteerDashboardVolunteerOut(
+                    participant_id=participant.id,
+                    full_name=full_name,
+                    email=_safe_text(participant.email),
+                    event_id=participant.event_id,
+                    event_title=(_safe_text(event.title) if event else None),
+                    event_type=(_safe_text(event.event_type) if event else None),
+                    session_id=participant.session_id,
+                    session_name=(_safe_text(participant.session.name) if participant.session else None),
+                    checked_in=checked_in,
+                    waiver_verified=waiver_verified,
+                    waiver_document_status=WAIVER_VERIFIED if waiver_verified else WAIVER_MISSING,
+                    compliance_status=COMPLIANCE_NOT_TRACKED,
+                    computed_status=computed_status,
+                    status_reasons=status_reasons,
+                    sort_key=sort_key,
+                )
+            )
+        except Exception:
+            logger.exception(
+                "Skipping malformed volunteer row in dashboard projection",
+                extra={"participant_id": str(getattr(participant, "id", "unknown"))},
+            )
+            continue
 
     volunteer_rows.sort(key=lambda row: (row.sort_key, str(row.participant_id)))
 
