@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Any, Optional
 
-from api.dependencies import get_db
+from api.dependencies import get_current_user_optional, get_db
 from api.models.feedback import Feedback
+from api.models.users import User
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
@@ -38,7 +39,11 @@ class FeedbackIn(BaseModel):
 
 
 @router.post("", status_code=201)
-def submit_feedback(payload: FeedbackIn, db: Session = Depends(get_db)):
+def submit_feedback(
+    payload: FeedbackIn,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     if not payload.feature or not payload.version:
         raise HTTPException(status_code=422, detail="feature and version are required")
     summary = _compute_summary(payload.responses)
@@ -49,6 +54,14 @@ def submit_feedback(payload: FeedbackIn, db: Session = Depends(get_db)):
         summary=json.dumps(summary),
         time_to_complete=payload.time_to_complete,
     )
+    # Attribution always comes from the authenticated session, never from the
+    # request body (FeedbackIn has no submitter fields). Anonymous submissions
+    # remain supported and simply leave these columns null, same as historical
+    # records predating this feature.
+    if current_user is not None:
+        record.submitted_by_user_id = current_user.id
+        record.submitted_by_email = current_user.email
+        record.submitted_by_name = getattr(current_user, "name", None)
     db.add(record)
     db.commit()
     return {"status": "ok", "id": str(record.id)}
@@ -104,6 +117,8 @@ def list_feedback(
             "time_to_complete": row.time_to_complete,
             "overall_rating": rating,
             "responses": resp,
+            "submitted_by_name": row.submitted_by_name,
+            "submitted_by_email": row.submitted_by_email,
         })
 
     task_breakdown_list = [

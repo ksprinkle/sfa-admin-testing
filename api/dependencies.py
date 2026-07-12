@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
@@ -11,6 +13,11 @@ from api.services.authorization import PERMISSION_ADMIN_ACCESS, has_permission
 
 # This MUST match your login endpoint
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# Tolerant variant: does not raise when no token is presented. Use only for
+# endpoints that must remain reachable anonymously but attribute identity
+# when a caller happens to be authenticated (e.g. feedback submission).
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
 def get_current_user(
@@ -33,6 +40,23 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found")
 
     return user
+
+
+def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+    except Exception:
+        return None
+
+    return db.query(User).filter(User.id == user_id).first()
 
 
 def require_admin(current_user: User = Depends(get_current_user)):

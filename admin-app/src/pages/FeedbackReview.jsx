@@ -671,6 +671,14 @@ export default function FeedbackReview() {
                   <div key={entry.id} className="border border-slate-100 rounded-lg p-3 text-sm">
                     <div className="flex flex-wrap items-center gap-3 mb-2">
                       <span className="text-slate-400">{fmt(entry.submitted_at)}</span>
+                      {(entry.submitted_by_name || entry.submitted_by_email) && (
+                        <span className="text-xs text-slate-500">
+                          👤 {entry.submitted_by_name || entry.submitted_by_email}
+                          {entry.submitted_by_name && entry.submitted_by_email
+                            ? ` (${entry.submitted_by_email})`
+                            : ""}
+                        </span>
+                      )}
                       <span className="text-xs border border-slate-200 rounded px-1.5 py-0.5 text-slate-500">
                         {entry.version}
                       </span>

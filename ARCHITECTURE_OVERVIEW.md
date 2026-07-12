@@ -2,7 +2,7 @@
 
 > **Status:** Living
 > **Owner:** Project Maintainers
-> **Last Verified:** `c366e81`
+> **Last Verified:** `67eb526`
 
 Part of the [AI Engineering Handbook](CLAUDE.md). This document describes how the system is built: layering, data model, auth, and deployment. For repository navigation and guardrails, see [`CLAUDE.md`](CLAUDE.md). For what each feature does and where it lives, see [`FEATURE_INVENTORY.md`](FEATURE_INVENTORY.md). For known gaps referenced below, see [`KNOWN_TECHNICAL_DEBT.md`](KNOWN_TECHNICAL_DEBT.md).
 
@@ -65,7 +65,7 @@ PWA scaffolding (manifest, service worker) exists in `admin-app/public/`, but th
 
 ## Auth & Authorization
 
-Stateless JWT via OAuth2 password flow: `POST /api/auth/login` issues a signed token (`python-jose`, HS256); `api/dependencies.py`'s `get_current_user` decodes it and loads the user from the database on every request (no session cache, no refresh tokens). Authorization is role-based, not scope-based: `api/services/authorization.py` maps two roles today (`participant`, `admin`) to a fixed set of permission strings (e.g. `events.manage`, `waivers.manage`); routers enforce access via `require_admin` / `require_permission(...)` FastAPI dependencies. Finer-grained permission constants exist in the map but no additional roles are wired up yet. The frontend stores the token and profile in `localStorage` and treats a `401` as a hard logout.
+Stateless JWT via OAuth2 password flow: `POST /api/auth/login` issues a signed token (`python-jose`, HS256); `api/dependencies.py`'s `get_current_user` decodes it and loads the user from the database on every request (no session cache, no refresh tokens). Authorization is role-based, not scope-based: `api/services/authorization.py` maps two roles today (`participant`, `admin`) to a fixed set of permission strings (e.g. `events.manage`, `waivers.manage`); routers enforce access via `require_admin` / `require_permission(...)` FastAPI dependencies. Finer-grained permission constants exist in the map but no additional roles are wired up yet. `get_current_user_optional` (`api/dependencies.py`) supports the case where an endpoint must remain reachable anonymously but should attribute identity when a caller happens to be authenticated — it returns `None` instead of raising on a missing or invalid token, rather than being a separate authorization tier. The frontend stores the token and profile in `localStorage` and treats a `401` as a hard logout.
 
 ## Deployment Topology
 
