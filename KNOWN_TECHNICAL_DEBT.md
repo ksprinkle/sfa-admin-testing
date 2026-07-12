@@ -2,7 +2,7 @@
 
 > **Status:** Living
 > **Owner:** Project Maintainers
-> **Last Verified:** `c366e81`
+> **Last Verified:** `67eb526`
 
 Part of the [AI Engineering Handbook](CLAUDE.md). This document tracks known architectural, operational, and documentation debt in the current implementation — conditions that are true today and carry forward-looking risk or friction if left unaddressed.
 
@@ -19,6 +19,8 @@ Debt that carries meaningful operational or security risk and should be prioriti
 | `admin-app/.env`, `admin-app/.env.production`, and `api/.env` are tracked in git | Repository root, `admin-app/`, `api/` | Open | Any credentials they contain are exposed in git history; contents should be audited and rotated if real secrets are present. |
 | No continuous integration exists | No `.github/workflows/` → `DEVELOPMENT_WORKFLOW.md` § Pull Requests & Review | Open | Tests, lint, and build success are not enforced automatically on push or PR; verification depends entirely on the manual steps in `DEVELOPMENT_WORKFLOW.md`. |
 | `Base.metadata.create_all()` runs on every backend boot alongside Alembic migrations | `api/main.py` → `ARCHITECTURE_OVERVIEW.md` § Backend Architecture, `CLAUDE.md` § Development Guardrails | Open (mitigated by the guardrail rule in `CLAUDE.md` requiring a real migration for schema changes) | Can mask a missing migration locally until it surfaces against PostgreSQL in production. |
+| `npm run build` can delete historical/handbook documentation | `admin-app/vite.config.js` (`outDir: '../docs'`, `emptyOutDir: true`) → `CLAUDE.md` § Repository Navigation, `DEVELOPMENT_WORKFLOW.md` § Deployment | Open | `docs/` also holds `docs/ARCHITECTURE_DECISIONS.md` and `docs/releases/*`, which are not Vite build inputs; running the documented `npm run build` command wipes them via `emptyOutDir`, risking silent loss of historical governance records. |
+| `api/services/execution_observability.py` has no source in the working tree | `tests/test_execution_pipeline.py`, `test_execution_pipeline_stages.py`, `test_telemetry_integration.py`, `test_telemetry_store.py` → `DEVELOPMENT_WORKFLOW.md` § Testing | Open | `python -m unittest discover tests` currently fails on import for these four modules; a contributor running the documented test command sees pre-existing failures unrelated to their own change. |
 
 ## Accepted
 
