@@ -10,6 +10,7 @@ import Button from "../components/Button"
 import Card from "../components/Card"
 import SyncStateIndicator from "../components/SyncStateIndicator"
 import ParticipantForm from "../components/ParticipantForm"
+import OperationsTimeline from "../components/OperationsTimeline"
 import { normalizeExternalUrl } from "../utils/externalUrl"
 
 import {
@@ -3103,6 +3104,8 @@ function EventDetail() {
           </Button>
         </div>
       </Card>
+
+      <OperationsTimeline eventId={eventId} />
 
       {(() => {
         const realSessions = groupedParticipants.filter(({ sessionId }) => {

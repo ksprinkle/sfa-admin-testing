@@ -2,7 +2,7 @@
 
 > **Status:** Living
 > **Owner:** Project Maintainers
-> **Last Verified:** `67eb526`
+> **Last Verified:** `d07e1fe`
 
 Part of the [AI Engineering Handbook](CLAUDE.md). This document describes how the system is built: layering, data model, auth, and deployment. For repository navigation and guardrails, see [`CLAUDE.md`](CLAUDE.md). For what each feature does and where it lives, see [`FEATURE_INVENTORY.md`](FEATURE_INVENTORY.md). For known gaps referenced below, see [`KNOWN_TECHNICAL_DEBT.md`](KNOWN_TECHNICAL_DEBT.md).
 
@@ -52,6 +52,7 @@ Core entities and how they relate — not an exhaustive list of the ~30 model fi
 | `CommunicationTemplate` / `CommunicationMessage` / `CommunicationDelivery`, `ReminderDefinition` / `ReminderExecutionQueue` | messaging/reminders subsystem | Delivery goes through the Reliability & Telemetry pipeline above |
 | `AutomationWorkflow` / `AutomationRun` | workflow engine persistence | |
 | `TelemetryRecord` | generic event-sourcing table | `event_type` / `category` / `payload` (JSON) — backs all dashboards |
+| `AdminAuditEvent` | generic admin-action audit log (`domain`/`action`/`target_type`/`target_id`) | Sourced by the Event Operations Timeline for entry types with no dedicated timestamp column — see `FEATURE_INVENTORY.md` § 12 |
 
 Conventions: primary keys are UUIDs (via the Postgres UUID column type, used even under local SQLite); child records typically cascade-delete with their parent (`cascade="all, delete-orphan"`) except where soft-delete applies; computed/aggregated views (dashboards, timelines, volunteer projections) are read-only projections over these tables and never persist their own state.
 

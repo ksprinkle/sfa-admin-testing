@@ -364,6 +364,16 @@ export async function fetchEventSessionStats(eventId) {
   return res.json()
 }
 
+export async function fetchEventOperationsTimeline(eventId) {
+  const res = await apiFetch(`/api/admin/participants/events/${eventId}/operations-timeline`)
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch operations timeline")
+  }
+
+  return res.json()
+}
+
 export async function fetchAdminEvent(eventId) {
   const res = await apiFetch(`/api/admin/events/${eventId}`)
 

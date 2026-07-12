@@ -31,6 +31,14 @@ from api.models.participant_removal_log import ParticipantRemovalLog
 from api.models.participant_waivers import ParticipantWaiver
 from api.schemas.participant_timeline import ParticipantTimelineEventOut
 from api.schemas.volunteer_dashboard import VolunteerDashboardProjectionOut
+from api.schemas.event_operations_timeline import EventOperationsTimelineOut
+from api.services.admin_audit import record_admin_audit_event
+from api.services.event_operations_timeline import (
+    AUDIT_ACTION_ASSIGN_SESSION,
+    AUDIT_ACTION_PROMOTE_WAITLIST,
+    AUDIT_DOMAIN_PARTICIPANTS,
+    get_event_operations_timeline,
+)
 from api.services.participant_timeline import get_participant_timeline_events
 from api.services.volunteer_dashboard_projection import get_volunteer_dashboard_projection
 from api.services.waiver_lifecycle import (
@@ -349,6 +357,15 @@ def get_participant_timeline(
     return get_participant_timeline_events(db, participant_id)
 
 
+@router.get("/events/{event_id}/operations-timeline", response_model=EventOperationsTimelineOut)
+def get_event_operations_timeline_endpoint(
+    event_id: UUID,
+    db: DBSession = Depends(get_db),
+    _current_user=Depends(require_admin),
+):
+    return get_event_operations_timeline(db, event_id)
+
+
 @router.get("/volunteer-dashboard", response_model=VolunteerDashboardProjectionOut)
 def get_volunteer_dashboard(
     event_id: UUID | None = None,
@@ -405,6 +422,16 @@ async def update_participant(
 
             participant.session_id = target_session_id
             participant.is_waitlisted = False
+            record_admin_audit_event(
+                db,
+                domain=AUDIT_DOMAIN_PARTICIPANTS,
+                action=AUDIT_ACTION_ASSIGN_SESSION,
+                actor_user_id=str(getattr(_current_user, "id", "") or "") or None,
+                target_type="participant",
+                target_id=str(participant.id),
+                target_display=f"{participant.first_name} {participant.last_name}",
+                details={"session_id": str(target_session_id)},
+            )
 
     if "priority" in updates and updates["priority"] is not None:
         updates["priority"] = max(0, min(3, updates["priority"]))
@@ -647,7 +674,12 @@ def participant_action(
         participant.is_waitlisted = True
         participant.session_id = None
         db.commit()
-        promote_from_waitlist(db, participant.event, exclude_participant_id=participant.id)
+        promote_from_waitlist(
+            db,
+            participant.event,
+            exclude_participant_id=participant.id,
+            actor_user_id=str(getattr(_current_user, "id", "") or "") or None,
+        )
         # Broadcast update from sync route context; never fail request if push fails.
         import asyncio
         try:
@@ -662,6 +694,15 @@ def participant_action(
 
     elif action.action == "promote":
         participant.is_waitlisted = False
+        record_admin_audit_event(
+            db,
+            domain=AUDIT_DOMAIN_PARTICIPANTS,
+            action=AUDIT_ACTION_PROMOTE_WAITLIST,
+            actor_user_id=str(getattr(_current_user, "id", "") or "") or None,
+            target_type="participant",
+            target_id=str(participant.id),
+            target_display=f"{participant.first_name} {participant.last_name}",
+        )
 
     elif action.action == "remove":
         reason_code = action.removal_reason_code or "admin_correction"
@@ -679,7 +720,11 @@ def participant_action(
 
         # If a confirmed participant was removed, immediately fill the freed spot.
         if not was_waitlisted:
-            promote_from_waitlist(db, event)
+            promote_from_waitlist(
+                db,
+                event,
+                actor_user_id=str(getattr(_current_user, "id", "") or "") or None,
+            )
 
         # Broadcast update from sync route context; never fail request if push fails.
         import asyncio
@@ -747,6 +792,16 @@ def promote_participant(
             )
 
     promote_specific_waitlisted_participant(db, participant)
+    record_admin_audit_event(
+        db,
+        domain=AUDIT_DOMAIN_PARTICIPANTS,
+        action=AUDIT_ACTION_PROMOTE_WAITLIST,
+        actor_user_id=str(getattr(_current_user, "id", "") or "") or None,
+        target_type="participant",
+        target_id=str(participant.id),
+        target_display=f"{participant.first_name} {participant.last_name}",
+    )
+    db.commit()
 
     return {"message": "Participant promoted from waitlist"}
    
@@ -781,7 +836,11 @@ def remove_participant(
     db.commit()
 
     if not was_waitlisted:
-        promote_from_waitlist(db, event)
+        promote_from_waitlist(
+            db,
+            event,
+            actor_user_id=str(getattr(_current_user, "id", "") or "") or None,
+        )
 
     return {"message": "Participant removed"}
 
@@ -1162,6 +1221,16 @@ async def update_participant_session(
     # Keep the participant's existing priority, but remove them from the waitlist.
     participant.session_id = session.id
     participant.is_waitlisted = False
+    record_admin_audit_event(
+        db,
+        domain=AUDIT_DOMAIN_PARTICIPANTS,
+        action=AUDIT_ACTION_ASSIGN_SESSION,
+        actor_user_id=str(getattr(_current_user, "id", "") or "") or None,
+        target_type="participant",
+        target_id=str(participant.id),
+        target_display=f"{participant.first_name} {participant.last_name}",
+        details={"session_id": str(session.id)},
+    )
     db.commit()
 
     # Broadcast update

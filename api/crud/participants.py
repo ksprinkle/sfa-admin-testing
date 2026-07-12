@@ -6,6 +6,11 @@ from sqlalchemy import func, case
 from api.models.participants import Participant
 from api.models.events import Event
 from api.schemas.participants import ParticipantCreate
+from api.services.admin_audit import record_admin_audit_event
+from api.services.event_operations_timeline import (
+    AUDIT_ACTION_PROMOTE_WAITLIST,
+    AUDIT_DOMAIN_PARTICIPANTS,
+)
 from api.services.session_service import get_next_available_session
 
 def create_participant(
@@ -111,7 +116,7 @@ def promote_specific_waitlisted_participant(db: Session, participant: Participan
     return participant
 
 
-def promote_from_waitlist(db: Session, event: Event, exclude_participant_id=None):
+def promote_from_waitlist(db: Session, event: Event, exclude_participant_id=None, actor_user_id=None):
     if event.participant_capacity is None:
         next_waitlisted = get_next_waitlisted_participant(
             db, event, exclude_participant_id=exclude_participant_id
@@ -131,6 +136,20 @@ def promote_from_waitlist(db: Session, event: Event, exclude_participant_id=None
 
     next_waitlisted.is_waitlisted = False
     assign_participant_to_next_available_session(db, next_waitlisted)
+    # actor_user_id is None when this fires automatically (e.g. a spot opened
+    # up after a removal, or no-show promotion) rather than from a direct
+    # admin "Promote" action — same timeline event either way, see
+    # api/services/event_operations_timeline.py.
+    record_admin_audit_event(
+        db,
+        domain=AUDIT_DOMAIN_PARTICIPANTS,
+        action=AUDIT_ACTION_PROMOTE_WAITLIST,
+        actor_user_id=actor_user_id,
+        target_type="participant",
+        target_id=str(next_waitlisted.id),
+        target_display=f"{next_waitlisted.first_name} {next_waitlisted.last_name}",
+        details={"trigger": "automatic"} if actor_user_id is None else None,
+    )
 
     db.commit()
     db.refresh(next_waitlisted)

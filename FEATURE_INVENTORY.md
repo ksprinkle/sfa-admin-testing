@@ -2,7 +2,7 @@
 
 > **Status:** Living
 > **Owner:** Project Maintainers
-> **Last Verified:** `c366e81`
+> **Last Verified:** `d07e1fe`
 
 Part of the [AI Engineering Handbook](CLAUDE.md). This document maps what the application does to where each capability lives in code. For how the system is built, see [`ARCHITECTURE_OVERVIEW.md`](ARCHITECTURE_OVERVIEW.md). For known gaps referenced below, see [`KNOWN_TECHNICAL_DEBT.md`](KNOWN_TECHNICAL_DEBT.md).
 
@@ -126,6 +126,17 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 | Backend router | `api/routers/feedback.py` |
 | Data model | `Feedback` |
 | Frontend | `admin-app/src/pages/FeedbackReview.jsx`, `admin-app/src/api/feedback.js`; static intake forms `admin-app/public/beta-uat-feedback-form.html`, `event-creation-feedback-form.html` |
+
+## 12. Event Operations Timeline
+
+**Feature Status:** Shipped (v1). Chronological, per-event feed of participant check-ins, volunteer check-ins, session assignments, waitlist promotions, and waiver verifications, shown on Event Detail with auto-refresh. Extensible by design — adding a new event type is additive (see `api/services/event_operations_timeline.py`), no refactor of existing entries required.
+
+| Layer | Location |
+|---|---|
+| Backend router | `api/routers/admin_participants.py` (`GET /admin/participants/events/{event_id}/operations-timeline`) |
+| Backend service | `api/services/event_operations_timeline.py` |
+| Data model | Derived from `Participant`, `ParticipantWaiver`, and `AdminAuditEvent` — no new tables |
+| Frontend | `admin-app/src/components/OperationsTimeline.jsx`, mounted on `admin-app/src/pages/EventDetail.jsx` |
 
 ## Reporting
 
