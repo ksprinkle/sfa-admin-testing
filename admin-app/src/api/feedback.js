@@ -7,6 +7,6 @@ export async function fetchFeedback({ feature, version } = {}) {
 
   const qs = params.toString()
   const res = await apiFetch(`/api/feedback${qs ? `?${qs}` : ""}`)
-  if (!res.ok) throw new Error("Failed to fetch feedback")
+  if (!res.ok) throw new Error(`Failed to load feedback (HTTP ${res.status})`)
   return res.json()
 }
