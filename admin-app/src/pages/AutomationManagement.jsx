@@ -1,5 +1,19 @@
 import { useEffect, useState } from "react"
-import { fetchRegistry, fetchWorkflows, setWorkflowEnabled } from "../api/automation"
+import { executeWorkflow, fetchRegistry, fetchWorkflowRuns, fetchWorkflows, setWorkflowEnabled } from "../api/automation"
+
+function getRunStatusTone(status) {
+  const normalized = String(status || "").toLowerCase()
+  if (normalized === "succeeded") return "border-emerald-200 bg-emerald-50 text-emerald-800"
+  if (normalized === "failed") return "border-rose-200 bg-rose-50 text-rose-800"
+  return "border-slate-200 bg-slate-100 text-slate-600"
+}
+
+function formatDateTime(value) {
+  if (!value) return "—"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return "—"
+  return parsed.toLocaleString()
+}
 
 // trigger_type is stored metadata only — there is no scheduler or event
 // listener wired up anywhere in the backend, so "scheduled"/"event"
@@ -24,7 +38,11 @@ export default function AutomationManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [statusMessage, setStatusMessage] = useState("")
+  const [statusTone, setStatusTone] = useState("success")
   const [savingWorkflowId, setSavingWorkflowId] = useState(null)
+  const [executingWorkflowId, setExecutingWorkflowId] = useState(null)
+  const [runs, setRuns] = useState(null)
+  const [runsError, setRunsError] = useState(null)
 
   async function loadData() {
     setLoading(true)
@@ -41,8 +59,19 @@ export default function AutomationManagement() {
     }
   }
 
+  async function loadRuns() {
+    try {
+      const payload = await fetchWorkflowRuns({ limit: 50 })
+      setRuns(Array.isArray(payload) ? payload : [])
+      setRunsError(null)
+    } catch (e) {
+      setRunsError(e.message)
+    }
+  }
+
   useEffect(() => {
     loadData()
+    loadRuns()
   }, [])
 
   async function handleToggleEnabled(workflow) {
@@ -54,6 +83,7 @@ export default function AutomationManagement() {
 
     try {
       const updated = await setWorkflowEnabled(workflow.id, !workflow.is_enabled)
+      setStatusTone("success")
       setStatusMessage(`${updated.name} is now ${updated.is_enabled ? "enabled" : "disabled"}.`)
       await loadData()
     } catch (e) {
@@ -63,13 +93,47 @@ export default function AutomationManagement() {
     }
   }
 
+  async function handleExecute(workflow, hasHandler) {
+    if (executingWorkflowId) return
+
+    const warning = hasHandler
+      ? ""
+      : "\n\nWarning: no handler is registered for this workflow_key — execution will fail."
+    const confirmed = window.confirm(
+      `Execute "${workflow.name}" (${workflow.workflow_key})?${warning}`
+    )
+    if (!confirmed) return
+
+    setExecutingWorkflowId(workflow.id)
+    setError(null)
+    setStatusMessage("")
+
+    try {
+      const run = await executeWorkflow(workflow.id, { triggerSource: "manual_ui" })
+      if (run.status === "succeeded") {
+        setStatusTone("success")
+        setStatusMessage(`${workflow.name} executed successfully.`)
+      } else {
+        // Surface the server's own error message verbatim rather than a
+        // generic UI message — the point is to show reality, not hide it.
+        setStatusTone("failure")
+        setStatusMessage(`${workflow.name} execution failed: ${run.error_message || "Unknown error"}`)
+      }
+      await loadRuns()
+    } catch (e) {
+      setError(e.message || "Failed to execute workflow")
+    } finally {
+      setExecutingWorkflowId(null)
+    }
+  }
+
   return (
     <div className="px-4 py-4 max-w-5xl mx-auto">
       <h1 className="text-xl font-bold text-ocean mb-1">Automation</h1>
       <p className="text-sm text-slate-500 mb-4">Manage workflow definitions and review their configuration</p>
 
       {statusMessage && (
-        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${statusTone === "failure" ? "border-rose-200 bg-rose-50 text-rose-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
           {statusMessage}
         </div>
       )}
@@ -96,6 +160,7 @@ export default function AutomationManagement() {
                   <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Trigger</th>
                   <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Enabled</th>
                   <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Handler</th>
+                  <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,6 +200,17 @@ export default function AutomationManagement() {
                           </span>
                         )}
                       </td>
+                      <td className="py-2 pr-4">
+                        <button
+                          type="button"
+                          onClick={() => handleExecute(workflow, hasHandler)}
+                          disabled={executingWorkflowId === workflow.id}
+                          title={hasHandler ? undefined : "No handler is registered for this workflow_key — execution will fail"}
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {executingWorkflowId === workflow.id ? "Executing…" : "Execute"}
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -143,6 +219,53 @@ export default function AutomationManagement() {
           )}
         </div>
       )}
+
+      <div className="bg-white border border-slate-200 rounded-xl p-4 mt-4 overflow-x-auto">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-slate-700">Recent Runs</h2>
+          <span className="text-xs text-slate-400">{runs ? `${runs.length} shown` : ""}</span>
+        </div>
+
+        {runsError && <p className="text-sm text-red-600">Error: {runsError}</p>}
+
+        {runs && (
+          runs.length === 0 ? (
+            <p className="text-sm text-slate-400 italic">No runs yet</p>
+          ) : (
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Workflow</th>
+                  <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Trigger Source</th>
+                  <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Status</th>
+                  <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Detail</th>
+                  <th className="text-left py-2 pr-4 text-slate-500 font-semibold">Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => {
+                  const workflow = workflows?.find((w) => w.id === run.workflow_id)
+                  return (
+                    <tr key={run.id} className="border-b border-slate-50">
+                      <td className="py-2 pr-4 text-slate-700 font-mono text-xs">{workflow?.workflow_key || run.workflow_id}</td>
+                      <td className="py-2 pr-4 text-slate-500">{run.trigger_source}</td>
+                      <td className="py-2 pr-4">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getRunStatusTone(run.status)}`}>
+                          {run.status}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-slate-600 text-xs max-w-xs truncate" title={run.error_message || JSON.stringify(run.result_payload) || ""}>
+                        {run.error_message || (run.result_payload ? JSON.stringify(run.result_payload) : "—")}
+                      </td>
+                      <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{formatDateTime(run.started_at)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )
+        )}
+      </div>
     </div>
   )
 }
