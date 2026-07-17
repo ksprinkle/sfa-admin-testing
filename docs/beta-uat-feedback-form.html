@@ -437,6 +437,13 @@
         white-space: nowrap;
       }
 
+      .submit-error {
+        color: var(--bad);
+        font-size: 15px;
+        margin-top: 8px;
+        width: 100%;
+      }
+
       .submit-btn {
         border: none;
         border-radius: 10px;
@@ -1144,6 +1151,7 @@
           <button type="button" id="clearBtn" class="clear-btn">Clear saved response</button>
           <span id="autosaveStatus" class="autosave-meta" role="status" aria-live="polite"></span>
         </div>
+        <p id="submitError" class="submit-error" role="alert" aria-live="assertive" style="display: none"></p>
         <div class="thanks"><span class="shield" aria-hidden="true"></span> Thank you! Your feedback helps us build the best possible tool.</div>
         <div class="brand-mini">SURFERS<br />FOR AUTISM</div>
       </section>
@@ -1163,6 +1171,25 @@
         const FORM_FEATURE_LABEL = "Beta Evaluation";
         const _formOpenedAt = Date.now();
 
+        // This static page has no bundler, so it can't reach admin-app's getApiBase().
+        // A bare relative "/api/feedback" only works when something proxies /api on the
+        // same origin (e.g. the Vite dev server) — on GitHub Pages there is no such proxy,
+        // so a relative path silently 404s against the static host instead of the API.
+        const PROD_API_BASE = "https://sfa-admin-testing.onrender.com";
+
+        function isPrivateOrLoopbackHost(hostname) {
+          const host = String(hostname || "").toLowerCase();
+          if (!host) return true;
+          if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+          if (host.startsWith("10.")) return true;
+          if (host.startsWith("192.168.")) return true;
+          if (host.startsWith("169.254.")) return true;
+          if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
+          return false;
+        }
+
+        const API_BASE = isPrivateOrLoopbackHost(window.location.hostname) ? "" : PROD_API_BASE;
+
         const page = document.querySelector(".page");
         const form = document.getElementById("feedbackForm");
         const toast = document.getElementById("toast");
@@ -1172,6 +1199,18 @@
         const downloadCsvBtn = document.getElementById("downloadCsvBtn");
         const clearBtn = document.getElementById("clearBtn");
         const autosaveStatus = document.getElementById("autosaveStatus");
+        const submitError = document.getElementById("submitError");
+
+        function showSubmitError(message) {
+          if (!submitError) return;
+          submitError.textContent = message;
+          submitError.style.display = "block";
+        }
+
+        function hideSubmitError() {
+          if (!submitError) return;
+          submitError.style.display = "none";
+        }
 
         function hasLocalStorage() {
           try {
@@ -1519,11 +1558,13 @@
           event.preventDefault();
 
           const formData = saveDraftNow();
+          hideSubmitError();
 
-          // POST to backend (fire-and-forget — local save already done)
+          // Draft is saved regardless of outcome, so entered data is never lost on failure.
           const secondsElapsed = Math.round((Date.now() - _formOpenedAt) / 1000);
+          let response;
           try {
-            await fetch("/api/feedback", {
+            response = await fetch(`${API_BASE}/api/feedback`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -1535,6 +1576,13 @@
             });
           } catch (err) {
             console.warn("Backend feedback POST failed (offline or unavailable)", err);
+            showSubmitError("Could not reach the server. Your answers are saved on this device — check your connection and try submitting again.");
+            return;
+          }
+
+          if (!response.ok) {
+            showSubmitError(`Submission failed (server returned ${response.status}). Your answers are saved on this device — please try submitting again.`);
+            return;
           }
 
           removeStorage(DRAFT_KEY);

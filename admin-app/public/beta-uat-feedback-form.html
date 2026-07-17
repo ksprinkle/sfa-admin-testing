@@ -1171,6 +1171,25 @@
         const FORM_FEATURE_LABEL = "Beta Evaluation";
         const _formOpenedAt = Date.now();
 
+        // This static page has no bundler, so it can't reach admin-app's getApiBase().
+        // A bare relative "/api/feedback" only works when something proxies /api on the
+        // same origin (e.g. the Vite dev server) — on GitHub Pages there is no such proxy,
+        // so a relative path silently 404s against the static host instead of the API.
+        const PROD_API_BASE = "https://sfa-admin-testing.onrender.com";
+
+        function isPrivateOrLoopbackHost(hostname) {
+          const host = String(hostname || "").toLowerCase();
+          if (!host) return true;
+          if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+          if (host.startsWith("10.")) return true;
+          if (host.startsWith("192.168.")) return true;
+          if (host.startsWith("169.254.")) return true;
+          if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
+          return false;
+        }
+
+        const API_BASE = isPrivateOrLoopbackHost(window.location.hostname) ? "" : PROD_API_BASE;
+
         const page = document.querySelector(".page");
         const form = document.getElementById("feedbackForm");
         const toast = document.getElementById("toast");
@@ -1545,7 +1564,7 @@
           const secondsElapsed = Math.round((Date.now() - _formOpenedAt) / 1000);
           let response;
           try {
-            response = await fetch("/api/feedback", {
+            response = await fetch(`${API_BASE}/api/feedback`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
