@@ -3,33 +3,13 @@ import { useLocation, useNavigate } from "react-router-dom"
 import Button from "../components/Button"
 import Card from "../components/Card"
 import MessageComposerModal from "../components/communications/MessageComposerModal"
+import MessageDetailModal from "../components/communications/MessageDetailModal"
 import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "../api/communications"
 
 const templateUsage = [
   { name: "Event reminder", usage: "34 sends", lastUsed: "2 hours ago", tone: "bg-sky-100 text-sky-900" },
   { name: "Volunteer follow-up", usage: "19 sends", lastUsed: "Yesterday", tone: "bg-emerald-100 text-emerald-900" },
   { name: "Weather notice", usage: "11 sends", lastUsed: "3 days ago", tone: "bg-amber-100 text-amber-900" },
-]
-
-const messageHistory = [
-  {
-    time: "09:12 AM",
-    title: "Participant arrival reminder",
-    detail: "Sent to 214 participants with an 86% delivery rate.",
-    status: "Delivered",
-  },
-  {
-    time: "Yesterday",
-    title: "Template approval request",
-    detail: "Shared with operations for final review before scheduling.",
-    status: "Pending",
-  },
-  {
-    time: "Mon",
-    title: "Post-event thank you note",
-    detail: "Broadcast to event attendees and volunteer leads.",
-    status: "Archived",
-  },
 ]
 
 function getStatusTone(status) {
@@ -91,6 +71,7 @@ function Communications() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [statusMessage, setStatusMessage] = useState("")
+  const [selectedMessage, setSelectedMessage] = useState(null)
 
   useEffect(() => {
     const draft = location.state?.composerDraft
@@ -145,6 +126,7 @@ function Communications() {
 
   const deliverySummary = summarizeDeliveries(messages, deliveries)
   const recentMessages = messages.slice(0, 3).map((message) => ({
+    raw: message,
     subject: message.subject || "Untitled message",
     channel: String(message.channel || "email").toUpperCase(),
     status: String(message.status || "draft").replace(/_/g, " "),
@@ -162,6 +144,11 @@ function Communications() {
           setComposerDraft(null)
         }}
         onNext={handleMessageSent}
+      />
+
+      <MessageDetailModal
+        message={selectedMessage}
+        onClose={() => setSelectedMessage(null)}
       />
 
       {statusMessage ? (
@@ -226,7 +213,12 @@ function Communications() {
             {loading ? <p className="text-sm text-secondary">Loading recent messages...</p> : null}
             {!loading && recentMessages.length === 0 ? <p className="text-sm text-secondary">No messages yet.</p> : null}
             {recentMessages.map((message) => (
-              <article key={`${message.subject}-${message.sentAt}`} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+              <button
+                type="button"
+                key={message.raw.id}
+                onClick={() => setSelectedMessage(message.raw)}
+                className="w-full rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md"
+              >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 space-y-1">
                     <h4 className="truncate text-sm font-semibold text-gray-900">{message.subject}</h4>
@@ -240,7 +232,7 @@ function Communications() {
                     {message.status}
                   </span>
                 </div>
-              </article>
+              </button>
             ))}
           </div>
         </Card>
@@ -264,18 +256,27 @@ function Communications() {
 
       <Card header={<Card.Header>Message History</Card.Header>}>
         <div className="space-y-3">
-          {messageHistory.map((entry) => (
-            <div key={`${entry.title}-${entry.time}`} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-start sm:justify-between">
+          {loading ? <p className="text-sm text-secondary">Loading message history...</p> : null}
+          {!loading && messages.length === 0 ? <p className="text-sm text-secondary">No messages yet.</p> : null}
+          {messages.map((message) => (
+            <button
+              type="button"
+              key={message.id}
+              onClick={() => setSelectedMessage(message)}
+              className="flex w-full flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition-shadow hover:shadow-md sm:flex-row sm:items-start sm:justify-between"
+            >
               <div className="min-w-0 space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-secondary">{entry.time}</p>
-                <h4 className="text-sm font-semibold text-gray-900">{entry.title}</h4>
-                <p className="text-sm text-secondary">{entry.detail}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-secondary">{formatDateTime(message.created_at)}</p>
+                <h4 className="truncate text-sm font-semibold text-gray-900">{message.subject || "Untitled message"}</h4>
+                <p className="text-sm text-secondary">
+                  {String(message.channel || "email").toUpperCase()} to {message.audience_filter?.recipient_group || message.audience_type || "Manual audience"}
+                </p>
               </div>
 
-              <span className={`inline-flex items-center self-start rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusTone(entry.status)}`}>
-                {entry.status}
+              <span className={`inline-flex items-center self-start rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusTone(message.status)}`}>
+                {message.status}
               </span>
-            </div>
+            </button>
           ))}
         </div>
       </Card>
