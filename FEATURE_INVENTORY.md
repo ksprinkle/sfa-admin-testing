@@ -104,7 +104,7 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 | Backend router | `api/routers/admin_dashboard.py`, `admin_analytics.py` |
 | Backend service | `api/services/dashboard_service.py`, `dashboard_registry.py`, `dashboard_metrics_aggregator.py`, `dashboard_diagnostics.py`, `executive_analytics_projection.py`, `telemetry_store.py` |
 | Data model | `TelemetryRecord` |
-| Frontend | `admin-app/src/pages/ExecutiveDashboard.jsx`; `components/NotificationCenter.jsx` (telemetry-driven) |
+| Frontend | `admin-app/src/pages/ExecutiveDashboard.jsx`; `components/NotificationCenter.jsx` (client-side aggregation in `App.jsx` over telemetry, messaging, delivery, and — as of the audit-events slice — admin audit events; see §10) |
 
 ## 10. Administrative Audit, Permissions & Automation
 
@@ -115,7 +115,7 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 | Backend router | `api/routers/admin_audit.py`, `admin_permissions.py`, `admin_automation.py`; user/role management lives in `api/routers/auth.py` |
 | Backend service | `api/services/admin_audit.py`, `authorization.py`, `automation_engine.py`; `api/automation/` (source not present, see above) |
 | Data model | `AdminAuditEvent`, `EventActivityLog`, `AutomationWorkflow`, `AutomationRun`; role lives on `User.role` |
-| Frontend | `admin-app/src/pages/AuditLog.jsx`, `admin-app/src/api/adminAudit.js`; `admin-app/src/pages/PermissionsManagement.jsx`, `admin-app/src/api/permissions.js`; `admin-app/src/pages/AutomationManagement.jsx`, `admin-app/src/api/automation.js` |
+| Frontend | `admin-app/src/pages/AuditLog.jsx`, `admin-app/src/api/adminAudit.js`; `admin-app/src/pages/PermissionsManagement.jsx`, `admin-app/src/api/permissions.js`; `admin-app/src/pages/AutomationManagement.jsx`, `admin-app/src/api/automation.js`; `GET /admin/audit/events` is also reused by `components/NotificationCenter.jsx` (via `App.jsx`) to surface a curated subset of audit events (permission, participant, event-operations, communications, automation, and volunteer domains) as notifications — see §9 |
 
 ## 11. Feedback
 

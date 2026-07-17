@@ -143,7 +143,7 @@ export default function NotificationCenter({
           <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
             <div>
               <h3 className="text-sm font-semibold text-slate-900">Notification Center</h3>
-              <p className="text-xs text-slate-500">Operational activity from telemetry and messaging</p>
+              <p className="text-xs text-slate-500">Operational activity from telemetry, messaging, and audit events</p>
             </div>
             <div className="flex items-center gap-2">
               <button

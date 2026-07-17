@@ -32,6 +32,7 @@ import {
 } from "./api/auth"
 import { fetchAllParticipants, fetchDashboardMetrics, fetchEvents, fetchVolunteerDashboard } from "./api/events"
 import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "./api/communications"
+import { fetchAdminAuditEvents } from "./api/adminAudit"
 import { getReleaseTag } from "./config/release"
 
 const GLOBAL_SEARCH_RECENTS_STORAGE_KEY = "sfa.globalSearchRecents"
@@ -356,7 +357,129 @@ function normalizeNotificationTimestamp(value) {
   return parsed.toISOString()
 }
 
-function buildOperationalNotifications({ metrics, messages, deliveries }) {
+// Only these domain:action combinations surface as notifications — everything else in the
+// audit log (routine refreshes, high-volume system events, etc.) is intentionally excluded to
+// avoid notification fatigue.
+const AUDIT_NOTIFICATION_RULES = {
+  "permissions:user_role_updated": {
+    sourceLabel: "Permissions",
+    severity: () => "warning",
+    title: (event) => `Role updated: ${event.target_display || "user"}`,
+    description: (event) => `Role changed from ${event.details?.previous_role || "unknown"} to ${event.details?.new_role || "unknown"}`,
+    to: (event) => `/permissions${event.target_display ? `?email=${encodeURIComponent(event.target_display)}` : ""}`,
+  },
+  "participants:assign_session": {
+    sourceLabel: "Participants",
+    severity: () => "info",
+    title: (event) => `Session assigned: ${event.target_display || "participant"}`,
+    description: () => "A participant was assigned to a session.",
+    to: (event) => `/participants${event.target_id ? `?participant_id=${encodeURIComponent(event.target_id)}` : ""}`,
+  },
+  "participants:promote_waitlist": {
+    sourceLabel: "Participants",
+    severity: () => "info",
+    title: (event) => `Waitlist promotion: ${event.target_display || "participant"}`,
+    description: () => "A participant was promoted from the waitlist.",
+    to: (event) => `/participants${event.target_id ? `?participant_id=${encodeURIComponent(event.target_id)}` : ""}`,
+  },
+  "event_operations:event_operational_status_updated": {
+    sourceLabel: "Event Operations",
+    severity: (event) => normalizeNotificationSeverity(event.details?.new_operational_status),
+    title: (event) => `Event status updated: ${event.target_display || "event"}`,
+    description: (event) => `${event.details?.previous_operational_status || "unknown"} -> ${event.details?.new_operational_status || "unknown"}`,
+    to: (event) => (event.target_id ? `/events/${event.target_id}` : "/events"),
+  },
+  "communications:template_created": {
+    sourceLabel: "Templates",
+    severity: () => "info",
+    title: (event) => `Template created: ${event.target_display || "template"}`,
+    description: () => "A new communication template was created.",
+    to: () => "/communications?focus=templates",
+  },
+  "communications:template_active_state_updated": {
+    sourceLabel: "Templates",
+    severity: () => "info",
+    title: (event) => `Template ${event.details?.new_is_active ? "activated" : "deactivated"}: ${event.target_display || "template"}`,
+    description: () => "A communication template's active state changed.",
+    to: () => "/communications?focus=templates",
+  },
+  "communications:message_deleted": {
+    sourceLabel: "Messaging",
+    severity: () => "warning",
+    title: (event) => `Message deleted: ${event.target_display || "message"}`,
+    description: () => "A communication message was deleted.",
+    to: () => "/communications?focus=messages",
+  },
+  "automation:workflow_created": {
+    sourceLabel: "Automation",
+    severity: () => "info",
+    title: (event) => `Workflow created: ${event.target_display || "workflow"}`,
+    description: () => "A new automation workflow was created.",
+    to: () => "/automation",
+  },
+  "automation:workflow_enabled_updated": {
+    sourceLabel: "Automation",
+    severity: () => "info",
+    title: (event) => `Workflow ${event.details?.new_enabled ? "enabled" : "disabled"}: ${event.target_display || "workflow"}`,
+    description: () => "An automation workflow's enabled state changed.",
+    to: () => "/automation",
+  },
+  "automation:workflow_execution_completed": {
+    sourceLabel: "Automation",
+    severity: (event) => normalizeNotificationSeverity(event.details?.status),
+    title: (event) => `Workflow run ${event.details?.status || "completed"}: ${event.target_display || "workflow"}`,
+    description: () => "An automation workflow execution finished.",
+    to: () => "/automation",
+  },
+  "volunteer:volunteer_lifecycle_updated": {
+    sourceLabel: "Volunteers",
+    severity: () => "info",
+    title: (event) => `Volunteer status updated: ${event.target_display || "volunteer"}`,
+    description: (event) => `${event.details?.previous_status || "unknown"} -> ${event.details?.new_status || "unknown"}`,
+    to: () => "/volunteer-dashboard",
+  },
+  "volunteer:volunteer_assignment_created": {
+    sourceLabel: "Volunteers",
+    severity: () => "info",
+    title: (event) => `Volunteer assigned: ${event.target_display || "volunteer"}`,
+    description: () => "A volunteer was assigned to a session.",
+    to: () => "/volunteer-dashboard",
+  },
+  "volunteer:volunteer_assignment_cancelled": {
+    sourceLabel: "Volunteers",
+    severity: () => "warning",
+    title: (event) => `Volunteer assignment cancelled: ${event.target_display || "volunteer"}`,
+    description: () => "A volunteer assignment was cancelled.",
+    to: () => "/volunteer-dashboard",
+  },
+}
+
+function buildAuditNotifications(auditEvents) {
+  return (Array.isArray(auditEvents) ? auditEvents : [])
+    .map((event, index) => {
+      const domain = String(event?.domain || "").trim().toLowerCase()
+      const action = String(event?.action || "").trim().toLowerCase()
+      const rule = AUDIT_NOTIFICATION_RULES[`${domain}:${action}`]
+      if (!rule) return null
+
+      return {
+        id: `audit:${event?.id || `${event?.created_at || ""}:${index}`}`,
+        source: "audit",
+        sourceLabel: rule.sourceLabel,
+        type: "audit",
+        typeLabel: "Audit",
+        severity: rule.severity(event),
+        title: rule.title(event),
+        description: rule.description(event),
+        occurredAt: normalizeNotificationTimestamp(event?.created_at),
+        to: rule.to(event),
+      }
+    })
+    .filter(Boolean)
+    .slice(0, 20)
+}
+
+function buildOperationalNotifications({ metrics, messages, deliveries, auditEvents }) {
   const activityNotifications = (Array.isArray(metrics?.recent_activity) ? metrics.recent_activity : []).map((entry, index) => {
     const category = String(entry?.category || "").trim().toLowerCase()
     const eventType = String(entry?.event_type || "").trim().toLowerCase()
@@ -421,7 +544,9 @@ function buildOperationalNotifications({ metrics, messages, deliveries }) {
     }
   })
 
-  return [...activityNotifications, ...messageNotifications, ...deliveryNotifications]
+  const auditNotifications = buildAuditNotifications(auditEvents)
+
+  return [...activityNotifications, ...messageNotifications, ...deliveryNotifications, ...auditNotifications]
     .sort((left, right) => new Date(right.occurredAt || 0).getTime() - new Date(left.occurredAt || 0).getTime())
     .slice(0, 25)
 }
@@ -633,22 +758,25 @@ function App() {
     setNotificationCenterError("")
 
     try {
-      const [metricsResult, messagesResult, deliveriesResult] = await Promise.allSettled([
+      const [metricsResult, messagesResult, deliveriesResult, auditResult] = await Promise.allSettled([
         fetchDashboardMetrics(12),
         fetchCommunicationMessages(),
         fetchCommunicationDeliveries(),
+        fetchAdminAuditEvents({ limit: 50 }),
       ])
 
       const metrics = metricsResult.status === "fulfilled" ? metricsResult.value : {}
       const messages = messagesResult.status === "fulfilled" ? messagesResult.value : []
       const deliveries = deliveriesResult.status === "fulfilled" ? deliveriesResult.value : []
+      const auditEvents = auditResult.status === "fulfilled" ? (auditResult.value?.items || []) : []
 
-      setOperationalNotifications(buildOperationalNotifications({ metrics, messages, deliveries }))
+      setOperationalNotifications(buildOperationalNotifications({ metrics, messages, deliveries, auditEvents }))
 
       const failures = [
         metricsResult.status === "rejected" ? "telemetry" : null,
         messagesResult.status === "rejected" ? "messages" : null,
         deliveriesResult.status === "rejected" ? "deliveries" : null,
+        auditResult.status === "rejected" ? "audit" : null,
       ].filter(Boolean)
 
       setNotificationCenterError(failures.length ? `Some notification sources are unavailable (${failures.join(", ")}).` : "")
