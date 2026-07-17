@@ -38,6 +38,7 @@ import { getReleaseTag } from "./config/release"
 const GLOBAL_SEARCH_RECENTS_STORAGE_KEY = "sfa.globalSearchRecents"
 const GLOBAL_SEARCH_RECENTS_LIMIT = 10
 const NOTIFICATION_CENTER_READ_IDS_STORAGE_KEY = "sfa.notificationCenterReadIds"
+const NOTIFICATION_CENTER_REFRESH_INTERVAL_STORAGE_KEY = "sfa.notificationCenterRefreshIntervalMs"
 const DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.dashboardRefreshIntervalMs"
 const EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.executiveDashboardRefreshIntervalMs"
 const NOTIFICATION_FALLBACK_REFRESH_INTERVAL_MS = 60000
@@ -330,6 +331,16 @@ function writeNotificationReadIds(values) {
 function readNotificationRefreshIntervalMs() {
   if (typeof window === "undefined") return NOTIFICATION_FALLBACK_REFRESH_INTERVAL_MS
 
+  // The dedicated preference, once set, is authoritative — including an explicit "Off" (0).
+  const dedicatedRaw = window.localStorage.getItem(NOTIFICATION_CENTER_REFRESH_INTERVAL_STORAGE_KEY)
+  if (dedicatedRaw !== null) {
+    const dedicatedIntervalMs = Number(dedicatedRaw)
+    if (Number.isFinite(dedicatedIntervalMs) && dedicatedIntervalMs >= 0) {
+      return dedicatedIntervalMs
+    }
+  }
+
+  // Fallback for users who haven't configured the dedicated preference yet.
   const executiveIntervalMs = Number(window.localStorage.getItem(EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY))
   if (Number.isFinite(executiveIntervalMs) && executiveIntervalMs > 0) {
     return executiveIntervalMs
@@ -341,6 +352,16 @@ function readNotificationRefreshIntervalMs() {
   }
 
   return NOTIFICATION_FALLBACK_REFRESH_INTERVAL_MS
+}
+
+function writeNotificationRefreshIntervalMs(value) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(NOTIFICATION_CENTER_REFRESH_INTERVAL_STORAGE_KEY, String(value))
+  } catch {
+    // Ignore storage write failures and keep in-memory state only.
+  }
 }
 
 function normalizeNotificationSeverity(value) {
@@ -715,7 +736,8 @@ function App() {
     const handleStorage = (event) => {
       if (!event.key) return
       if (
-        event.key === DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY
+        event.key === NOTIFICATION_CENTER_REFRESH_INTERVAL_STORAGE_KEY
+        || event.key === DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY
         || event.key === EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY
       ) {
         syncRefreshInterval()
@@ -975,6 +997,14 @@ function App() {
     navigate(item.to)
   }, [closeNotificationCenter, navigate, handleMarkNotificationRead])
 
+  const handleNotificationRefreshIntervalChange = useCallback((nextValueMs) => {
+    const normalized = Number(nextValueMs)
+    const safeValueMs = Number.isFinite(normalized) && normalized >= 0 ? normalized : NOTIFICATION_FALLBACK_REFRESH_INTERVAL_MS
+
+    writeNotificationRefreshIntervalMs(safeValueMs)
+    setNotificationRefreshIntervalMs(safeValueMs)
+  }, [])
+
   useEffect(() => {
     if (!token) {
       setCommandPaletteOpen(false)
@@ -1089,6 +1119,8 @@ function App() {
             notifications={operationalNotifications}
             unreadCount={unreadNotificationCount}
             readIds={notificationReadIds}
+            refreshIntervalMs={notificationRefreshIntervalMs}
+            onRefreshIntervalChange={handleNotificationRefreshIntervalChange}
             onToggle={() => {
               if (notificationCenterOpen) {
                 closeNotificationCenter()

@@ -104,7 +104,7 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 | Backend router | `api/routers/admin_dashboard.py`, `admin_analytics.py` |
 | Backend service | `api/services/dashboard_service.py`, `dashboard_registry.py`, `dashboard_metrics_aggregator.py`, `dashboard_diagnostics.py`, `executive_analytics_projection.py`, `telemetry_store.py` |
 | Data model | `TelemetryRecord` |
-| Frontend | `admin-app/src/pages/ExecutiveDashboard.jsx`; `components/NotificationCenter.jsx` (client-side aggregation in `App.jsx` over telemetry, messaging, delivery, and — as of the audit-events slice — admin audit events; see §10) |
+| Frontend | `admin-app/src/pages/ExecutiveDashboard.jsx`; `components/NotificationCenter.jsx` (client-side aggregation in `App.jsx` over telemetry, messaging, delivery, and — as of the audit-events slice — admin audit events; see §10). Polling cadence is its own preference (`sfa.notificationCenterRefreshIntervalMs`, configurable from the panel), independent of the Dashboard/Executive Dashboard refresh settings — it only borrows their stored interval as a one-time fallback for users who haven't set the dedicated preference yet. |
 
 ## 10. Administrative Audit, Permissions & Automation
 

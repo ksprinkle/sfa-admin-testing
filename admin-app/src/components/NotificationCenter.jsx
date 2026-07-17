@@ -21,6 +21,17 @@ function formatRelativeTime(value) {
   return parsed.toLocaleString()
 }
 
+// Matches the superset of Dashboard's and Executive Dashboard's own refresh option
+// values, so an inherited fallback interval (see App.jsx's readNotificationRefreshIntervalMs)
+// always maps to a real option here instead of showing an unrepresented value.
+const NOTIFICATION_REFRESH_OPTIONS = [
+  { label: "Off", value: 0 },
+  { label: "15 seconds", value: 15000 },
+  { label: "30 seconds", value: 30000 },
+  { label: "1 minute", value: 60000 },
+  { label: "5 minutes", value: 300000 },
+]
+
 function toneForSeverity(severity) {
   const normalized = String(severity || "info").trim().toLowerCase()
 
@@ -36,6 +47,8 @@ export default function NotificationCenter({
   notifications,
   unreadCount,
   readIds,
+  refreshIntervalMs,
+  onRefreshIntervalChange,
   onToggle,
   onClose,
   onRefresh,
@@ -162,6 +175,21 @@ export default function NotificationCenter({
                 Refresh
               </button>
             </div>
+          </div>
+
+          <div className="flex items-center justify-end border-b border-slate-200 px-3 py-2">
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              Auto-refresh
+              <select
+                value={refreshIntervalMs}
+                onChange={(event) => onRefreshIntervalChange?.(Number(event.target.value))}
+                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+              >
+                {NOTIFICATION_REFRESH_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="flex flex-wrap gap-2 border-b border-slate-200 px-3 py-2">
