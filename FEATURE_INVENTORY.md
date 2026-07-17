@@ -108,14 +108,14 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 
 ## 10. Administrative Audit, Permissions & Automation
 
-**Feature Status:** Partial. Audit logging is shipped, including a dedicated frontend viewer. Permissions management is shipped on the backend with no frontend yet. The workflow automation engine (`AutomationWorkflow`/`AutomationRun` persistence, `automation_engine.py`) is present, but the `api/automation/` subpackage (policy evaluation and remediation planning) exists only as compiled bytecode in the working tree with no `.py` source — its current runtime status is unconfirmed. See `ARCHITECTURE_OVERVIEW.md`'s Known Architectural Quirks and `KNOWN_TECHNICAL_DEBT.md`. Permissions management and workflow automation still have no dedicated frontend page.
+**Feature Status:** Partial. Audit logging and permissions management are both shipped with dedicated frontends. Permissions management here means role assignment (`participant`/`admin`) via `api/services/authorization.py`'s hardcoded role→permission matrix — there is no persisted per-permission or custom-role data model, and building one is out of scope for the current UI. The workflow automation engine (`AutomationWorkflow`/`AutomationRun` persistence, `automation_engine.py`) is present, but the `api/automation/` subpackage (policy evaluation and remediation planning) exists only as compiled bytecode in the working tree with no `.py` source — its current runtime status is unconfirmed. See `ARCHITECTURE_OVERVIEW.md`'s Known Architectural Quirks and `KNOWN_TECHNICAL_DEBT.md`. Workflow automation still has no dedicated frontend page.
 
 | Layer | Location |
 |---|---|
-| Backend router | `api/routers/admin_audit.py`, `admin_permissions.py`, `admin_automation.py` |
-| Backend service | `api/services/admin_audit.py`, `automation_engine.py`; `api/automation/` (source not present, see above) |
-| Data model | `AdminAuditEvent`, `EventActivityLog`, `AutomationWorkflow`, `AutomationRun` |
-| Frontend | `admin-app/src/pages/AuditLog.jsx`, `admin-app/src/api/adminAudit.js` (audit log viewer only — permissions and automation have no frontend) |
+| Backend router | `api/routers/admin_audit.py`, `admin_permissions.py`, `admin_automation.py`; user/role management lives in `api/routers/auth.py` |
+| Backend service | `api/services/admin_audit.py`, `authorization.py`, `automation_engine.py`; `api/automation/` (source not present, see above) |
+| Data model | `AdminAuditEvent`, `EventActivityLog`, `AutomationWorkflow`, `AutomationRun`; role lives on `User.role` |
+| Frontend | `admin-app/src/pages/AuditLog.jsx`, `admin-app/src/api/adminAudit.js`; `admin-app/src/pages/PermissionsManagement.jsx`, `admin-app/src/api/permissions.js` (automation has no frontend) |
 
 ## 11. Feedback
 

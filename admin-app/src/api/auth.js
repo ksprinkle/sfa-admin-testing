@@ -104,44 +104,6 @@ export async function fetchMyProfile(token = getStoredToken()) {
   return res.json()
 }
 
-export async function promoteUserToAdminByEmail(email, token = getStoredToken()) {
-  if (!token) {
-    throw new Error("Missing token")
-  }
-
-  const normalizedEmail = String(email || "").trim()
-  if (!normalizedEmail) {
-    throw new Error("Email is required")
-  }
-
-  const res = await fetch(joinApiUrl("/api/auth/admin/users/by-email/role-body"), {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: normalizedEmail,
-      new_role: "admin",
-    }),
-  })
-
-  if (!res.ok) {
-    let message = "Failed to promote user"
-    try {
-      const errorBody = await res.json()
-      if (errorBody?.detail) {
-        message = errorBody.detail
-      }
-    } catch {
-      // Keep fallback message.
-    }
-    throw new Error(message)
-  }
-
-  return res.json()
-}
-
 export function getAuthChangedEventName() {
   return AUTH_CHANGED_EVENT
 }

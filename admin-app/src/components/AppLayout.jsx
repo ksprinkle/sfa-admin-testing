@@ -3,8 +3,6 @@ function AppLayout({
   releaseTag,
   profile,
   onSignOut,
-  canPromoteUsers = false,
-  onPromoteUser,
   onOpenCommandPalette,
   notificationCenter = null,
   buildFingerprint,
@@ -42,16 +40,6 @@ function AppLayout({
                     aria-keyshortcuts="Control+K Meta+K"
                   >
                     Commands (Ctrl/Cmd+K)
-                  </button>
-                ) : null}
-                {canPromoteUsers ? (
-                  <button
-                    type="button"
-                    onClick={onPromoteUser}
-                    className="rounded-md border border-white/35 bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
-                    title="Promote a registered user to admin"
-                  >
-                    Promote User
                   </button>
                 ) : null}
                 <button

@@ -28,7 +28,6 @@ import {
   getAuthChangedEventName,
   getStoredProfile,
   getStoredToken,
-  promoteUserToAdminByEmail,
 } from "./api/auth"
 import { fetchAllParticipants, fetchDashboardMetrics, fetchEvents, fetchVolunteerDashboard } from "./api/events"
 import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "./api/communications"
@@ -709,24 +708,6 @@ function App() {
     setGlobalSearchQuery("")
   }
 
-  const handlePromoteUser = async () => {
-    const emailInput = window.prompt("Enter the registered email to promote to admin:")
-    if (emailInput === null) return
-
-    const email = emailInput.trim()
-    if (!email) {
-      window.alert("Email is required.")
-      return
-    }
-
-    try {
-      const updated = await promoteUserToAdminByEmail(email, token)
-      window.alert(`${updated.email} is now ${updated.role}.`)
-    } catch (error) {
-      window.alert(error?.message || "Could not promote user")
-    }
-  }
-
   const getTitle = () => {
     switch (location.pathname) {
       case "/":
@@ -778,6 +759,7 @@ function App() {
       { id: "go-feedback", label: "Open Feedback", description: "Review operator feedback", group: "Navigation", to: "/feedback" },
       { id: "go-waivers", label: "Open Waiver Templates", description: "Manage waiver templates", group: "Navigation", to: "/waiver-templates" },
       { id: "go-event-templates", label: "Open Event Templates", description: "Manage event templates", group: "Navigation", to: "/event-templates" },
+      { id: "go-permissions", label: "Open Permissions Management", description: "Search users and manage roles", group: "Navigation", to: "/permissions" },
     ]
 
     const recentSearchCommands = globalSearchRecents.map((item) => ({
@@ -802,14 +784,10 @@ function App() {
       { id: "sign-out", label: "Sign Out", description: "End your admin session", group: "Operations", actionKey: "sign-out" },
     ]
 
-    const adminOnlyCommands = profile?.role === "admin"
-      ? [{ id: "promote-user", label: "Promote User", description: "Promote a registered user to admin", group: "Operations", actionKey: "promote-user" }]
-      : []
-
     return token
-      ? [...navigationCommands, ...recentSearchCommands, ...operationalCommands, ...adminOnlyCommands]
+      ? [...navigationCommands, ...recentSearchCommands, ...operationalCommands]
       : []
-  }, [token, profile?.role, globalSearchRecents])
+  }, [token, globalSearchRecents])
 
   const openCommandPalette = useCallback(() => {
     commandPaletteReturnFocusRef.current = document.activeElement instanceof HTMLElement
@@ -952,11 +930,6 @@ function App() {
         return
       }
 
-      if (command.actionKey === "promote-user") {
-        await handlePromoteUser()
-        return
-      }
-
       if (typeof command.action === "function") {
         command.action()
         return
@@ -977,8 +950,6 @@ function App() {
         releaseTag={token ? getReleaseTag() : undefined}
         profile={token ? profile : null}
         onSignOut={handleSignOut}
-        canPromoteUsers={Boolean(token && profile?.role === "admin")}
-        onPromoteUser={handlePromoteUser}
         onOpenCommandPalette={token ? openCommandPalette : undefined}
         notificationCenter={token ? (
           <NotificationCenter
