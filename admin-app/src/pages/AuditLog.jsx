@@ -1,6 +1,29 @@
 import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { fetchAdminAuditEvents } from "../api/adminAudit"
+
+// Centralized target_type -> route mapping. Only target types with a real,
+// already-existing destination route get a link; everything else (and any
+// event missing a target_id) renders as plain text. Add future target
+// types here, not in the render logic.
+const TARGET_ROUTES = {
+  event: (id) => `/events/${id}`,
+  participant: (id) => `/participants?participant_id=${id}`,
+  communication_message: () => "/communications",
+  communication_delivery: () => "/communications",
+  communication_template: () => "/communications",
+}
+
+function getAuditTargetLink(event) {
+  const label = event.target_display || null
+  const id = event.target_id || null
+  const buildHref = TARGET_ROUTES[event.target_type]
+
+  if (!buildHref || !id) {
+    return { href: null, label, id, isLink: false }
+  }
+  return { href: buildHref(id), label, id, isLink: true }
+}
 
 // Known domain/target_type vocabularies, gathered from actual
 // record_admin_audit_event() call sites. Kept as a small hardcoded list
@@ -229,21 +252,33 @@ export default function AuditLog() {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((event) => (
-                  <tr key={event.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{fmt(event.created_at)}</td>
-                    <td className="py-2 pr-4 text-slate-700">{event.domain}</td>
-                    <td className="py-2 pr-4 text-slate-700">{event.action}</td>
-                    <td className="py-2 pr-4 text-slate-700">{event.actor_display || event.actor_user_id || "—"}</td>
-                    <td className="py-2 pr-4 text-slate-500">{event.target_type || "—"}</td>
-                    <td className="py-2 pr-4 text-slate-700">
-                      {event.target_display || "—"}
-                      {event.target_id && (
-                        <span className="block text-xs text-slate-400">{event.target_id}</span>
+                {data.items.map((event) => {
+                  const target = getAuditTargetLink(event)
+                  const targetContent = (
+                    <>
+                      {target.label || "—"}
+                      {target.id && (
+                        <span className="block text-xs text-slate-400">{target.id}</span>
                       )}
-                    </td>
-                  </tr>
-                ))}
+                    </>
+                  )
+                  return (
+                    <tr key={event.id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">{fmt(event.created_at)}</td>
+                      <td className="py-2 pr-4 text-slate-700">{event.domain}</td>
+                      <td className="py-2 pr-4 text-slate-700">{event.action}</td>
+                      <td className="py-2 pr-4 text-slate-700">{event.actor_display || event.actor_user_id || "—"}</td>
+                      <td className="py-2 pr-4 text-slate-500">{event.target_type || "—"}</td>
+                      <td className="py-2 pr-4 text-slate-700">
+                        {target.isLink ? (
+                          <Link to={target.href} className="text-ocean hover:underline">{targetContent}</Link>
+                        ) : (
+                          <span>{targetContent}</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}

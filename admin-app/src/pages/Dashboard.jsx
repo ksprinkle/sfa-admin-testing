@@ -896,6 +896,22 @@ useEffect(() => {
         </div>
       </button> : null}
 
+      {widgetVisibility.quickActions ? <button
+        type="button"
+        onClick={() => navigate("/audit-log")}
+        className="w-full rounded-xl border border-violet-200 bg-violet-50 px-4 py-4 text-left shadow-sm transition hover:bg-violet-100/70"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-violet-900">Audit Log</p>
+            <p className="mt-1 text-sm text-violet-800">Review administrative activity recorded across the app.</p>
+          </div>
+          <span className="rounded-full border border-violet-300 bg-white px-2 py-1 text-xs font-semibold text-violet-700">
+            Open /audit-log
+          </span>
+        </div>
+      </button> : null}
+
       {/* Overall Event Stats */}
       {widgetVisibility.overallEventStats ? <div className={topStatsGridClass}>
         <StatCard
