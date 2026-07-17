@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { fetchRegistry, fetchWorkflows } from "../api/automation"
+import { fetchRegistry, fetchWorkflows, setWorkflowEnabled } from "../api/automation"
 
 // trigger_type is stored metadata only — there is no scheduler or event
 // listener wired up anywhere in the backend, so "scheduled"/"event"
@@ -23,38 +23,56 @@ export default function AutomationManagement() {
   const [registryKeys, setRegistryKeys] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [statusMessage, setStatusMessage] = useState("")
+  const [savingWorkflowId, setSavingWorkflowId] = useState(null)
+
+  async function loadData() {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const [workflowsPayload, registryPayload] = await Promise.all([fetchWorkflows(), fetchRegistry()])
+      setWorkflows(Array.isArray(workflowsPayload) ? workflowsPayload : [])
+      setRegistryKeys(Array.isArray(registryPayload?.workflow_keys) ? registryPayload.workflow_keys : [])
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let isCancelled = false
-
-    Promise.resolve().then(() => {
-      if (isCancelled) return
-      setLoading(true)
-      setError(null)
-    })
-
-    Promise.all([fetchWorkflows(), fetchRegistry()])
-      .then(([workflowsPayload, registryPayload]) => {
-        if (isCancelled) return
-        setWorkflows(Array.isArray(workflowsPayload) ? workflowsPayload : [])
-        setRegistryKeys(Array.isArray(registryPayload?.workflow_keys) ? registryPayload.workflow_keys : [])
-      })
-      .catch((e) => {
-        if (!isCancelled) setError(e.message)
-      })
-      .finally(() => {
-        if (!isCancelled) setLoading(false)
-      })
-
-    return () => {
-      isCancelled = true
-    }
+    loadData()
   }, [])
+
+  async function handleToggleEnabled(workflow) {
+    if (savingWorkflowId) return
+
+    setSavingWorkflowId(workflow.id)
+    setError(null)
+    setStatusMessage("")
+
+    try {
+      const updated = await setWorkflowEnabled(workflow.id, !workflow.is_enabled)
+      setStatusMessage(`${updated.name} is now ${updated.is_enabled ? "enabled" : "disabled"}.`)
+      await loadData()
+    } catch (e) {
+      setError(e.message || "Failed to update workflow")
+    } finally {
+      setSavingWorkflowId(null)
+    }
+  }
 
   return (
     <div className="px-4 py-4 max-w-5xl mx-auto">
       <h1 className="text-xl font-bold text-ocean mb-1">Automation</h1>
       <p className="text-sm text-slate-500 mb-4">Manage workflow definitions and review their configuration</p>
+
+      {statusMessage && (
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {statusMessage}
+        </div>
+      )}
 
       {loading && <p className="text-sm text-slate-400">Loading…</p>}
       {error && <p className="text-sm text-red-600">Error: {error}</p>}
@@ -94,9 +112,14 @@ export default function AutomationManagement() {
                         </span>
                       </td>
                       <td className="py-2 pr-4">
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${workflow.is_enabled ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-100 text-slate-500"}`}>
-                          {workflow.is_enabled ? "Enabled" : "Disabled"}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleEnabled(workflow)}
+                          disabled={savingWorkflowId === workflow.id}
+                          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed ${workflow.is_enabled ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" : "border-slate-200 bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                        >
+                          {savingWorkflowId === workflow.id ? "Saving…" : workflow.is_enabled ? "Enabled" : "Disabled"}
+                        </button>
                       </td>
                       <td className="py-2 pr-4">
                         {hasHandler ? (
