@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +9,28 @@ from sqlalchemy.orm import Session, joinedload
 
 from api.models.admin_audit_events import AdminAuditEvent
 from api.models.users import User
+from api.ws_manager import manager
+
+# Domain:action combinations meaningful enough to justify a live WebSocket refresh
+# ping to Notification Center. Mirrors the frontend's own audit-event allowlist
+# (AUDIT_NOTIFICATION_RULES in admin-app/src/App.jsx) — keep the two in sync, since
+# anything not here still reaches Notification Center via its regular interval poll,
+# just without the live nudge.
+NOTABLE_AUDIT_EVENTS = {
+    ("permissions", "user_role_updated"),
+    ("participants", "assign_session"),
+    ("participants", "promote_waitlist"),
+    ("event_operations", "event_operational_status_updated"),
+    ("communications", "template_created"),
+    ("communications", "template_active_state_updated"),
+    ("communications", "message_deleted"),
+    ("automation", "workflow_created"),
+    ("automation", "workflow_enabled_updated"),
+    ("automation", "workflow_execution_completed"),
+    ("volunteer", "volunteer_lifecycle_updated"),
+    ("volunteer", "volunteer_assignment_created"),
+    ("volunteer", "volunteer_assignment_cancelled"),
+}
 
 
 def record_admin_audit_event(
@@ -21,10 +45,13 @@ def record_admin_audit_event(
     source: str | None = "admin_api",
     details: dict[str, Any] | None = None,
 ) -> None:
+    normalized_domain = domain.strip().lower()
+    normalized_action = action.strip().lower()
+
     db.add(
         AdminAuditEvent(
-            domain=domain.strip().lower(),
-            action=action.strip().lower(),
+            domain=normalized_domain,
+            action=normalized_action,
             actor_user_id=actor_user_id,
             target_type=(target_type or "").strip().lower() or None,
             target_id=target_id,
@@ -33,6 +60,38 @@ def record_admin_audit_event(
             details=details,
         )
     )
+
+    if (normalized_domain, normalized_action) in NOTABLE_AUDIT_EVENTS:
+        _broadcast_audit_event_ping()
+
+
+def _broadcast_audit_event_ping() -> None:
+    # Best-effort live-refresh signal — a failed or skipped broadcast must never affect
+    # audit logging itself. Every router that reaches this function today uses a sync
+    # `def` handler (no running event loop in that worker thread), so this mirrors the
+    # dual-mode await/asyncio.run pattern already used for participant_update broadcasts
+    # in api/routers/admin_participants.py: schedule on the running loop if there is one,
+    # otherwise spin a short-lived one.
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None:
+        loop.create_task(_send_audit_event_ping())
+        return
+
+    try:
+        asyncio.run(_send_audit_event_ping())
+    except Exception:
+        pass
+
+
+async def _send_audit_event_ping() -> None:
+    try:
+        await manager.broadcast(json.dumps({"type": "audit_event"}))
+    except Exception:
+        pass
 
 
 def list_admin_audit_events(

@@ -33,6 +33,7 @@ import {
 import { fetchAllParticipants, fetchDashboardMetrics, fetchEvents, fetchVolunteerDashboard } from "./api/events"
 import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "./api/communications"
 import { fetchAdminAuditEvents } from "./api/adminAudit"
+import { getWsBase } from "./api/baseUrl"
 import { getReleaseTag } from "./config/release"
 
 const GLOBAL_SEARCH_RECENTS_STORAGE_KEY = "sfa.globalSearchRecents"
@@ -837,6 +838,59 @@ function App() {
       }
     }
   }, [token, loadOperationalNotifications, notificationRefreshIntervalMs])
+
+  // Live-refresh trigger: the backend pushes a lightweight { type: "audit_event" } ping
+  // over the existing /ws/updates socket (same channel and message-envelope convention
+  // as participant_update) whenever a notification-worthy audit event is recorded. This
+  // is a best-effort nudge on top of the interval poll above, not a replacement for it —
+  // if the socket is unavailable, the existing polling still delivers the notification.
+  useEffect(() => {
+    if (!token) return undefined
+
+    const wsUrl = getWsBase() + "/api/ws/updates"
+    let ws = null
+    let reconnectTimer = null
+    let isCancelled = false
+
+    const connect = () => {
+      if (isCancelled) return
+      ws = new window.WebSocket(wsUrl)
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === "audit_event") {
+            loadOperationalNotifications().catch(() => {
+              // Errors are surfaced through notificationCenterError state.
+            })
+          }
+        } catch {
+          // Ignore malformed websocket payloads.
+        }
+      }
+
+      ws.onclose = () => {
+        if (isCancelled) return
+        reconnectTimer = window.setTimeout(connect, 1000)
+      }
+
+      ws.onerror = () => {
+        // Let onclose handle reconnect timing.
+      }
+    }
+
+    connect()
+
+    return () => {
+      isCancelled = true
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer)
+      }
+      if (ws && (ws.readyState === window.WebSocket.OPEN || ws.readyState === window.WebSocket.CONNECTING)) {
+        ws.close()
+      }
+    }
+  }, [token, loadOperationalNotifications])
 
   useEffect(() => {
     const refreshBuildFingerprint = () => {
