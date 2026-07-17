@@ -130,6 +130,12 @@ function Communications() {
     setStatusMessage("Message updated successfully.")
   }
 
+  const handleMessageDeleted = async () => {
+    setSelectedMessage(null)
+    await loadCommunicationsData()
+    setStatusMessage("Message deleted successfully.")
+  }
+
   const deliverySummary = summarizeDeliveries(messages, deliveries)
   const recentMessages = messages.slice(0, 3).map((message) => ({
     raw: message,
@@ -156,6 +162,7 @@ function Communications() {
         message={selectedMessage}
         onClose={() => setSelectedMessage(null)}
         onUpdated={handleMessageUpdated}
+        onDeleted={handleMessageDeleted}
       />
 
       {statusMessage ? (

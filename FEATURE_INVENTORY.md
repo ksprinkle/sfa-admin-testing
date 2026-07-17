@@ -86,14 +86,14 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 
 ## 8. Communications & Reminders
 
-**Feature Status:** Shipped. Delivery reliability (retries, circuit breaking, failover) is handled by the Reliability & Telemetry subsystem described in `ARCHITECTURE_OVERVIEW.md`, not within this feature area's own code.
+**Feature Status:** Shipped. Delivery reliability (retries, circuit breaking, failover) is handled by the Reliability & Telemetry subsystem described in `ARCHITECTURE_OVERVIEW.md`, not within this feature area's own code. The message lifecycle is complete: create, view, edit, and delete are all supported for messages in `ready` status; `dispatched` messages are immutable.
 
 | Layer | Location |
 |---|---|
 | Backend router | `api/routers/admin_communications.py` |
 | Backend service | `api/services/communications_platform.py`, `communication_delivery.py`, `notification_delivery.py`, `notification_pipeline.py`, `reminder_scheduling.py`, `reminder_execution.py`, `reminders.py`, `message_template_rendering.py`, `email_delivery.py` |
 | Data model | `CommunicationTemplate`, `CommunicationMessage`, `CommunicationDelivery`, `MessageTemplate`/`MessageTemplateVersion`, `ReminderDefinition`, `ReminderExecutionQueue`, `ReminderAuditEvent`, `NotificationDeliveryAttempt`/`NotificationDeliveryEvent` |
-| Frontend | `admin-app/src/pages/Communications.jsx`, `components/communications/MessageComposerModal.jsx`, `admin-app/src/api/communications.js` |
+| Frontend | `admin-app/src/pages/Communications.jsx`, `components/communications/MessageComposerModal.jsx`, `components/communications/MessageDetailModal.jsx`, `admin-app/src/api/communications.js` |
 
 ## 9. Executive Dashboards & Operational Telemetry
 

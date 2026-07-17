@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import Button from "../Button"
-import { updateCommunicationMessage } from "../../api/communications"
+import { deleteCommunicationMessage, updateCommunicationMessage } from "../../api/communications"
 
 function getStatusTone(status) {
   const normalized = String(status || "").toLowerCase()
@@ -26,12 +26,14 @@ function MetadataField({ label, children }) {
   )
 }
 
-function MessageDetailModal({ message, onClose, onUpdated }) {
+function MessageDetailModal({ message, onClose, onUpdated, onDeleted }) {
   const [isEditing, setIsEditing] = useState(false)
   const [subjectDraft, setSubjectDraft] = useState("")
   const [bodyDraft, setBodyDraft] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
 
   // Reset local edit state whenever a different message is opened (or the
   // modal is closed), so stale drafts never leak between messages.
@@ -40,6 +42,7 @@ function MessageDetailModal({ message, onClose, onUpdated }) {
     setSubjectDraft(message?.subject || "")
     setBodyDraft(message?.body || "")
     setSaveError("")
+    setDeleteError("")
   }, [message])
 
   useEffect(() => {
@@ -78,6 +81,22 @@ function MessageDetailModal({ message, onClose, onUpdated }) {
       setSaveError(error?.message || "Failed to save changes.")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    const confirmed = window.confirm("Delete this message?\n\nThis action cannot be undone.")
+    if (!confirmed) return
+
+    setDeleting(true)
+    setDeleteError("")
+
+    try {
+      await deleteCommunicationMessage(message.id)
+      await onDeleted?.(message.id)
+    } catch (error) {
+      setDeleteError(error?.message || "Failed to delete message.")
+      setDeleting(false)
     }
   }
 
@@ -121,9 +140,9 @@ function MessageDetailModal({ message, onClose, onUpdated }) {
           <MetadataField label="Updated">{formatDateTime(message.updated_at)}</MetadataField>
         </div>
 
-        {saveError ? (
+        {(saveError || deleteError) ? (
           <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {saveError}
+            {saveError || deleteError}
           </div>
         ) : null}
 
@@ -173,9 +192,14 @@ function MessageDetailModal({ message, onClose, onUpdated }) {
               </Button>
             </>
           ) : isReady ? (
-            <Button variant="neutral" onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
-              Edit
-            </Button>
+            <>
+              <Button variant="danger" onClick={handleDelete} disabled={deleting} className="w-full sm:w-auto">
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+              <Button variant="neutral" onClick={() => setIsEditing(true)} disabled={deleting} className="w-full sm:w-auto">
+                Edit
+              </Button>
+            </>
           ) : null}
         </div>
       </section>

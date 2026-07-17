@@ -57,3 +57,16 @@ export async function updateCommunicationMessage(messageId, payload) {
 
   return res.json()
 }
+
+export async function deleteCommunicationMessage(messageId) {
+  const res = await apiFetch(`/api/admin/communications/messages/${messageId}`, {
+    method: "DELETE",
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to delete message")
+  }
+
+  return res.json()
+}
