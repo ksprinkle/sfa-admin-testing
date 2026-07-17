@@ -33,6 +33,7 @@ import {
 import { fetchAllParticipants, fetchDashboardMetrics, fetchEvents, fetchVolunteerDashboard } from "./api/events"
 import { fetchCommunicationDeliveries, fetchCommunicationMessages } from "./api/communications"
 import { fetchAdminAuditEvents } from "./api/adminAudit"
+import { fetchNotificationReadState, upsertNotificationReadState } from "./api/notificationReadState"
 import { getWsBase } from "./api/baseUrl"
 import { getReleaseTag } from "./config/release"
 
@@ -595,6 +596,7 @@ function App() {
   const [notificationCenterLoading, setNotificationCenterLoading] = useState(false)
   const [notificationCenterError, setNotificationCenterError] = useState("")
   const [operationalNotifications, setOperationalNotifications] = useState([])
+  const hasLoadedNotificationsOnceRef = useRef(false)
   const [notificationReadIds, setNotificationReadIds] = useState(() => readNotificationReadIds())
   const [notificationRefreshIntervalMs, setNotificationRefreshIntervalMs] = useState(() => readNotificationRefreshIntervalMs())
 
@@ -726,6 +728,44 @@ function App() {
     writeNotificationReadIds(notificationReadIds)
   }, [notificationReadIds])
 
+  // Hydrate + one-time reconciliation: on login, pull this user's read-state from the
+  // server and union it into the local (localStorage-backed) set — read state is a
+  // one-way ratchet, so a union is always correct, never lossy. Any locally-read keys
+  // the server doesn't know about yet (e.g. read before this backend existed, or read
+  // offline) are pushed up once so they aren't stranded on this browser. Best-effort:
+  // localStorage remains fully functional as read/unread state on its own if this fails.
+  useEffect(() => {
+    if (!token) return undefined
+
+    let isCancelled = false
+
+    fetchNotificationReadState()
+      .then((serverState) => {
+        if (isCancelled) return
+
+        const serverKeys = Array.isArray(serverState?.notification_keys) ? serverState.notification_keys : []
+        const serverKeySet = new Set(serverKeys)
+
+        setNotificationReadIds((current) => {
+          const localOnlyKeys = current.filter((id) => !serverKeySet.has(id))
+          if (localOnlyKeys.length > 0) {
+            upsertNotificationReadState(localOnlyKeys).catch(() => {
+              // Best-effort; these keys are already reflected in localStorage.
+            })
+          }
+
+          return Array.from(new Set([...current, ...serverKeys])).slice(0, 500)
+        })
+      })
+      .catch(() => {
+        // Best-effort; localStorage remains the fully functional source of read state.
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [token])
+
   useEffect(() => {
     if (typeof window === "undefined") return undefined
 
@@ -774,6 +814,7 @@ function App() {
       setOperationalNotifications([])
       setNotificationCenterError("")
       setNotificationCenterLoading(false)
+      hasLoadedNotificationsOnceRef.current = true
       return
     }
 
@@ -794,6 +835,7 @@ function App() {
       const auditEvents = auditResult.status === "fulfilled" ? (auditResult.value?.items || []) : []
 
       setOperationalNotifications(buildOperationalNotifications({ metrics, messages, deliveries, auditEvents }))
+      hasLoadedNotificationsOnceRef.current = true
 
       const failures = [
         metricsResult.status === "rejected" ? "telemetry" : null,
@@ -1031,14 +1073,29 @@ function App() {
       if (current.includes(notificationId)) return current
       return [notificationId, ...current].slice(0, 500)
     })
+
+    upsertNotificationReadState([notificationId]).catch(() => {
+      // Best-effort; localStorage already reflects the read state immediately.
+    })
   }, [])
 
   const handleMarkAllNotificationsRead = useCallback(() => {
     const allIds = operationalNotifications.map((item) => item.id).filter(Boolean)
     setNotificationReadIds(allIds.slice(0, 500))
+
+    if (allIds.length > 0) {
+      upsertNotificationReadState(allIds).catch(() => {
+        // Best-effort; localStorage already reflects the read state immediately.
+      })
+    }
   }, [operationalNotifications])
 
   useEffect(() => {
+    // Guard against pruning on the initial empty operationalNotifications state (before the
+    // first real fetch resolves) — without this, every mount would immediately discard all
+    // read-ids (local and freshly-reconciled-from-server alike) against an empty available set.
+    if (!hasLoadedNotificationsOnceRef.current) return
+
     const availableIds = new Set(operationalNotifications.map((item) => item.id))
     setNotificationReadIds((current) => current.filter((id) => availableIds.has(id)))
   }, [operationalNotifications])
