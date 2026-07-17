@@ -20,6 +20,7 @@ import WaiverTemplates from "./pages/WaiverTemplates"
 import VolunteerDashboard from "./pages/VolunteerDashboard"
 import ExecutiveDashboard from "./pages/ExecutiveDashboard"
 import Communications from "./pages/Communications"
+import AuditLog from "./pages/AuditLog"
 import {
   clearAuthSession,
   fetchMyProfile,
@@ -1044,6 +1045,7 @@ function App() {
             <Route path="/executive-dashboard" element={<ExecutiveDashboard />} />
             <Route path="/communications" element={<Communications />} />
             <Route path="/feedback" element={<FeedbackReview />} />
+            <Route path="/audit-log" element={<AuditLog />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         )}
