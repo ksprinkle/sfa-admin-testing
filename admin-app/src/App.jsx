@@ -22,6 +22,7 @@ import ExecutiveDashboard from "./pages/ExecutiveDashboard"
 import Communications from "./pages/Communications"
 import AuditLog from "./pages/AuditLog"
 import PermissionsManagement from "./pages/PermissionsManagement"
+import AutomationManagement from "./pages/AutomationManagement"
 import {
   clearAuthSession,
   fetchMyProfile,
@@ -1019,6 +1020,7 @@ function App() {
             <Route path="/feedback" element={<FeedbackReview />} />
             <Route path="/audit-log" element={<AuditLog />} />
             <Route path="/permissions" element={<PermissionsManagement />} />
+            <Route path="/automation" element={<AutomationManagement />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         )}
