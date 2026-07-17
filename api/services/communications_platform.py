@@ -179,6 +179,73 @@ def list_messages(db: Session, *, channel: str | None = None) -> list[Communicat
     return query.order_by(CommunicationMessage.created_at.desc()).all()
 
 
+def _get_ready_message_or_404(db: Session, message_id: UUID) -> CommunicationMessage:
+    message = db.query(CommunicationMessage).filter(CommunicationMessage.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if message.status != CommunicationMessage.STATUS_READY:
+        raise HTTPException(status_code=409, detail="Only ready messages can be edited or deleted")
+    return message
+
+
+def update_message(
+    db: Session,
+    *,
+    message_id: UUID,
+    subject: str | None,
+    body: str | None,
+    actor_user_id: str | None,
+) -> CommunicationMessage:
+    message = _get_ready_message_or_404(db, message_id)
+
+    if subject is not None:
+        message.subject = subject.strip() or None
+    if body is not None:
+        message.body = body
+
+    message.updated_at = datetime.now(UTC).replace(tzinfo=None)
+
+    record_admin_audit_event(
+        db,
+        domain="communications",
+        action="message_updated",
+        actor_user_id=actor_user_id,
+        target_type="communication_message",
+        target_id=str(message.id),
+        target_display=message.subject,
+        source="admin.communications.messages.update",
+        details={"channel": message.channel},
+    )
+
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+def delete_message(
+    db: Session,
+    *,
+    message_id: UUID,
+    actor_user_id: str | None,
+) -> None:
+    message = _get_ready_message_or_404(db, message_id)
+
+    record_admin_audit_event(
+        db,
+        domain="communications",
+        action="message_deleted",
+        actor_user_id=actor_user_id,
+        target_type="communication_message",
+        target_id=str(message.id),
+        target_display=message.subject,
+        source="admin.communications.messages.delete",
+        details={"channel": message.channel, "audience_type": message.audience_type},
+    )
+
+    db.delete(message)
+    db.commit()
+
+
 def deliver_message_to_recipient(
     db: Session,
     *,

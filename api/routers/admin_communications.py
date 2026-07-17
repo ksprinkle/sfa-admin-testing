@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from api.db.session import get_db
@@ -10,6 +10,7 @@ from api.schemas.communications import (
     CommunicationDeliveryOut,
     CommunicationMessageCreateIn,
     CommunicationMessageOut,
+    CommunicationMessageUpdateIn,
     CommunicationTemplateCreateIn,
     CommunicationTemplateOut,
     CommunicationTemplateSetActiveIn,
@@ -19,10 +20,12 @@ from api.services.communication_delivery import list_delivery_provider_keys
 from api.services.communications_platform import (
     create_message,
     create_template,
+    delete_message,
     deliver_message_to_recipient,
     list_deliveries,
     list_messages,
     list_templates,
+    update_message,
     update_template_active_state,
 )
 
@@ -101,6 +104,36 @@ def get_communication_messages(
     _current_user=Depends(require_permission(PERMISSION_COMMUNICATIONS_MANAGE)),
 ):
     return list_messages(db, channel=channel)
+
+
+@router.patch("/messages/{message_id}", response_model=CommunicationMessageOut)
+def update_communication_message(
+    message_id: UUID,
+    payload: CommunicationMessageUpdateIn,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission(PERMISSION_COMMUNICATIONS_MANAGE)),
+):
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No update fields provided")
+
+    return update_message(
+        db,
+        message_id=message_id,
+        subject=updates.get("subject"),
+        body=updates.get("body"),
+        actor_user_id=current_user.id,
+    )
+
+
+@router.delete("/messages/{message_id}")
+def delete_communication_message(
+    message_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_permission(PERMISSION_COMMUNICATIONS_MANAGE)),
+):
+    delete_message(db, message_id=message_id, actor_user_id=current_user.id)
+    return {"message": "Message deleted"}
 
 
 @router.post("/messages/{message_id}/deliveries", response_model=CommunicationDeliveryOut, status_code=202)

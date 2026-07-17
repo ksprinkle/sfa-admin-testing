@@ -41,6 +41,11 @@ class CommunicationMessageCreateIn(BaseModel):
     body: str = Field(min_length=1)
 
 
+class CommunicationMessageUpdateIn(BaseModel):
+    subject: str | None = None
+    body: str | None = Field(default=None, min_length=1)
+
+
 class CommunicationMessageOut(BaseModel):
     id: UUID
     template_id: UUID | None = None
