@@ -108,14 +108,14 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 
 ## 10. Administrative Audit, Permissions & Automation
 
-**Feature Status:** Partial. Audit logging and permissions management are both shipped with dedicated frontends. Permissions management here means role assignment (`participant`/`admin`) via `api/services/authorization.py`'s hardcoded role→permission matrix — there is no persisted per-permission or custom-role data model, and building one is out of scope for the current UI. The workflow automation engine (`AutomationWorkflow`/`AutomationRun` persistence, `automation_engine.py`) is present, but the `api/automation/` subpackage (policy evaluation and remediation planning) exists only as compiled bytecode in the working tree with no `.py` source — its current runtime status is unconfirmed. See `ARCHITECTURE_OVERVIEW.md`'s Known Architectural Quirks and `KNOWN_TECHNICAL_DEBT.md`. Workflow automation still has no dedicated frontend page.
+**Feature Status:** Shipped. Audit logging, permissions management, and workflow automation all have dedicated frontends. Permissions management here means role assignment (`participant`/`admin`) via `api/services/authorization.py`'s hardcoded role→permission matrix — there is no persisted per-permission or custom-role data model, and building one is out of scope for the current UI. The workflow automation frontend (`AutomationManagement.jsx`) covers workflow definition browsing, enable/disable toggling, manual execution with confirmation, and run history — all against the existing `AutomationWorkflow`/`AutomationRun` persistence and `automation_engine.py` harness. Only `trigger_type=manual` actually runs anything; `scheduled`/`event` are stored metadata with no scheduler or event listener wired up, and the UI labels them "Not active" rather than implying they run. The `api/automation/` subpackage (policy evaluation and remediation planning) exists only as compiled bytecode in the working tree with no `.py` source — its current runtime status is unconfirmed. See `ARCHITECTURE_OVERVIEW.md`'s Known Architectural Quirks and `KNOWN_TECHNICAL_DEBT.md`.
 
 | Layer | Location |
 |---|---|
 | Backend router | `api/routers/admin_audit.py`, `admin_permissions.py`, `admin_automation.py`; user/role management lives in `api/routers/auth.py` |
 | Backend service | `api/services/admin_audit.py`, `authorization.py`, `automation_engine.py`; `api/automation/` (source not present, see above) |
 | Data model | `AdminAuditEvent`, `EventActivityLog`, `AutomationWorkflow`, `AutomationRun`; role lives on `User.role` |
-| Frontend | `admin-app/src/pages/AuditLog.jsx`, `admin-app/src/api/adminAudit.js`; `admin-app/src/pages/PermissionsManagement.jsx`, `admin-app/src/api/permissions.js` (automation has no frontend) |
+| Frontend | `admin-app/src/pages/AuditLog.jsx`, `admin-app/src/api/adminAudit.js`; `admin-app/src/pages/PermissionsManagement.jsx`, `admin-app/src/api/permissions.js`; `admin-app/src/pages/AutomationManagement.jsx`, `admin-app/src/api/automation.js` |
 
 ## 11. Feedback
 

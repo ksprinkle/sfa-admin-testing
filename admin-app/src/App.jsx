@@ -761,6 +761,7 @@ function App() {
       { id: "go-waivers", label: "Open Waiver Templates", description: "Manage waiver templates", group: "Navigation", to: "/waiver-templates" },
       { id: "go-event-templates", label: "Open Event Templates", description: "Manage event templates", group: "Navigation", to: "/event-templates" },
       { id: "go-permissions", label: "Open Permissions Management", description: "Search users and manage roles", group: "Navigation", to: "/permissions" },
+      { id: "go-automation", label: "Open Automation", description: "Manage workflow definitions and execution", group: "Navigation", to: "/automation" },
     ]
 
     const recentSearchCommands = globalSearchRecents.map((item) => ({
