@@ -51,6 +51,7 @@ from api.services.waiver_signing import (
     mark_token_viewed,
     validate_token_for_access,
 )
+from api.services.waiver_template_lifecycle import get_active_template
 
 router = APIRouter(prefix="/waivers", tags=["Waivers"])
 
@@ -449,12 +450,20 @@ def get_public_waiver_signing_page(token: str, db: DBSession = Depends(get_db)):
     mark_token_viewed(db, token=token_record, waiver=waiver)
     db.commit()
 
+    # Same active-template resolution used by complete_public_signing() at sign-time
+    # (waiver_signing.py), so the text shown here is guaranteed to match what gets
+    # recorded against the waiver if the signer completes this link.
+    active_template = get_active_template(db)
+
     return {
         "status": "ready",
         "message": "Waiver link validated.",
         "token_valid": True,
         "already_signed": False,
         "expires_at": token_record.expires_at,
+        "waiver_template_title": active_template.title if active_template else None,
+        "waiver_template_version": active_template.version if active_template else None,
+        "waiver_template_content": active_template.content if active_template else None,
     }
 
 

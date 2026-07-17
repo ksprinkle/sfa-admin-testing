@@ -24,6 +24,9 @@ class WaiverPublicViewOut(BaseModel):
     expires_at: datetime | None = None
     already_signed: bool = False
     token_valid: bool = False
+    waiver_template_title: str | None = None
+    waiver_template_version: int | None = None
+    waiver_template_content: str | None = None
 
 
 class WaiverPublicSignIn(BaseModel):
