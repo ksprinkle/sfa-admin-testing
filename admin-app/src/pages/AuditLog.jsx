@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { fetchAdminAuditEvents } from "../api/adminAudit"
+import PageContainer from "../components/PageContainer"
+import PageHeader from "../components/PageHeader"
+import SearchPanel from "../components/SearchPanel"
+import SearchField from "../components/SearchField"
 
 // Centralized target_type -> route mapping. Only target types with a real,
 // already-existing destination route get a link; everything else (and any
@@ -156,13 +160,11 @@ export default function AuditLog() {
   }, [domain, action, actorEmail, targetType, createdFrom, createdTo, offset])
 
   return (
-    <div className="px-4 py-4 max-w-5xl mx-auto">
-      <h1 className="text-xl font-bold text-ocean mb-1">Audit Log</h1>
-      <p className="text-sm text-slate-500 mb-4">Administrative activity recorded across the app</p>
+    <PageContainer>
+      <PageHeader title="Audit Log" description="Administrative activity recorded across the app" />
 
-      <div className="flex gap-3 flex-wrap mb-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Domain</label>
+      <SearchPanel>
+        <SearchField label="Domain">
           <select
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={domain}
@@ -173,9 +175,8 @@ export default function AuditLog() {
               <option key={d} value={d}>{d}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Action</label>
+        </SearchField>
+        <SearchField label="Action">
           <input
             type="text"
             placeholder="e.g. promote_waitlist"
@@ -183,9 +184,8 @@ export default function AuditLog() {
             value={actionDraft}
             onChange={(e) => setActionDraft(e.target.value)}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Actor</label>
+        </SearchField>
+        <SearchField label="Actor">
           <input
             type="text"
             placeholder="email contains…"
@@ -193,9 +193,8 @@ export default function AuditLog() {
             value={actorDraft}
             onChange={(e) => setActorDraft(e.target.value)}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Target Type</label>
+        </SearchField>
+        <SearchField label="Target Type">
           <select
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={targetType}
@@ -206,26 +205,24 @@ export default function AuditLog() {
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">From</label>
+        </SearchField>
+        <SearchField label="From">
           <input
             type="date"
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={createdFrom}
             onChange={(e) => updateFilter("created_from", e.target.value)}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">To</label>
+        </SearchField>
+        <SearchField label="To">
           <input
             type="date"
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={createdTo}
             onChange={(e) => updateFilter("created_to", e.target.value)}
           />
-        </div>
-      </div>
+        </SearchField>
+      </SearchPanel>
 
       {loading && <p className="text-sm text-slate-400">Loading…</p>}
       {error && <p className="text-sm text-red-600">Error: {error}</p>}
@@ -308,6 +305,6 @@ export default function AuditLog() {
           )}
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }
