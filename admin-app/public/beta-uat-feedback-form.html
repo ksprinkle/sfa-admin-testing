@@ -1271,6 +1271,64 @@
 
         <div class="section-head" style="margin-top:16px;">
           <span class="pill">SECTION 12</span>
+          <div class="section-title">NOTIFICATION CENTER</div>
+        </div>
+        <p class="hint">Covers the bell-icon Notification Center: audit event alerts, the auto-refresh preference, live updates, and read/unread state.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>&nbsp;</th>
+              <th class="status-ok">Worked as expected</th>
+              <th class="status-warn">Confusing</th>
+              <th class="status-bad">Didn't work</th>
+              <th class="status-skip" style="color:#5f6f8e">Not tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> Finding and opening the Notification Center</span></td>
+              <td class="choice"><input type="radio" name="notification_task_1" value="worked" /></td>
+              <td class="choice"><input type="radio" name="notification_task_1" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="notification_task_1" value="failed" /></td>
+              <td class="choice"><input type="radio" name="notification_task_1" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon square"></span> Understanding notifications (titles, categories, links to the relevant page)</span></td>
+              <td class="choice"><input type="radio" name="notification_task_2" value="worked" /></td>
+              <td class="choice"><input type="radio" name="notification_task_2" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="notification_task_2" value="failed" /></td>
+              <td class="choice"><input type="radio" name="notification_task_2" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon circle"></span> Adjusting the auto-refresh setting</span></td>
+              <td class="choice"><input type="radio" name="notification_task_3" value="worked" /></td>
+              <td class="choice"><input type="radio" name="notification_task_3" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="notification_task_3" value="failed" /></td>
+              <td class="choice"><input type="radio" name="notification_task_3" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon"></span> New notifications appearing on their own, without a manual refresh</span></td>
+              <td class="choice"><input type="radio" name="notification_task_4" value="worked" /></td>
+              <td class="choice"><input type="radio" name="notification_task_4" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="notification_task_4" value="failed" /></td>
+              <td class="choice"><input type="radio" name="notification_task_4" value="not_tested" /></td>
+            </tr>
+            <tr>
+              <td><span class="task"><span class="task-icon square"></span> Marking notifications read (single / mark all) and read state staying consistent</span></td>
+              <td class="choice"><input type="radio" name="notification_task_5" value="worked" /></td>
+              <td class="choice"><input type="radio" name="notification_task_5" value="confusing" /></td>
+              <td class="choice"><input type="radio" name="notification_task_5" value="failed" /></td>
+              <td class="choice"><input type="radio" name="notification_task_5" value="not_tested" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="field">
+          <label for="notificationComments">Notification Center comments</label>
+          <textarea id="notificationComments" name="notification_comments" placeholder="Brief notes"></textarea>
+        </div>
+
+        <div class="section-head" style="margin-top:16px;">
+          <span class="pill">SECTION 13</span>
           <div class="section-title">OVERALL ADMINISTRATION EXPERIENCE</div>
         </div>
         <table>

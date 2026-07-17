@@ -127,6 +127,17 @@ const FEEDBACK_SCHEMAS = {
         ],
       },
       {
+        key: "notification_center",
+        label: "Notification Center",
+        tasks: [
+          { key: "notification_task_1", label: "Finding and opening the Notification Center" },
+          { key: "notification_task_2", label: "Understanding notifications (titles, categories, links to the relevant page)" },
+          { key: "notification_task_3", label: "Adjusting the auto-refresh setting" },
+          { key: "notification_task_4", label: "New notifications appearing on their own, without a manual refresh" },
+          { key: "notification_task_5", label: "Marking notifications read (single / mark all) and read state staying consistent" },
+        ],
+      },
+      {
         key: "admin_overall_experience",
         label: "Overall Administration Experience",
         tasks: [
@@ -148,6 +159,7 @@ const FEEDBACK_SCHEMAS = {
       { key: "commcenter_comments", label: "Communications Center (Detailed) comments" },
       { key: "permissions_comments", label: "Permissions Management comments" },
       { key: "automation_comments", label: "Automation Management comments" },
+      { key: "notification_comments", label: "Notification Center comments" },
       { key: "admin_overall_favorite_feature", label: "Favorite new feature" },
       { key: "admin_overall_pain_point", label: "Biggest pain point (admin features)" },
       { key: "admin_overall_comments", label: "Additional comments (admin features)" },
