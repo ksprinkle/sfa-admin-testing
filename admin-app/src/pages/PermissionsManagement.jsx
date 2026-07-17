@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { fetchUsers } from "../api/permissions"
+import { getStoredProfile } from "../api/auth"
+import { fetchUsers, updateUserRole } from "../api/permissions"
 
 const ROLES = ["admin", "participant"]
 const TEXT_FILTER_DEBOUNCE_MS = 400
@@ -16,11 +17,14 @@ export default function PermissionsManagement() {
 
   const email = searchParams.get("email") || ""
   const role = searchParams.get("role") || ""
+  const currentUserId = getStoredProfile()?.id || null
 
   const [emailDraft, setEmailDraft] = useState(email)
   const [users, setUsers] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [statusMessage, setStatusMessage] = useState("")
+  const [savingUserId, setSavingUserId] = useState(null)
 
   function updateFilter(key, value) {
     setSearchParams((prev) => {
@@ -45,35 +49,52 @@ export default function PermissionsManagement() {
     setEmailDraft(email)
   }, [email])
 
-  useEffect(() => {
-    let isCancelled = false
+  async function loadUsers() {
+    setLoading(true)
+    setError(null)
 
-    Promise.resolve().then(() => {
-      if (isCancelled) return
-      setLoading(true)
-      setError(null)
-    })
-
-    fetchUsers({ emailContains: email || undefined, role: role || undefined })
-      .then((payload) => {
-        if (!isCancelled) setUsers(Array.isArray(payload) ? payload : [])
-      })
-      .catch((e) => {
-        if (!isCancelled) setError(e.message)
-      })
-      .finally(() => {
-        if (!isCancelled) setLoading(false)
-      })
-
-    return () => {
-      isCancelled = true
+    try {
+      const payload = await fetchUsers({ emailContains: email || undefined, role: role || undefined })
+      setUsers(Array.isArray(payload) ? payload : [])
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    loadUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email, role])
+
+  async function handleRoleChange(user, newRole) {
+    if (newRole === user.role || savingUserId) return
+
+    const confirmed = window.confirm(
+      `Change role for ${user.email} from ${user.role} to ${newRole}?`
+    )
+    if (!confirmed) return
+
+    setSavingUserId(user.id)
+    setError(null)
+    setStatusMessage("")
+
+    try {
+      await updateUserRole(user.id, newRole)
+      setStatusMessage(`${user.email} is now ${newRole}.`)
+      await loadUsers()
+    } catch (e) {
+      setError(e.message || "Failed to update role")
+    } finally {
+      setSavingUserId(null)
+    }
+  }
 
   return (
     <div className="px-4 py-4 max-w-5xl mx-auto">
       <h1 className="text-xl font-bold text-ocean mb-1">Permissions Management</h1>
-      <p className="text-sm text-slate-500 mb-4">Search registered users and review their current role</p>
+      <p className="text-sm text-slate-500 mb-4">Search registered users and manage their role</p>
 
       <div className="flex gap-3 flex-wrap mb-4">
         <div>
@@ -101,6 +122,12 @@ export default function PermissionsManagement() {
         </div>
       </div>
 
+      {statusMessage && (
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {statusMessage}
+        </div>
+      )}
+
       {loading && <p className="text-sm text-slate-400">Loading…</p>}
       {error && <p className="text-sm text-red-600">Error: {error}</p>}
 
@@ -122,16 +149,32 @@ export default function PermissionsManagement() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-2 pr-4 text-slate-700">{user.email}</td>
-                    <td className="py-2 pr-4">
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getRoleTone(user.role)}`}>
-                        {user.role}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {users.map((user) => {
+                  const isSelf = currentUserId != null && String(user.id) === String(currentUserId)
+                  return (
+                    <tr key={user.id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="py-2 pr-4 text-slate-700">{user.email}</td>
+                      <td className="py-2 pr-4">
+                        <select
+                          value={user.role}
+                          disabled={isSelf || savingUserId === user.id}
+                          onChange={(e) => handleRoleChange(user, e.target.value)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed ${getRoleTone(user.role)}`}
+                        >
+                          {ROLES.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                        {isSelf ? (
+                          <span className="block text-xs text-slate-400 mt-1">You cannot change your own role</span>
+                        ) : null}
+                        {savingUserId === user.id ? (
+                          <span className="block text-xs text-slate-400 mt-1">Saving…</span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
