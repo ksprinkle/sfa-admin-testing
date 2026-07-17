@@ -19,6 +19,7 @@ from api.schemas.participants import ParticipantCreate, ParticipantOut, Voluntee
 from api.crud.participants import create_participant
 from api.crud.participants import get_confirmed_participant_count
 from api.crud.participants import get_participants_for_event
+from api.services.public_registration import register_public_participant
 from api.schemas.events import EventOut, EventListOut
 from api.dependencies import get_current_user, require_admin
 from api.utils.event_counts import (
@@ -165,36 +166,17 @@ def get_event(
     )
 
 # PUBLIC participant signup for an event (with waitlist handling)
+# Legacy path retained for request/response compatibility; shares its
+# event-lookup/capacity/waitlist logic with public_register_event_participant
+# below via register_public_participant(). /public/events/{slug}/register is
+# the canonical path for new integrations (see api/services/public_registration.py).
 @router.post("/{slug}/participants", response_model=ParticipantOut, status_code=201)
 def signup_participant(
     slug: str,
     participant_in: ParticipantCreate,
     db: Session = Depends(get_db),
 ):
-    event = get_event_by_slug(db, slug, is_admin=True)
-
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if not event.participant_open:
-        raise HTTPException(status_code=400, detail="Participant registration is closed")
-
-    confirmed_count = get_confirmed_participant_count(db, event.id)
-
-    is_waitlisted = False
-
-    if (
-        event.participant_capacity is not None
-        and confirmed_count >= event.participant_capacity
-    ):
-        is_waitlisted = True
-
-    participant = create_participant(
-        db,
-        event,
-        participant_in,
-        is_waitlisted=is_waitlisted,
-    )
+    participant = register_public_participant(db, slug, participant_in)
 
     db.commit()
     db.refresh(participant)
@@ -270,23 +252,14 @@ def signup_volunteer(
     return participant
 
 
+# PUBLIC participant self-registration — canonical path (see api/services/public_registration.py).
 @public_router.post("/{slug}/register", response_model=ParticipantOut, status_code=201)
 def public_register_event_participant(
     slug: str,
     participant_in: PublicEventRegister,
     db: Session = Depends(get_db),
 ):
-    event = get_event_by_slug(db, slug, is_admin=False)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    participant = create_participant(
-        db,
-        event,
-        participant_in,
-        is_waitlisted=False,
-    )
-    participant.session_id = None
+    participant = register_public_participant(db, slug, participant_in)
 
     db.commit()
     db.refresh(participant)

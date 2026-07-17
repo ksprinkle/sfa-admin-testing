@@ -26,7 +26,7 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 | Layer | Location |
 |---|---|
 | Backend routers | `api/routers/events.py` (public), `api/routers/admin_events.py`, `api/routers/admin_event_templates.py` |
-| Backend service/support | `api/crud/events.py`, `api/utils/event_builder.py`, `event_counts.py`, `schedule_rules.py`, `slug.py` |
+| Backend service/support | `api/crud/events.py`, `api/utils/event_builder.py`, `event_counts.py`, `schedule_rules.py`, `slug.py`; public participant self-registration (`POST /events/{slug}/participants` and the canonical `POST /public/events/{slug}/register`) shares its event-lookup/capacity/waitlist logic via `api/services/public_registration.py` |
 | Data model | `Event`, `EventTemplate`, `EventOperations` |
 | Frontend | `admin-app/src/pages/Events.jsx`, `CreateEvent.jsx`, `EditEvent.jsx`, `EventDetail.jsx`, `EventTemplates.jsx`; `admin-app/src/api/events.js` |
 
