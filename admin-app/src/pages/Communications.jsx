@@ -124,6 +124,12 @@ function Communications() {
     setComposerOpen(false)
   }
 
+  const handleMessageUpdated = async (updatedMessage) => {
+    setSelectedMessage(updatedMessage)
+    await loadCommunicationsData()
+    setStatusMessage("Message updated successfully.")
+  }
+
   const deliverySummary = summarizeDeliveries(messages, deliveries)
   const recentMessages = messages.slice(0, 3).map((message) => ({
     raw: message,
@@ -149,6 +155,7 @@ function Communications() {
       <MessageDetailModal
         message={selectedMessage}
         onClose={() => setSelectedMessage(null)}
+        onUpdated={handleMessageUpdated}
       />
 
       {statusMessage ? (

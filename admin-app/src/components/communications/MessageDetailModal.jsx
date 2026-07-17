@@ -1,4 +1,6 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import Button from "../Button"
+import { updateCommunicationMessage } from "../../api/communications"
 
 function getStatusTone(status) {
   const normalized = String(status || "").toLowerCase()
@@ -24,7 +26,22 @@ function MetadataField({ label, children }) {
   )
 }
 
-function MessageDetailModal({ message, onClose }) {
+function MessageDetailModal({ message, onClose, onUpdated }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [subjectDraft, setSubjectDraft] = useState("")
+  const [bodyDraft, setBodyDraft] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState("")
+
+  // Reset local edit state whenever a different message is opened (or the
+  // modal is closed), so stale drafts never leak between messages.
+  useEffect(() => {
+    setIsEditing(false)
+    setSubjectDraft(message?.subject || "")
+    setBodyDraft(message?.body || "")
+    setSaveError("")
+  }, [message])
+
   useEffect(() => {
     if (!message) return undefined
 
@@ -37,6 +54,32 @@ function MessageDetailModal({ message, onClose }) {
   }, [message, onClose])
 
   if (!message) return null
+
+  const isReady = message.status === "ready"
+
+  const handleSave = async () => {
+    const body = bodyDraft.trim()
+    if (!body) {
+      setSaveError("Message body cannot be empty.")
+      return
+    }
+
+    setSaving(true)
+    setSaveError("")
+
+    try {
+      const updated = await updateCommunicationMessage(message.id, {
+        subject: subjectDraft.trim() || null,
+        body,
+      })
+      setIsEditing(false)
+      await onUpdated?.(updated)
+    } catch (error) {
+      setSaveError(error?.message || "Failed to save changes.")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -51,15 +94,19 @@ function MessageDetailModal({ message, onClose }) {
         <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-secondary">Communications</p>
-            <h3 className="mt-1 text-lg font-semibold text-gray-900">Message Details</h3>
+            <h3 className="mt-1 text-lg font-semibold text-gray-900">
+              {isEditing ? "Edit Message" : "Message Details"}
+            </h3>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="self-start rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            Close
-          </button>
+          {!isEditing ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="self-start rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Close
+            </button>
+          ) : null}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -74,14 +121,62 @@ function MessageDetailModal({ message, onClose }) {
           <MetadataField label="Updated">{formatDateTime(message.updated_at)}</MetadataField>
         </div>
 
-        <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
-          <MetadataField label="Subject">{message.subject || "(no subject)"}</MetadataField>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-secondary">Body</p>
-            <div className="mt-1 rounded-xl border border-gray-200 bg-slate-50 p-4 text-sm leading-6 text-gray-700">
-              <p className="whitespace-pre-wrap">{message.body}</p>
+        {saveError ? (
+          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {saveError}
+          </div>
+        ) : null}
+
+        {isEditing ? (
+          <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+            <label className="block space-y-2 text-sm font-medium text-gray-900">
+              <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Subject</span>
+              <input
+                value={subjectDraft}
+                onChange={(e) => setSubjectDraft(e.target.value)}
+                disabled={saving}
+                placeholder="Message subject"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-gray-900 focus:border-sky-400 focus:outline-none"
+              />
+            </label>
+            <label className="block space-y-2 text-sm font-medium text-gray-900">
+              <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Body</span>
+              <textarea
+                value={bodyDraft}
+                onChange={(e) => setBodyDraft(e.target.value)}
+                disabled={saving}
+                rows={7}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-gray-900 focus:border-sky-400 focus:outline-none"
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
+            <MetadataField label="Subject">{message.subject || "(no subject)"}</MetadataField>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-secondary">Body</p>
+              <div className="mt-1 rounded-xl border border-gray-200 bg-slate-50 p-4 text-sm leading-6 text-gray-700">
+                <p className="whitespace-pre-wrap">{message.body}</p>
+              </div>
             </div>
           </div>
+        )}
+
+        <div className="mt-5 flex flex-col-reverse gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:justify-end">
+          {isEditing ? (
+            <>
+              <Button variant="neutral" onClick={() => setIsEditing(false)} disabled={saving} className="w-full sm:w-auto">
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          ) : isReady ? (
+            <Button variant="neutral" onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
+              Edit
+            </Button>
+          ) : null}
         </div>
       </section>
     </div>

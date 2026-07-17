@@ -43,3 +43,17 @@ export async function sendCommunicationMessage(payload) {
 
   return res.json()
 }
+
+export async function updateCommunicationMessage(messageId, payload) {
+  const res = await apiFetch(`/api/admin/communications/messages/${messageId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || "Failed to update message")
+  }
+
+  return res.json()
+}
