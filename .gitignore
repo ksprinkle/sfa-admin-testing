@@ -20,8 +20,6 @@ admin-app/dist/
 frontend/dist/
 
 # Generated documentation/build artifacts
-docs/assets/index-*.css
-docs/assets/index-*.js
 docs/waiver-signing.html
 docs/SFA Liability Waiver.pdf
 
