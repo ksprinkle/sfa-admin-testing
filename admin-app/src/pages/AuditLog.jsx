@@ -10,6 +10,7 @@ const DOMAINS = ["automation", "communications", "email", "event_operations", "p
 const TARGET_TYPES = ["assignment", "communication_delivery", "communication_message", "communication_template", "event", "participant", "user", "volunteer", "workflow"]
 
 const TEXT_FILTER_DEBOUNCE_MS = 400
+const PAGE_SIZE = 25
 
 function fmt(iso) {
   if (!iso) return "—"
@@ -38,6 +39,8 @@ export default function AuditLog() {
   const createdTo = searchParams.get("created_to") || ""
   const action = searchParams.get("action") || ""
   const actorEmail = searchParams.get("actor_email") || ""
+  const page = Math.max(1, parseInt(searchParams.get("page"), 10) || 1)
+  const offset = (page - 1) * PAGE_SIZE
 
   // Free-text filters get a local draft so every keystroke doesn't push a
   // history entry / refetch; select and date filters commit immediately.
@@ -48,18 +51,30 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  function updateParam(key, value) {
+  // Any filter change invalidates the current page — staying on, say, page 3
+  // of a now-different result set would be confusing or out of range.
+  function updateFilter(key, value) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       if (value) next.set(key, value)
       else next.delete(key)
+      next.delete("page")
+      return next
+    })
+  }
+
+  function goToPage(nextPage) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (nextPage > 1) next.set("page", String(nextPage))
+      else next.delete("page")
       return next
     })
   }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (actionDraft !== action) updateParam("action", actionDraft)
+      if (actionDraft !== action) updateFilter("action", actionDraft)
     }, TEXT_FILTER_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,7 +82,7 @@ export default function AuditLog() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (actorDraft !== actorEmail) updateParam("actor_email", actorDraft)
+      if (actorDraft !== actorEmail) updateFilter("actor_email", actorDraft)
     }, TEXT_FILTER_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,8 +114,8 @@ export default function AuditLog() {
       targetType: targetType || undefined,
       createdFrom: createdFrom || undefined,
       createdTo: endOfDay(createdTo),
-      limit: 50,
-      offset: 0,
+      limit: PAGE_SIZE,
+      offset,
     })
       .then((payload) => {
         if (!isCancelled) setData(payload)
@@ -115,7 +130,7 @@ export default function AuditLog() {
     return () => {
       isCancelled = true
     }
-  }, [domain, action, actorEmail, targetType, createdFrom, createdTo])
+  }, [domain, action, actorEmail, targetType, createdFrom, createdTo, offset])
 
   return (
     <div className="px-4 py-4 max-w-5xl mx-auto">
@@ -128,7 +143,7 @@ export default function AuditLog() {
           <select
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={domain}
-            onChange={(e) => updateParam("domain", e.target.value)}
+            onChange={(e) => updateFilter("domain", e.target.value)}
           >
             <option value="">All</option>
             {DOMAINS.map((d) => (
@@ -161,7 +176,7 @@ export default function AuditLog() {
           <select
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={targetType}
-            onChange={(e) => updateParam("target_type", e.target.value)}
+            onChange={(e) => updateFilter("target_type", e.target.value)}
           >
             <option value="">All</option>
             {TARGET_TYPES.map((t) => (
@@ -175,7 +190,7 @@ export default function AuditLog() {
             type="date"
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={createdFrom}
-            onChange={(e) => updateParam("created_from", e.target.value)}
+            onChange={(e) => updateFilter("created_from", e.target.value)}
           />
         </div>
         <div>
@@ -184,7 +199,7 @@ export default function AuditLog() {
             type="date"
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={createdTo}
-            onChange={(e) => updateParam("created_to", e.target.value)}
+            onChange={(e) => updateFilter("created_to", e.target.value)}
           />
         </div>
       </div>
@@ -231,6 +246,30 @@ export default function AuditLog() {
                 ))}
               </tbody>
             </table>
+          )}
+
+          {data.total > PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => goToPage(page - 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-default hover:bg-slate-50"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-slate-500">
+                Page {page} of {Math.max(1, Math.ceil(data.total / PAGE_SIZE))}
+              </span>
+              <button
+                type="button"
+                disabled={offset + data.items.length >= data.total}
+                onClick={() => goToPage(page + 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-default hover:bg-slate-50"
+              >
+                Next
+              </button>
+            </div>
           )}
         </div>
       )}
