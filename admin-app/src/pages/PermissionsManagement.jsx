@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { getStoredProfile } from "../api/auth"
 import { fetchPermissionsMatrix, fetchUsers, updateUserRole } from "../api/permissions"
+import SearchPanel from "../components/SearchPanel"
+import SearchField from "../components/SearchField"
 
 const ROLES = ["admin", "participant"]
 const TEXT_FILTER_DEBOUNCE_MS = 400
@@ -104,9 +106,8 @@ export default function PermissionsManagement() {
       <h1 className="text-xl font-bold text-ocean mb-1">Permissions Management</h1>
       <p className="text-sm text-slate-500 mb-4">Search registered users and manage their role</p>
 
-      <div className="flex gap-3 flex-wrap mb-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Email</label>
+      <SearchPanel>
+        <SearchField label="Email">
           <input
             type="text"
             placeholder="email contains…"
@@ -114,9 +115,8 @@ export default function PermissionsManagement() {
             value={emailDraft}
             onChange={(e) => setEmailDraft(e.target.value)}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">Role</label>
+        </SearchField>
+        <SearchField label="Role">
           <select
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white"
             value={role}
@@ -127,8 +127,8 @@ export default function PermissionsManagement() {
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
-        </div>
-      </div>
+        </SearchField>
+      </SearchPanel>
 
       {statusMessage && (
         <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
