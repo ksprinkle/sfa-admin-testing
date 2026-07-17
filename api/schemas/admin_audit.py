@@ -9,6 +9,7 @@ class AdminAuditEventOut(BaseModel):
     domain: str
     action: str
     actor_user_id: str | None = None
+    actor_display: str | None = None
     target_type: str | None = None
     target_id: str | None = None
     target_display: str | None = None

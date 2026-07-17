@@ -23,3 +23,13 @@ class AdminAuditEvent(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
 
     actor = relationship("User")
+
+    @property
+    def actor_display(self) -> str | None:
+        """Best-available human-readable label for the actor.
+
+        Presentation-oriented and deliberately decoupled from actor_user_id
+        so the underlying source (currently just email) can change without
+        an API contract change.
+        """
+        return self.actor.email if self.actor is not None else None

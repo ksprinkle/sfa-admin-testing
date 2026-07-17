@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from api.models.admin_audit_events import AdminAuditEvent
+from api.models.users import User
 
 
 def record_admin_audit_event(
@@ -40,13 +41,14 @@ def list_admin_audit_events(
     domain: str | None = None,
     action: str | None = None,
     actor_user_id: str | None = None,
+    actor_email: str | None = None,
     target_type: str | None = None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[AdminAuditEvent], int]:
-    query = db.query(AdminAuditEvent)
+    query = db.query(AdminAuditEvent).options(joinedload(AdminAuditEvent.actor))
 
     if domain:
         query = query.filter(AdminAuditEvent.domain == domain.strip().lower())
@@ -54,6 +56,12 @@ def list_admin_audit_events(
         query = query.filter(AdminAuditEvent.action == action.strip().lower())
     if actor_user_id:
         query = query.filter(AdminAuditEvent.actor_user_id == actor_user_id)
+    if actor_email:
+        # .has() compiles to a correlated EXISTS, kept separate from the
+        # joinedload above so eager-loading and filtering never collide.
+        query = query.filter(
+            AdminAuditEvent.actor.has(User.email.ilike(f"%{actor_email.strip()}%"))
+        )
     if target_type:
         query = query.filter(AdminAuditEvent.target_type == target_type.strip().lower())
     if created_from:
