@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import { executeWorkflow, fetchRegistry, fetchWorkflowRuns, fetchWorkflows, setWorkflowEnabled } from "../api/automation"
+import PageContainer from "../components/PageContainer"
+import PageHeader from "../components/PageHeader"
 
 function getRunStatusTone(status) {
   const normalized = String(status || "").toLowerCase()
@@ -128,9 +130,8 @@ export default function AutomationManagement() {
   }
 
   return (
-    <div className="px-4 py-4 max-w-5xl mx-auto">
-      <h1 className="text-xl font-bold text-ocean mb-1">Automation</h1>
-      <p className="text-sm text-slate-500 mb-4">Manage workflow definitions and review their configuration</p>
+    <PageContainer>
+      <PageHeader title="Automation" description="Manage workflow definitions and review their configuration" />
 
       {statusMessage && (
         <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${statusTone === "failure" ? "border-rose-200 bg-rose-50 text-rose-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
@@ -266,6 +267,6 @@ export default function AutomationManagement() {
           )
         )}
       </div>
-    </div>
+    </PageContainer>
   )
 }
