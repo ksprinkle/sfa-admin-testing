@@ -1,9 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pydantic import model_validator
+
+from api.schemas.events import EventLocation
 
 PRIMARY_VOLUNTEER_TYPES = {"food", "raffle", "beach", "instructor", "buddy"}
 ADDITIONAL_VOLUNTEER_TYPES = PRIMARY_VOLUNTEER_TYPES | {
@@ -446,3 +448,27 @@ class PublicRegistrationWaiverOut(BaseModel):
 class PublicRegistrationOut(BaseModel):
     participant: ParticipantOut
     waiver: PublicRegistrationWaiverOut
+
+
+class MyRegistrationEventOut(BaseModel):
+    """Deliberately narrow — event fields relevant to a registration summary
+    card only, no administrative fields."""
+
+    id: UUID
+    title: str
+    slug: str
+    start_date: date
+    end_date: Optional[date] = None
+    location: EventLocation
+
+
+class MyRegistrationOut(BaseModel):
+    """"My Registrations" card shape — no administrative fields (no notes,
+    no removal metadata, no waiver-verifier identity, etc.)."""
+
+    id: UUID
+    is_waitlisted: bool
+    checked_in: bool
+    waiver_status: Literal["not_required", "pending", "signed"]
+    created_at: datetime
+    event: MyRegistrationEventOut

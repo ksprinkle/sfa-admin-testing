@@ -4,6 +4,7 @@ const NAV_LINKS = [
   { to: "/portal", label: "Home", end: true },
   { to: "/portal/events", label: "Events" },
   { to: "/portal/register", label: "Register" },
+  { to: "/portal/my-registrations", label: "My Registrations" },
   { to: "/portal/login", label: "Login" },
 ]
 

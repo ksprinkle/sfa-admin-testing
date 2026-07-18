@@ -66,3 +66,30 @@ export async function registerParticipant(slug, payload) {
 
   return res.json()
 }
+
+// GET /api/participants/mine — scoped server-side to the authenticated
+// participant's own records (api/services/participant_identity.py). Unlike
+// the other functions in this file, this one does require a token — it's
+// the caller's responsibility (PortalMyRegistrations.jsx) to only call this
+// when a stored portal token exists.
+export async function fetchMyRegistrations(token) {
+  const res = await fetch(joinApiUrl("/api/participants/mine"), {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  })
+
+  if (res.status === 401) {
+    const error = new Error("Your session has expired. Please sign in again.")
+    error.status = 401
+    throw error
+  }
+
+  if (!res.ok) {
+    throw new Error("Unable to load your registrations right now.")
+  }
+
+  return res.json()
+}
