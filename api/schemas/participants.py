@@ -425,3 +425,24 @@ class PublicEventRegister(BaseModel):
         return _normalize_roles(value, ADDITIONAL_VOLUNTEER_TYPES)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PublicRegistrationWaiverOut(BaseModel):
+    """Waiver-continuation info for the canonical public registration response.
+
+    `token` is the raw (unhashed) signing token — the same value an admin
+    would otherwise send a participant via WaiverDelivery — returned directly
+    here so the client can continue straight into the existing public signing
+    page in the same browser session. Only ever populated on the response
+    to the registration call that issued it; never persisted or re-served.
+    """
+
+    required: bool
+    token: Optional[str] = None
+    signing_path: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
+class PublicRegistrationOut(BaseModel):
+    participant: ParticipantOut
+    waiver: PublicRegistrationWaiverOut

@@ -12,6 +12,11 @@ const EMPTY_FORM = { firstName: "", lastName: "", email: "", isMinor: false }
 // (POST /api/public/events/{slug}/register via api/portal.js). The static
 // page still exists and still works — see KNOWN_TECHNICAL_DEBT.md /
 // FEATURE_INVENTORY.md for the plan to retire it once this is validated.
+//
+// When an active waiver template exists, that endpoint now also issues a
+// waiver signing token as part of registration (api/services/
+// public_onboarding.py) — handleSubmit redirects straight into the existing
+// public waiver-signing.html page when that happens.
 function PortalRegister() {
   const [searchParams] = useSearchParams()
 
@@ -124,8 +129,30 @@ function PortalRegister() {
         is_minor: form.isMinor,
       })
 
+      const isWaitlisted = Boolean(result?.participant?.is_waitlisted)
+      const waiver = result?.waiver
+
+      setForm(EMPTY_FORM)
+
+      // A waiver template is active, so the backend already issued a signing
+      // token for this participant (api/services/public_onboarding.py) —
+      // continue straight into the existing public waiver signing page
+      // (admin-app/public/waiver-signing.html, unchanged) rather than
+      // stopping at a confirmation message.
+      if (waiver?.required && waiver?.token) {
+        setSubmitStatus({
+          message: isWaitlisted
+            ? "Registration submitted successfully. This event is at capacity, so you've been added to the waitlist. Redirecting you to sign the waiver..."
+            : "Registration submitted successfully. Redirecting you to sign the waiver...",
+          tone: "ok",
+        })
+        window.location.href = `${import.meta.env.BASE_URL}waiver-signing.html?token=${encodeURIComponent(waiver.token)}`
+        return
+      }
+
+      // No active waiver template — preserve the prior confirmation-only behavior.
       setSubmitStatus(
-        result?.is_waitlisted
+        isWaitlisted
           ? {
               message:
                 "Registration submitted successfully. This event is at capacity, so you've been added to the waitlist — we'll reach out if a spot opens up.",
@@ -136,7 +163,6 @@ function PortalRegister() {
               tone: "ok",
             },
       )
-      setForm(EMPTY_FORM)
     } catch (err) {
       setSubmitStatus({ message: err?.message || "Registration failed.", tone: "err" })
     } finally {

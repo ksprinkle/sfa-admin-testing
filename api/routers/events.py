@@ -15,11 +15,12 @@ from datetime import date
 from typing import Optional
 from api.schemas.events import EventUpdate
 from api.crud.events import update_event
-from api.schemas.participants import ParticipantCreate, ParticipantOut, VolunteerSignup, PublicEventRegister
+from api.schemas.participants import ParticipantCreate, ParticipantOut, VolunteerSignup, PublicEventRegister, PublicRegistrationOut
 from api.crud.participants import create_participant
 from api.crud.participants import get_confirmed_participant_count
 from api.crud.participants import get_participants_for_event
 from api.services.public_registration import register_public_participant
+from api.services.public_onboarding import complete_public_registration
 from api.schemas.events import EventOut, EventListOut
 from api.models.users import User
 from api.dependencies import get_current_user, get_current_user_optional, require_admin
@@ -255,19 +256,30 @@ def signup_volunteer(
 
 
 # PUBLIC participant self-registration — canonical path (see api/services/public_registration.py).
-@public_router.post("/{slug}/register", response_model=ParticipantOut, status_code=201)
+# Also continues straight into waiver issuance when a waiver is required (see
+# api/services/public_onboarding.py) — the legacy /events/{slug}/participants
+# endpoint above intentionally does not, preserving its response shape.
+@public_router.post("/{slug}/register", response_model=PublicRegistrationOut, status_code=201)
 def public_register_event_participant(
     slug: str,
     participant_in: PublicEventRegister,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    participant = register_public_participant(db, slug, participant_in, current_user=current_user)
+    result = complete_public_registration(db, slug, participant_in, current_user=current_user)
 
     db.commit()
-    db.refresh(participant)
+    db.refresh(result.participant)
 
-    return participant
+    return {
+        "participant": result.participant,
+        "waiver": {
+            "required": result.waiver_required,
+            "token": result.waiver_signing_token,
+            "signing_path": result.waiver_signing_path,
+            "expires_at": result.waiver_expires_at,
+        },
+    }
 
 
 def build_event_out(event: Event) -> EventOut:
