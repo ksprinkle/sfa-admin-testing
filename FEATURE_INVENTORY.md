@@ -10,12 +10,12 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 
 ## 1. Authentication & Authorization
 
-**Feature Status:** Shipped. Two roles wired (`participant`, `admin`), each with its own least-privilege permission set — `admin` holds the operational `*.manage`/`admin.access` permissions, `participant` holds `participants.view_own` and `waivers.view_own` (Participant Portal identity foundation, added 2026-07-18; no portal UI yet — see §13). See `ARCHITECTURE_OVERVIEW.md`'s Auth & Authorization section for the underlying mechanism.
+**Feature Status:** Shipped. Two roles wired (`participant`, `admin`), each with its own least-privilege permission set — `admin` holds the operational `*.manage`/`admin.access` permissions, `participant` holds `participants.view_own` and `waivers.view_own` (Participant Portal identity foundation, added 2026-07-18; portal UI, including participant login, shipped in the slices that followed — see §14). See `ARCHITECTURE_OVERVIEW.md`'s Auth & Authorization section for the underlying mechanism. `POST /auth/register` (account creation) was hardened 2026-07-19 — validated JSON body (`UserCreate`, reused as-is, previously unused), case-insensitive duplicate detection via the new shared `api/utils/email_normalization.py` helper, a minimum password length, and per-IP rate limiting (`api/services/rate_limiting.py`) — but still has no calling UI in either app; that's tracked separately in `KNOWN_TECHNICAL_DEBT.md` as the next Hybrid Participant Account Model roadmap slice.
 
 | Layer | Location |
 |---|---|
 | Backend router | `api/routers/auth.py` |
-| Backend service/support | `api/dependencies.py`, `api/security.py`, `api/services/authorization.py` |
+| Backend service/support | `api/dependencies.py`, `api/security.py`, `api/services/authorization.py`, `api/services/rate_limiting.py`, `api/utils/email_normalization.py` |
 | Data model | `User` |
 | Frontend | `admin-app/src/pages/Login.jsx`, `admin-app/src/api/auth.js` |
 

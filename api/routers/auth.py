@@ -8,25 +8,32 @@ from api.dependencies import get_current_user
 from api.models.users import User
 from api.security import hash_password, verify_password, create_access_token
 from fastapi.security import OAuth2PasswordRequestForm
-from api.schemas.users import UserResponse, UserRoleByEmailUpdateRequest
+from api.schemas.users import UserCreate, UserResponse, UserRoleByEmailUpdateRequest
 from api.dependencies import require_admin
 from api.config import settings
 from api.services.admin_audit import record_admin_audit_event
 from api.services.authorization import ROLE_PARTICIPANT, is_supported_role
+from api.services.rate_limiting import enforce_rate_limit
+from api.utils.email_normalization import normalize_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-#TODO: Add email validation, password strength checks, and rate limiting for login attempts.
+#TODO: Add rate limiting for login attempts (registration is now rate limited below).
 @router.post("/register")
-def register(email: str, password: str, db: Session = Depends(get_db)):
+def register(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(enforce_rate_limit("auth_register", max_requests=5, window_seconds=900)),
+):
+    normalized_email = normalize_email(payload.email)
 
-    existing = db.query(User).filter(User.email == email).first()
+    existing = db.query(User).filter(func.lower(User.email) == normalized_email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user = User(
-        email=email,
-        hashed_password=hash_password(password),
+        email=normalized_email,
+        hashed_password=hash_password(payload.password),
         role=ROLE_PARTICIPANT
     )
 
