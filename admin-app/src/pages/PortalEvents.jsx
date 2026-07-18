@@ -2,25 +2,10 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import Card from "../components/Card"
 import { fetchPublicEvents } from "../api/portal"
-
-function formatDateRange(startDate, endDate) {
-  if (!startDate) return "Date to be announced"
-
-  const options = { month: "short", day: "numeric", year: "numeric" }
-  const startLabel = new Date(`${startDate}T00:00:00`).toLocaleDateString(undefined, options)
-  if (!endDate || endDate === startDate) return startLabel
-
-  const endLabel = new Date(`${endDate}T00:00:00`).toLocaleDateString(undefined, options)
-  return `${startLabel} – ${endLabel}`
-}
-
-function formatLocation(location) {
-  if (!location) return "Location to be announced"
-  return [location.venue, location.city, location.state].filter(Boolean).join(", ") || "Location to be announced"
-}
+import { formatEventDateRange, formatEventLocation } from "../utils/portalFormat"
 
 // Display only — consumes the existing public GET /api/events endpoint.
-// No registration action is wired here; that's the next slice.
+// Registration itself lives on PortalRegister (?slug= deep link below).
 function PortalEvents() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -67,8 +52,8 @@ function PortalEvents() {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="text-base font-semibold text-slate-800">{event.title}</h2>
-                <p className="text-sm text-slate-500">{formatDateRange(event.start_date, event.end_date)}</p>
-                <p className="text-sm text-slate-500">{formatLocation(event.location)}</p>
+                <p className="text-sm text-slate-500">{formatEventDateRange(event.start_date, event.end_date)}</p>
+                <p className="text-sm text-slate-500">{formatEventLocation(event.location)}</p>
               </div>
               <span
                 className={[
@@ -82,7 +67,10 @@ function PortalEvents() {
               </span>
             </div>
             <div className="mt-3">
-              <Link to="/portal/register" className="text-sm font-medium text-ocean hover:underline">
+              <Link
+                to={`/portal/register?slug=${encodeURIComponent(event.slug)}`}
+                className="text-sm font-medium text-ocean hover:underline"
+              >
                 Register for this event →
               </Link>
             </div>
