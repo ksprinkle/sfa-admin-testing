@@ -1,6 +1,3 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
 param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
@@ -13,6 +10,9 @@ param(
 
     [switch]$Push
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
 function Write-Step {
     param([string]$Message)
