@@ -80,6 +80,34 @@ Because preflight does not run the test suite, run `python -m unittest discover 
 
 Full deployment topology and rationale → [`ARCHITECTURE_OVERVIEW.md`](ARCHITECTURE_OVERVIEW.md).
 
+## Release Verification
+
+Run after every production deploy — a couple of minutes, and it's the step that would have caught the 2026-07-19 migration-drift incident immediately instead of several slices later (see `KNOWN_TECHNICAL_DEBT.md`'s postmortem). Use the existing published **"Fake Event Test"** event for the registration check, never a real chapter event, and keep one standing verification account rather than registering a fresh one each time (registering repeatedly trips `/auth/register`'s own rate limiter, 5 requests/15 min).
+
+- [ ] **Deploy completed successfully** — Render dashboard, `sfa-api` service: latest deploy shows the build, `preDeployCommand`, and start steps all green.
+- [ ] **Alembic is actually at head** — Render Shell: `alembic current` matches `alembic heads` exactly, no divergence. **This is the one check that would have caught the incident** — every check below can pass while this is silently wrong, because `Base.metadata.create_all()` (still running on every boot) papers over missing tables even when columns on pre-existing tables are missing.
+- [ ] **Anonymous registration works** — `POST /api/public/events/fake-event-test/register` returns `201`, not `500`.
+- [ ] **Participant login works** — `POST /api/auth/login` with the standing verification account returns `200` and a token.
+- [ ] **My Registrations returns 200** — `GET /api/participants/mine` with that token returns `200` (empty list is fine).
+- [ ] **Admin dashboard loads** — sign in to the deployed admin app, confirm `/` renders with no browser console errors.
+- [ ] **Participant list loads** — the Participants page (or `GET /api/admin/participants/...`) renders for an event that has data.
+- [ ] **Waiver workflow verified** — `GET /api/waivers/sign/{token}` for a valid signing token returns `status: "ready"` with the waiver text populated (or complete a real test sign for full confidence).
+
+Quick copy/paste for the API-only checks (replace `$API`, `$EMAIL`, `$PASSWORD` with the deployed API base URL and the standing verification account):
+
+```bash
+API="https://sfa-admin-testing.onrender.com"
+
+curl -s -o /dev/null -w "anonymous register -> %{http_code}\n" -H "Content-Type: application/json" \
+  -d '{"first_name":"Release","last_name":"Check","email":"release-check-'"$(date +%s)"'@example.com"}' \
+  "$API/api/public/events/fake-event-test/register"
+
+TOKEN=$(curl -s -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=$EMAIL&password=$PASSWORD" "$API/api/auth/login" | python -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+
+curl -s -o /dev/null -w "My Registrations -> %{http_code}\n" -H "Authorization: Bearer $TOKEN" "$API/api/participants/mine"
+```
+
 ## Utility Scripts
 
 - `scripts/seed-feedback-scenarios.py` — seeds sample feedback records for demo/QA purposes.
