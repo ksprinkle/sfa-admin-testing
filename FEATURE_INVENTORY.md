@@ -149,6 +149,15 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 | Data model | `Participant.user_id` → `User.id` (migration `a5f2c8e1b9d3`) |
 | Frontend | None by design — see Feature Status |
 
+## 14. Participant Portal (Public React Shell)
+
+**Feature Status:** Structure only, shipped 2026-07-18. A public, unauthenticated route group (`/portal`, `/portal/events`, `/portal/register`, `/portal/login`) with its own layout, branding, and navigation, separate from the admin SPA shell — no registration form, no participant login, no waiver automation, and no "my registrations" view exist yet; those are deferred to later slices. `App()` (`admin-app/src/App.jsx`) checks `location.pathname` for the `/portal` prefix and, if matched, renders an entirely separate `<Routes>` tree wrapped in `PortalLayout` instead of the admin tree wrapped in `AppLayout` — the two trees never interact, so this is reachable with no token and cannot affect (or be affected by) the existing `if (!token) redirect to /login` admin gating. `PortalEvents` consumes the existing public `GET /api/events` endpoint (§2) for display only, via a small dedicated fetch helper (`api/portal.js`) rather than the admin API client — see `ARCHITECTURE_OVERVIEW.md`'s Frontend Architecture section for why. `PortalRegister` and `PortalLogin` are explicit placeholders explaining what's coming; `PortalRegister` links out to the existing static `admin-app/public/participant-registration.html` (unchanged, still the only working registration path) rather than leaving visitors stuck.
+
+| Layer | Location |
+|---|---|
+| Backend router | None — reuses existing public endpoints (§2) read-only |
+| Frontend | `admin-app/src/components/PortalLayout.jsx`; `admin-app/src/pages/PortalHome.jsx`, `PortalEvents.jsx`, `PortalRegister.jsx`, `PortalLogin.jsx`; `admin-app/src/api/portal.js`; routing in `admin-app/src/App.jsx` |
+
 ## Reporting
 
 Reporting is delivered inline within the feature areas that own the underlying data, rather than as a separate subsystem: participant removal history (CSV export, §3), waiver delivery history and metrics (CSV export and metrics endpoints, §7), and executive/operational metrics (§9). There is no standalone reporting module.

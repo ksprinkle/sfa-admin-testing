@@ -23,6 +23,11 @@ import Communications from "./pages/Communications"
 import AuditLog from "./pages/AuditLog"
 import PermissionsManagement from "./pages/PermissionsManagement"
 import AutomationManagement from "./pages/AutomationManagement"
+import PortalLayout from "./components/PortalLayout"
+import PortalHome from "./pages/PortalHome"
+import PortalEvents from "./pages/PortalEvents"
+import PortalRegister from "./pages/PortalRegister"
+import PortalLogin from "./pages/PortalLogin"
 import {
   clearAuthSession,
   fetchMyProfile,
@@ -1212,6 +1217,25 @@ function App() {
     } catch (error) {
       window.alert(error?.message || "Unable to execute command")
     }
+  }
+
+  // Public participant/family portal — a self-contained route tree with its
+  // own layout (PortalLayout, not AppLayout), reachable with no auth token
+  // and independent of the admin token/session state above. Checked before
+  // the admin Routes tree below so it never interacts with the `!token`
+  // redirect-to-/login catch-all or any admin-only route.
+  if (location.pathname === "/portal" || location.pathname.startsWith("/portal/")) {
+    return (
+      <Routes>
+        <Route path="/portal" element={<PortalLayout />}>
+          <Route index element={<PortalHome />} />
+          <Route path="events" element={<PortalEvents />} />
+          <Route path="register" element={<PortalRegister />} />
+          <Route path="login" element={<PortalLogin />} />
+          <Route path="*" element={<Navigate to="/portal" replace />} />
+        </Route>
+      </Routes>
+    )
   }
 
   return (
