@@ -20,9 +20,20 @@ PERMISSION_VOLUNTEERS_MANAGE = "volunteers.manage"
 PERMISSION_COMMUNICATIONS_MANAGE = "communications.manage"
 PERMISSION_EVENT_OPERATIONS_MANAGE = "event_operations.manage"
 
+# Participant-portal self-service permissions: scoped to the caller's own
+# records only. Row-level ownership (participant.user_id == current_user.id)
+# is enforced separately, in the service layer — these strings only gate
+# whether the participant role can reach the self-service endpoints at all,
+# the same way the *.manage permissions gate admin endpoints.
+PERMISSION_PARTICIPANTS_VIEW_OWN = "participants.view_own"
+PERMISSION_WAIVERS_VIEW_OWN = "waivers.view_own"
+
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
-    ROLE_PARTICIPANT: set(),
+    ROLE_PARTICIPANT: {
+        PERMISSION_PARTICIPANTS_VIEW_OWN,
+        PERMISSION_WAIVERS_VIEW_OWN,
+    },
     ROLE_ADMIN: {
         PERMISSION_ADMIN_ACCESS,
         PERMISSION_EVENTS_MANAGE,

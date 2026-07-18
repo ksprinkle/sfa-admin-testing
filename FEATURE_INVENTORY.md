@@ -10,7 +10,7 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 
 ## 1. Authentication & Authorization
 
-**Feature Status:** Shipped. Two roles wired (`participant`, `admin`); additional permission constants exist in the authorization map but are not yet assigned to any role beyond `admin`. See `ARCHITECTURE_OVERVIEW.md`'s Auth & Authorization section for the underlying mechanism.
+**Feature Status:** Shipped. Two roles wired (`participant`, `admin`), each with its own least-privilege permission set — `admin` holds the operational `*.manage`/`admin.access` permissions, `participant` holds `participants.view_own` and `waivers.view_own` (Participant Portal identity foundation, added 2026-07-18; no portal UI yet — see §13). See `ARCHITECTURE_OVERVIEW.md`'s Auth & Authorization section for the underlying mechanism.
 
 | Layer | Location |
 |---|---|
@@ -137,6 +137,17 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 | Backend service | `api/services/event_operations_timeline.py` |
 | Data model | Derived from `Participant`, `ParticipantWaiver`, and `AdminAuditEvent` — no new tables |
 | Frontend | `admin-app/src/components/OperationsTimeline.jsx`, mounted on `admin-app/src/pages/EventDetail.jsx` |
+
+## 13. Participant Identity (Portal Foundation)
+
+**Feature Status:** Foundation only, shipped 2026-07-18. Establishes the identity/authorization groundwork for a future Participant Registration Portal — no portal UI, no "my registrations" listing, no automated waiver issuance, and no family/guardian accounts exist yet; those are deferred to later slices. `Participant.user_id` (nullable) links a per-event roster row to the participant-role `User` account that self-registered it. The two public registration endpoints (§2) set it automatically — via `api/services/public_registration.py::register_public_participant()` — only when the caller is authenticated as `participant`; anonymous calls and calls made with any other role's token leave it null. A single ownership-scoped read endpoint (`GET /api/participants/{participant_id}`, gated by the new `participants.view_own` permission) proves the scoping model end-to-end: it 404s (not 403, to avoid leaking whether a given id exists) for records the caller doesn't own, including unclaimed (`user_id IS NULL`) rows, and 403s for roles that lack the permission entirely (e.g. `admin`, which uses its own dedicated admin participant endpoints instead).
+
+| Layer | Location |
+|---|---|
+| Backend router | `api/routers/participant_self.py` |
+| Backend service | `api/services/participant_identity.py`; `api/services/public_registration.py` (registration-time linkage); `api/services/authorization.py` (`participants.view_own`, `waivers.view_own` — the latter defined and granted but not yet consumed by any endpoint) |
+| Data model | `Participant.user_id` → `User.id` (migration `a5f2c8e1b9d3`) |
+| Frontend | None by design — see Feature Status |
 
 ## Reporting
 

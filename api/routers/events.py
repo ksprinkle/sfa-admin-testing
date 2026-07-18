@@ -21,7 +21,8 @@ from api.crud.participants import get_confirmed_participant_count
 from api.crud.participants import get_participants_for_event
 from api.services.public_registration import register_public_participant
 from api.schemas.events import EventOut, EventListOut
-from api.dependencies import get_current_user, require_admin
+from api.models.users import User
+from api.dependencies import get_current_user, get_current_user_optional, require_admin
 from api.utils.event_counts import (
     surfer_count,
     waitlist_count,
@@ -175,8 +176,9 @@ def signup_participant(
     slug: str,
     participant_in: ParticipantCreate,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    participant = register_public_participant(db, slug, participant_in)
+    participant = register_public_participant(db, slug, participant_in, current_user=current_user)
 
     db.commit()
     db.refresh(participant)
@@ -258,8 +260,9 @@ def public_register_event_participant(
     slug: str,
     participant_in: PublicEventRegister,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    participant = register_public_participant(db, slug, participant_in)
+    participant = register_public_participant(db, slug, participant_in, current_user=current_user)
 
     db.commit()
     db.refresh(participant)

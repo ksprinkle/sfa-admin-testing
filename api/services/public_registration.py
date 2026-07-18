@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from api.crud.events import get_event_by_slug
 from api.crud.participants import create_participant, get_confirmed_participant_count
 from api.models.participants import Participant
+from api.models.users import User
 from api.schemas.participants import ParticipantCreate, PublicEventRegister
+from api.services.authorization import ROLE_PARTICIPANT, normalize_role
 
 # Canonical public participant self-registration flow. Both public registration
 # routes in api/routers/events.py (POST /events/{slug}/participants and
@@ -16,6 +18,8 @@ def register_public_participant(
     db: Session,
     slug: str,
     participant_in: ParticipantCreate | PublicEventRegister,
+    *,
+    current_user: User | None = None,
 ) -> Participant:
     event = get_event_by_slug(db, slug, is_admin=False)
     if not event:
@@ -31,4 +35,13 @@ def register_public_participant(
         and confirmed_count >= event.participant_capacity
     )
 
-    return create_participant(db, event, participant_in, is_waitlisted=is_waitlisted)
+    participant = create_participant(db, event, participant_in, is_waitlisted=is_waitlisted)
+
+    # Link the new record to the caller's own account only when they're
+    # authenticated as a participant-role user. An admin (or any other role)
+    # token happening to be presented against this public endpoint should
+    # not claim ownership of the resulting row.
+    if current_user is not None and normalize_role(current_user.role) == ROLE_PARTICIPANT:
+        participant.user_id = current_user.id
+
+    return participant

@@ -14,8 +14,16 @@ class Participant(Base):
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
     session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=True)
 
+    # Links this per-event roster row to the authenticated participant-role
+    # account that self-registered it, if any (admin-created rows and
+    # anonymous public registrations leave this null). User.id is String
+    # (see api/models/users.py), matching the FK type used elsewhere for
+    # user references, e.g. ParticipantWaiver.verified_by_user_id.
+    user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
+
     session = relationship("Session")
-    
+    user = relationship("User")
+
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     email = Column(String, nullable=False)
