@@ -75,7 +75,7 @@ Because preflight does not run the test suite, run `python -m unittest discover 
 
 ## Deployment
 
-- **Backend** deploys to Render.com from `render.yaml` (the `sfa-api` web service and `sfa-db` PostgreSQL database).
+- **Backend** deploys to Render.com from `render.yaml` (the `sfa-api` web service and `sfa-db` PostgreSQL database). As of 2026-07-19, `render.yaml`'s `preDeployCommand` runs `alembic upgrade head` before each new release takes traffic — before that, no migration step existed anywhere in the deploy process (see `KNOWN_TECHNICAL_DEBT.md`).
 - **Frontend** is built with `npm run build` inside `admin-app`, which writes output to the repo-root `docs/` folder; publishing requires committing and pushing that output, which GitHub Pages then serves from `master`. This is a manual step — `npm run deploy` performs the build but does not commit or push.
 
 Full deployment topology and rationale → [`ARCHITECTURE_OVERVIEW.md`](ARCHITECTURE_OVERVIEW.md).
