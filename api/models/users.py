@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from api.db.base import Base
 
@@ -11,3 +11,4 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="participant")
     is_active = Column(Boolean, default=True)
+    email_verified_at = Column(DateTime, nullable=True)
