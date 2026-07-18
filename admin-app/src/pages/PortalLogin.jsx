@@ -1,14 +1,13 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import Card from "../components/Card"
 import Button from "../components/Button"
 import { loginParticipant } from "../api/portalAuth"
 
 // Reuses the existing /api/auth/login endpoint as-is (see api/portalAuth.js)
 // — no new backend auth logic. Deliberately narrow: sign in only, no
-// password reset, MFA, or account creation. Account creation itself
-// (POST /api/auth/register) already exists on the backend but nothing in
-// either app calls it yet — see KNOWN_TECHNICAL_DEBT.md.
+// password reset or MFA. Account creation now lives at
+// PortalCreateAccount.jsx (/portal/create-account).
 function PortalLogin() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -76,6 +75,14 @@ function PortalLogin() {
 
           {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
         </form>
+
+        <p className="mt-3 text-sm text-slate-600">
+          Don&apos;t have an account?{" "}
+          <Link to="/portal/create-account" className="font-medium text-ocean hover:underline">
+            Create one
+          </Link>
+          .
+        </p>
       </Card>
     </div>
   )

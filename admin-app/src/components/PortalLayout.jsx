@@ -82,9 +82,14 @@ function PortalLayout() {
                 </button>
               </>
             ) : (
-              <NavLink to="/portal/login" end className={navLinkClass}>
-                Login
-              </NavLink>
+              <>
+                <NavLink to="/portal/create-account" end className={navLinkClass}>
+                  Create Account
+                </NavLink>
+                <NavLink to="/portal/login" end className={navLinkClass}>
+                  Login
+                </NavLink>
+              </>
             )}
           </nav>
         </div>

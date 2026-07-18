@@ -99,3 +99,54 @@ async function fetchPortalProfile(token) {
   if (!res.ok) return null
   return res.json()
 }
+
+function messageFromErrorBody(errorBody, fallback) {
+  const detail = errorBody?.detail
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => String(item?.msg || "Invalid input.").replace(/^Value error,\s*/i, ""))
+      .join(" ")
+  }
+
+  if (typeof detail === "string" && detail) {
+    return detail
+  }
+
+  return fallback
+}
+
+// Reuses the hardened POST /api/auth/register endpoint exactly as-is (see
+// Slice A — validated body, case-insensitive dedupe, password minimum
+// length, rate limiting all enforced server-side; nothing duplicated here).
+// No email verification and no registration-claiming happen here or
+// anywhere yet — this only creates the account.
+export async function createParticipantAccount(email, password) {
+  const res = await fetch(joinApiUrl("/api/auth/register"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  })
+
+  if (!res.ok) {
+    let message = "Account creation failed."
+    try {
+      const errorBody = await res.json()
+      message = messageFromErrorBody(errorBody, message)
+    } catch {
+      // Keep the default message when the response body isn't JSON.
+    }
+    throw new Error(message)
+  }
+
+  return res.json()
+}
+
+// Chains account creation with an immediate sign-in via the existing,
+// unmodified loginParticipant() above, rather than duplicating its
+// token/profile/session-save logic — "automatic login after account
+// creation" is reuse, not new session handling.
+export async function registerAndSignIn(email, password) {
+  await createParticipantAccount(email, password)
+  return loginParticipant(email, password)
+}
