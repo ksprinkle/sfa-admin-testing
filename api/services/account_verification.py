@@ -7,6 +7,7 @@ import secrets
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from api.config import settings
 from api.models.user_action_tokens import UserActionToken
 from api.models.users import User
 from api.services.email_delivery import EmailRequest, get_email_provider
@@ -14,14 +15,24 @@ from api.services.participant_claiming import ClaimResult, claim_participants_fo
 
 VERIFICATION_EXPIRES_IN_MINUTES = 24 * 60
 
+# The frontend's GitHub Pages base path (vite.config.js's `base`) is a fixed,
+# already-hardcoded deployment constant, not something the backend derives —
+# matching CANONICAL_SIGNING_ORIGIN's precedent for the (separate) waiver
+# signing links.
+PORTAL_VERIFY_EMAIL_PATH = "/sfa-admin-testing/portal/verify-email"
+
 EMAIL_SUBJECT = "Verify your Surfers For Autism account email"
 EMAIL_TEXT_TEMPLATE = (
     "Hello,\n\n"
-    "Please verify your email address using the verification token below:\n\n"
-    "{token}\n\n"
-    "This token expires at {expires_at} (UTC).\n\n"
+    "Please verify your email address using the link below:\n\n"
+    "{verification_url}\n\n"
+    "This link expires at {expires_at} (UTC).\n\n"
     "If you did not create this account, you can ignore this email.\n"
 )
+
+
+def _build_verification_url(raw_token: str) -> str:
+    return f"{settings.PUBLIC_WEB_ORIGIN}{PORTAL_VERIFY_EMAIL_PATH}?token={raw_token}"
 
 
 def _utcnow() -> datetime:
@@ -63,7 +74,10 @@ def _send_verification_email(user: User, *, raw_token: str, expires_at: datetime
     request = EmailRequest(
         to=[user.email],
         subject=EMAIL_SUBJECT,
-        text=EMAIL_TEXT_TEMPLATE.format(token=raw_token, expires_at=expires_at.isoformat()),
+        text=EMAIL_TEXT_TEMPLATE.format(
+            verification_url=_build_verification_url(raw_token),
+            expires_at=expires_at.isoformat(),
+        ),
     )
     get_email_provider().send(request)
 

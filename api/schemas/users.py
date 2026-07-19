@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, field_validator
 
 MIN_PASSWORD_LENGTH = 8
@@ -18,6 +20,7 @@ class UserResponse(BaseModel):
     id: str
     email: str
     role: str
+    email_verified_at: datetime | None = None
 
     class Config:
         from_attributes = True

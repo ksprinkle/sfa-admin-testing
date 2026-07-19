@@ -138,11 +138,13 @@ class Settings:
         "http://127.0.0.1:5173",
     ]
 
+    # Also used to build links back to the frontend (e.g. the email verification
+    # link) that need to reach it directly, not just as an allowed CORS origin.
+    PUBLIC_WEB_ORIGIN = _normalize_origin(os.getenv("PUBLIC_WEB_ORIGIN", "https://ksprinkle.github.io"))
+
     # Production fallback so GitHub Pages frontend can call Render API even when
     # CORS_ORIGINS is not explicitly configured yet.
-    DEFAULT_PROD_CORS_ORIGINS = [
-        _normalize_origin(os.getenv("PUBLIC_WEB_ORIGIN", "https://ksprinkle.github.io"))
-    ]
+    DEFAULT_PROD_CORS_ORIGINS = [PUBLIC_WEB_ORIGIN]
 
     # Email provider selection stays in configuration, not business logic.
     EMAIL_PROVIDER_KEY = os.getenv("EMAIL_PROVIDER_KEY", "email.noop")
