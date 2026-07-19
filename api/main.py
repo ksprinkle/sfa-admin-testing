@@ -35,7 +35,6 @@ import api.models.event_operations
 import api.models.notification_read_state
 import api.services.email_delivery
 import api.models.users
-import api.models.user_action_tokens
 import api.models.sessions
 import api.models.event_activity_log
 import api.models.feedback

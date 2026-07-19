@@ -8,16 +8,9 @@ from api.dependencies import get_current_user
 from api.models.users import User
 from api.security import hash_password, verify_password, create_access_token
 from fastapi.security import OAuth2PasswordRequestForm
-from api.schemas.users import (
-    UserCreate,
-    UserResponse,
-    UserRoleByEmailUpdateRequest,
-    VerifyEmailConfirmRequest,
-    VerifyEmailResendRequest,
-)
+from api.schemas.users import UserCreate, UserResponse, UserRoleByEmailUpdateRequest
 from api.dependencies import require_admin
 from api.config import settings
-from api.services.account_verification import create_verification_token, verify_email_token
 from api.services.admin_audit import record_admin_audit_event
 from api.services.authorization import ROLE_PARTICIPANT, is_supported_role
 from api.services.rate_limiting import enforce_rate_limit
@@ -48,50 +41,7 @@ def register(
     db.commit()
     db.refresh(user)
 
-    try:
-        create_verification_token(db, user=user)
-        db.commit()
-    except Exception:
-        db.rollback()
-
     return {"message": "User created successfully"}
-
-
-@router.post("/verify-email/resend")
-def resend_verification_email(
-    payload: VerifyEmailResendRequest,
-    db: Session = Depends(get_db),
-    _rate_limit: None = Depends(enforce_rate_limit("auth_verify_email_resend", max_requests=5, window_seconds=900)),
-):
-    normalized_email = normalize_email(payload.email)
-    user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
-
-    if user and user.email_verified_at is None:
-        create_verification_token(db, user=user)
-        db.commit()
-
-    return {"message": "If that email exists and is not yet verified, a verification email has been sent"}
-
-
-@router.post("/verify-email/confirm")
-def confirm_verification_email(
-    payload: VerifyEmailConfirmRequest,
-    db: Session = Depends(get_db),
-):
-    result = verify_email_token(db, raw_token=payload.token)
-
-    if result == "verified":
-        db.commit()
-        return {"message": "Email verified successfully"}
-
-    if result == "expired":
-        db.commit()
-        raise HTTPException(status_code=400, detail="Verification token has expired")
-
-    if result == "already_used":
-        raise HTTPException(status_code=400, detail="Verification token has already been used")
-
-    raise HTTPException(status_code=400, detail="Invalid verification token")
 
 #TODO: Implement refresh tokens and token revocation for better security.
 @router.post("/login")
