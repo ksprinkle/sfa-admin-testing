@@ -26,3 +26,11 @@ class UserResponse(BaseModel):
 class UserRoleByEmailUpdateRequest(BaseModel):
     email: EmailStr
     new_role: str
+
+
+class VerifyEmailResendRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyEmailConfirmRequest(BaseModel):
+    token: str
