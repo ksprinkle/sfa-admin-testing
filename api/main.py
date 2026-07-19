@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -44,6 +46,37 @@ import api.models.telemetry_records
 # Create tables
 Base.metadata.create_all(bind=engine)
 print("✅ Tables created at startup")
+
+
+def _log_schema_status() -> None:
+    # Diagnostic only, printed to Application logs on every boot — this is what would
+    # have caught the 2026-07-19 preDeployCommand gap (KNOWN_TECHNICAL_DEBT.md)
+    # immediately instead of only surfacing once an authenticated request broke.
+    # Never allowed to affect startup: any failure here is swallowed and logged.
+    try:
+        from alembic.config import Config as AlembicConfig
+        from alembic.runtime.migration import MigrationContext
+        from alembic.script import ScriptDirectory
+
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        alembic_cfg = AlembicConfig(os.path.join(repo_root, "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", os.path.join(repo_root, "alembic"))
+        expected_head = ScriptDirectory.from_config(alembic_cfg).get_current_head()
+
+        with engine.connect() as connection:
+            db_revision = MigrationContext.configure(connection).get_current_revision()
+
+        status = "MATCH" if db_revision == expected_head else "OUT OF DATE"
+        print(f"   Database schema revision: {db_revision}")
+        print(f"   Application migration head: {expected_head}")
+        print(f"   Schema status: {status}")
+        if status != "MATCH":
+            print("   ⚠️  Schema does not match the application's migration head — run 'alembic upgrade head'.")
+    except Exception as exc:
+        print(f"   (schema status check failed: {exc})")
+
+
+_log_schema_status()
 
 # Routers
 from api.routers.events import router as events_router
