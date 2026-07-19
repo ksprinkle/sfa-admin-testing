@@ -149,6 +149,11 @@ class Settings:
     # Email provider selection stays in configuration, not business logic.
     EMAIL_PROVIDER_KEY = os.getenv("EMAIL_PROVIDER_KEY", "email.noop")
     EMAIL_DEFAULT_SENDER = os.getenv("EMAIL_DEFAULT_SENDER", "no-reply@example.com")
+    # Display name only, used to build a "Name <address>" From header
+    # (api/services/email_delivery.py::_build_email_message) - never validated
+    # as an email address itself, so it can't affect EMAIL_DEFAULT_SENDER's
+    # own validation. Empty means no display name, just the bare address.
+    EMAIL_SENDER_DISPLAY_NAME = os.getenv("EMAIL_SENDER_DISPLAY_NAME", "").strip()
     SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
     SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()

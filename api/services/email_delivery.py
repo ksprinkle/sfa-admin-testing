@@ -7,7 +7,7 @@ import socket
 import ssl
 from dataclasses import asdict, dataclass, field
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from email.utils import formataddr, formatdate, make_msgid
 from hashlib import sha256
 from enum import StrEnum
 from typing import Any, Iterable, Protocol
@@ -207,7 +207,15 @@ def _attachment_filename(attachment: Attachment) -> str:
 
 def _build_email_message(request: EmailRequest) -> EmailMessage:
     message = EmailMessage()
-    message["From"] = request.sender
+    # Display name (if configured) only ever affects this header, never the
+    # envelope sender used for SMTP MAIL FROM (SMTPEmailProvider.send() uses
+    # request.sender directly, unchanged) - request.sender itself stays a
+    # plain, validated address throughout.
+    message["From"] = (
+        formataddr((settings.EMAIL_SENDER_DISPLAY_NAME, request.sender))
+        if settings.EMAIL_SENDER_DISPLAY_NAME
+        else request.sender
+    )
     message["To"] = ", ".join(request.to)
     if request.cc:
         message["Cc"] = ", ".join(request.cc)
