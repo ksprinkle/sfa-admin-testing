@@ -1487,7 +1487,7 @@ useEffect(() => {
   )
 }
 
-function StatCard({ label, value, color, onClick, title, cardClass = "", labelColor = "text-secondary" }) {
+export function StatCard({ label, value, color, onClick, title, cardClass = "", labelColor = "text-secondary" }) {
   const clickable = typeof onClick === "function"
 
   return (

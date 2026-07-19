@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { fetchDashboardDiagnosticsReport, fetchDashboardMetrics, fetchEvents, fetchExecutiveDashboard, fetchVolunteerDashboard } from "../api/events"
 import { getStoredToken } from "../api/auth"
+import { StatCard } from "./Dashboard"
 
 const EXECUTIVE_DASHBOARD_REFRESH_INTERVAL_STORAGE_KEY = "sfa.executiveDashboardRefreshIntervalMs"
 const EXECUTIVE_DASHBOARD_REFRESH_OPTIONS = [
