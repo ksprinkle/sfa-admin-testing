@@ -450,7 +450,13 @@ def build_email_notification_request(
 
 
 class EmailNoopProvider:
-    key = EMAIL_PROVIDER_KEY
+    # A fixed literal, matching SMTPEmailProvider.key's pattern - not the
+    # dynamic EMAIL_PROVIDER_KEY module constant (that's the *selected*
+    # provider key, derived from settings at import time; binding it here
+    # meant EmailNoopProvider.key silently became "email.smtp" whenever
+    # EMAIL_PROVIDER_KEY=email.smtp was set, colliding with
+    # SMTPEmailProvider.key in the _PROVIDERS registry below).
+    key = "email.noop"
 
     def send(self, request: EmailRequest) -> DeliveryResult:
         try:

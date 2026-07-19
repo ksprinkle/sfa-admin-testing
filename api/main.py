@@ -78,6 +78,23 @@ def _log_schema_status() -> None:
 
 _log_schema_status()
 
+
+def _log_email_provider_status() -> None:
+    # Diagnostic only, printed on every boot. Never logs credentials — only
+    # the resolved provider key, whether SMTP looks configured, and the
+    # sender address, none of which are secret.
+    try:
+        from api.config import settings as _settings
+
+        print(f"   Email provider: {_settings.EMAIL_PROVIDER_KEY}")
+        print(f"   SMTP enabled: {bool(_settings.SMTP_HOST)}")
+        print(f"   Sender address: {_settings.EMAIL_DEFAULT_SENDER}")
+    except Exception as exc:
+        print(f"   (email provider status check failed: {exc})")
+
+
+_log_email_provider_status()
+
 # Routers
 from api.routers.events import router as events_router
 from api.routers.events import public_router as public_events_router
@@ -155,6 +172,16 @@ app.include_router(feedback_router, prefix="/api")
 def _enforce_startup_guardrails() -> None:
     if settings.IS_PRODUCTION and settings.DEBUG:
         raise RuntimeError("Unsafe startup configuration: DEBUG cannot be enabled in production.")
+
+    if settings.IS_PRODUCTION:
+        from api.services.email_delivery import EmailNoopProvider, get_email_provider
+
+        if get_email_provider().key == EmailNoopProvider.key:
+            raise RuntimeError(
+                "Unsafe startup configuration: production resolved to the no-op email provider. "
+                "Set EMAIL_PROVIDER_KEY=email.smtp and the SMTP_* environment variables before "
+                "deploying — refusing to start with email delivery silently disabled."
+            )
 
     if not settings.DEV_ROUTES_ENABLED:
         dev_auth_routes = [
