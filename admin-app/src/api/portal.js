@@ -118,6 +118,39 @@ export async function resendVerificationEmail(email) {
   return res.json()
 }
 
+// POST /api/feedback — the same endpoint the admin app's beta_uat feedback
+// form uses (api/routers/feedback.py), with feature="participant_portal_beta"
+// so it renders under its own schema in FeedbackReview.jsx without touching
+// the admin schemas. Requires a token, unlike registerParticipant() above —
+// beta feedback must be attributable to a specific tester (see
+// PortalFeedback.jsx, which only ever calls this when a portal session
+// exists), matching fetchMyRegistrations()'s required-token convention
+// rather than registerParticipant()'s optional one.
+export async function submitPortalFeedback(payload, token) {
+  const res = await fetch(joinApiUrl("/api/feedback"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (res.status === 401) {
+    const error = new Error("Your session has expired. Please sign in again.")
+    error.status = 401
+    throw error
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body?.detail || "Unable to submit feedback right now.")
+  }
+
+  return res.json()
+}
+
 // GET /api/participants/mine — scoped server-side to the authenticated
 // participant's own records (api/services/participant_identity.py). Unlike
 // the other functions in this file, this one does require a token — it's
