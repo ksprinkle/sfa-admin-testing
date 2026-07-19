@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import unittest
+import uuid
+from datetime import date, timedelta
 
 os.environ.setdefault("DEBUG", "true")
 
@@ -13,6 +15,9 @@ from sqlalchemy.pool import StaticPool
 from api.db.base import Base
 from api.db.session import get_db
 from api.main import app
+from api.models.admin_audit_events import AdminAuditEvent
+from api.models.events import Event
+from api.models.participants import Participant
 from api.models.user_action_tokens import UserActionToken
 from api.models.users import User
 from api.services.rate_limiting import _request_log
@@ -281,6 +286,214 @@ class VerifyEmailEndpointTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn("access_token", response.json())
+
+
+class ParticipantClaimingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.engine = create_engine(
+            "sqlite://",
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=self.engine)
+        self.SessionLocal = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
+
+        self.client = TestClient(app)
+        self.original_overrides = dict(app.dependency_overrides)
+        app.dependency_overrides.clear()
+        app.dependency_overrides[get_db] = self._override_get_db
+
+        self.db = self.SessionLocal()
+        _request_log.clear()
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.original_overrides)
+        self.db.close()
+        self.engine.dispose()
+        _request_log.clear()
+
+    def _override_get_db(self):
+        db = self.SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    def _make_event(self, **overrides) -> Event:
+        defaults = dict(
+            title="Claiming Slice Event",
+            slug="claiming-slice-" + uuid.uuid4().hex[:8],
+            event_type="surf",
+            status="published",
+            start_date=date.today() + timedelta(days=20),
+            end_date=date.today() + timedelta(days=20),
+            participant_open=True,
+            volunteer_open=True,
+            exhibitor_open=True,
+        )
+        defaults.update(overrides)
+        event = Event(**defaults)
+        self.db.add(event)
+        self.db.commit()
+        self.db.refresh(event)
+        return event
+
+    def _make_participant(self, *, event: Event, email: str, user_id: str | None = None) -> Participant:
+        participant = Participant(
+            event_id=event.id,
+            first_name="Anon",
+            last_name="Registrant",
+            email=email,
+            role="participant",
+            user_id=user_id,
+        )
+        self.db.add(participant)
+        self.db.commit()
+        self.db.refresh(participant)
+        return participant
+
+    def _register_and_verify(self, email: str) -> tuple[User, dict]:
+        from api.services.account_verification import create_verification_token
+
+        response = self.client.post(
+            "/api/auth/register", json={"email": email, "password": "correcthorse"}
+        )
+        self.assertEqual(response.status_code, 200)
+
+        user = self.db.query(User).filter(User.email == normalize_email(email)).first()
+        # Registration already issued a verification token; invalidate it and
+        # issue a fresh one directly so the raw value is available to confirm with
+        # (only the hash is ever persisted).
+        _, raw_token = create_verification_token(self.db, user=user)
+        self.db.commit()
+
+        confirm = self.client.post("/api/auth/verify-email/confirm", json={"token": raw_token})
+        self.assertEqual(confirm.status_code, 200)
+        return user, confirm.json()
+
+    def test_verify_with_no_historical_registrations_claims_nothing(self) -> None:
+        _, body = self._register_and_verify("no-history@example.com")
+        self.assertEqual(body["claimed_registrations"], 0)
+
+    def test_verify_with_one_anonymous_registration_claims_it(self) -> None:
+        event = self._make_event()
+        participant = self._make_participant(event=event, email="one-anon@example.com")
+
+        user, body = self._register_and_verify("one-anon@example.com")
+        self.assertEqual(body["claimed_registrations"], 1)
+
+        self.db.refresh(participant)
+        self.assertEqual(participant.user_id, user.id)
+
+    def test_verify_with_multiple_anonymous_registrations_claims_all(self) -> None:
+        # Separate events: participants.(event_id, email) is unique, so multiple
+        # registrations under one email are naturally for different events.
+        p1 = self._make_participant(event=self._make_event(), email="multi-anon@example.com")
+        p2 = self._make_participant(event=self._make_event(), email="multi-anon@example.com")
+        p3 = self._make_participant(event=self._make_event(), email="multi-anon@example.com")
+
+        user, body = self._register_and_verify("multi-anon@example.com")
+        self.assertEqual(body["claimed_registrations"], 3)
+
+        for p in (p1, p2, p3):
+            self.db.refresh(p)
+            self.assertEqual(p.user_id, user.id)
+
+    def test_verify_never_overwrites_existing_linked_participant(self) -> None:
+        event = self._make_event()
+        other_user = User(email="other-owner@example.com", hashed_password="x", role="participant")
+        self.db.add(other_user)
+        self.db.commit()
+        self.db.refresh(other_user)
+
+        already_linked = self._make_participant(
+            event=event, email="already-linked@example.com", user_id=other_user.id
+        )
+
+        user, body = self._register_and_verify("already-linked@example.com")
+        self.assertEqual(body["claimed_registrations"], 0)
+
+        self.db.refresh(already_linked)
+        self.assertEqual(already_linked.user_id, other_user.id)
+        self.assertNotEqual(already_linked.user_id, user.id)
+
+    def test_claiming_creates_one_audit_event_per_claimed_participant(self) -> None:
+        p1 = self._make_participant(event=self._make_event(), email="audit-me@example.com")
+        p2 = self._make_participant(event=self._make_event(), email="audit-me@example.com")
+
+        user, body = self._register_and_verify("audit-me@example.com")
+        self.assertEqual(body["claimed_registrations"], 2)
+
+        events = (
+            self.db.query(AdminAuditEvent)
+            .filter(AdminAuditEvent.action == "participant_account_claimed")
+            .all()
+        )
+        self.assertEqual(len(events), 2)
+        claimed_participant_ids = {str(p1.id), str(p2.id)}
+        self.assertEqual({e.target_id for e in events}, claimed_participant_ids)
+        for e in events:
+            self.assertEqual(e.domain, "participants")
+            self.assertEqual(e.actor_user_id, user.id)
+
+    def test_repeated_claim_call_produces_no_duplicate_claims_or_audit_events(self) -> None:
+        from api.services.participant_claiming import claim_participants_for_user
+
+        event = self._make_event()
+        self._make_participant(event=event, email="idempotent@example.com")
+
+        user = User(email="idempotent@example.com", hashed_password="x", role="participant")
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+
+        first = claim_participants_for_user(self.db, user)
+        self.db.commit()
+        self.assertEqual(first.count, 1)
+
+        second = claim_participants_for_user(self.db, user)
+        self.db.commit()
+        self.assertEqual(second.count, 0)
+
+        events = (
+            self.db.query(AdminAuditEvent)
+            .filter(AdminAuditEvent.action == "participant_account_claimed")
+            .all()
+        )
+        self.assertEqual(len(events), 1)
+
+    def test_claimed_registration_immediately_visible_on_my_registrations(self) -> None:
+        event = self._make_event()
+        self._make_participant(event=event, email="visible-me@example.com")
+
+        self._register_and_verify("visible-me@example.com")
+
+        login = self.client.post(
+            "/api/auth/login",
+            data={"username": "visible-me@example.com", "password": "correcthorse"},
+        )
+        self.assertEqual(login.status_code, 200)
+        token = login.json()["access_token"]
+
+        mine = self.client.get("/api/participants/mine", headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(mine.status_code, 200)
+        self.assertEqual(len(mine.json()), 1)
+
+    def test_normalization_claims_case_and_whitespace_variant_emails(self) -> None:
+        # Proves matching goes through the shared normalize_email() helper, not a
+        # raw/exact comparison: all three rows normalize to "test@example.com".
+        p1 = self._make_participant(event=self._make_event(), email="test@example.com")
+        p2 = self._make_participant(event=self._make_event(), email="TEST@example.com")
+        p3 = self._make_participant(event=self._make_event(), email=" test@example.com ")
+
+        user, body = self._register_and_verify("test@example.com")
+        self.assertEqual(body["claimed_registrations"], 3)
+
+        for p in (p1, p2, p3):
+            self.db.refresh(p)
+            self.assertEqual(p.user_id, user.id)
 
 
 if __name__ == "__main__":

@@ -78,11 +78,22 @@ def confirm_verification_email(
     payload: VerifyEmailConfirmRequest,
     db: Session = Depends(get_db),
 ):
-    result = verify_email_token(db, raw_token=payload.token)
+    # Token validation, email_verified_at, participant claiming, and their audit
+    # events all happen inside verify_email_token() without an intermediate commit,
+    # so this is one atomic transaction: any failure before the commit below rolls
+    # back everything (no partially-claimed account, no partial audit trail).
+    try:
+        result, claim_result = verify_email_token(db, raw_token=payload.token)
+    except Exception:
+        db.rollback()
+        raise
 
     if result == "verified":
         db.commit()
-        return {"message": "Email verified successfully"}
+        return {
+            "message": "Email verified successfully",
+            "claimed_registrations": claim_result.count,
+        }
 
     if result == "expired":
         db.commit()

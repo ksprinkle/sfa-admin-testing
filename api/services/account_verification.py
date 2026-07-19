@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from api.models.user_action_tokens import UserActionToken
 from api.models.users import User
 from api.services.email_delivery import EmailRequest, get_email_provider
+from api.services.participant_claiming import ClaimResult, claim_participants_for_user
 
 VERIFICATION_EXPIRES_IN_MINUTES = 24 * 60
 
@@ -106,7 +107,7 @@ def create_verification_token(
     return token, token_value
 
 
-def verify_email_token(db: Session, *, raw_token: str) -> str:
+def verify_email_token(db: Session, *, raw_token: str) -> tuple[str, ClaimResult]:
     token_hash = _hash_token(raw_token)
     token = (
         db.query(UserActionToken)
@@ -118,29 +119,31 @@ def verify_email_token(db: Session, *, raw_token: str) -> str:
     )
 
     if token is None:
-        return "invalid"
+        return "invalid", ClaimResult()
 
     now = _utcnow()
 
     if token.status == UserActionToken.STATUS_COMPLETED:
-        return "already_used"
+        return "already_used", ClaimResult()
 
     if token.status == UserActionToken.STATUS_INVALIDATED:
-        return "invalid"
+        return "invalid", ClaimResult()
 
     if token.status == UserActionToken.STATUS_EXPIRED or token.expires_at <= now:
         if token.status != UserActionToken.STATUS_EXPIRED:
             token.status = UserActionToken.STATUS_EXPIRED
             token.invalidated_at = now
-        return "expired"
+        return "expired", ClaimResult()
 
     user = db.query(User).filter(User.id == token.user_id).first()
     if user is None:
-        return "invalid"
+        return "invalid", ClaimResult()
 
     user.email_verified_at = user.email_verified_at or now
 
     token.status = UserActionToken.STATUS_COMPLETED
     token.used_at = now
 
-    return "verified"
+    claim_result = claim_participants_for_user(db, user)
+
+    return "verified", claim_result
