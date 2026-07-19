@@ -100,6 +100,21 @@ async function fetchPortalProfile(token) {
   return res.json()
 }
 
+// Re-fetches and re-saves the stored profile without a full re-login — used
+// right after a successful email verification so profile.email_verified_at
+// (and anything reading it, e.g. the nav's verification banner) is current
+// immediately, not just after the next sign-in.
+export async function refreshPortalProfile() {
+  const token = getStoredPortalToken()
+  if (!token) return null
+
+  const profile = await fetchPortalProfile(token)
+  if (profile) {
+    savePortalSession(token, profile)
+  }
+  return profile
+}
+
 function messageFromErrorBody(errorBody, fallback) {
   const detail = errorBody?.detail
 
