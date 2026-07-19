@@ -44,13 +44,17 @@ export async function fetchPublicEventBySlug(slug) {
 // Hits the canonical public registration endpoint (api/services/public_registration.py
 // on the backend) — same endpoint the static participant-registration.html used, and
 // the same one api/routers/events.py's legacy /events/{slug}/participants delegates to.
-// No Authorization header: registration stays anonymous, matching the static page.
-export async function registerParticipant(slug, payload) {
+// The endpoint's auth dependency is optional (get_current_user_optional): with no token
+// it registers anonymously, matching the static page; when a signed-in participant's
+// token is passed, the backend links the new Participant row to that account (user_id)
+// so it appears on "My Registrations" — see api/services/public_registration.py.
+export async function registerParticipant(slug, payload, token) {
   const res = await fetch(joinApiUrl(`/api/public/events/${encodeURIComponent(slug)}/register`), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
   })

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom"
 import Card from "../components/Card"
 import Button from "../components/Button"
 import { fetchPublicEventBySlug, fetchPublicEvents, registerParticipant } from "../api/portal"
+import { getStoredPortalToken } from "../api/portalAuth"
 import { formatEventDateRange, formatEventLocation } from "../utils/portalFormat"
 
 const EMPTY_FORM = { firstName: "", lastName: "", email: "", isMinor: false }
@@ -121,13 +122,17 @@ function PortalRegister() {
     setSubmitStatus({ message: "Submitting registration...", tone: "" })
 
     try {
-      const result = await registerParticipant(currentSlug, {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        role: "participant",
-        is_minor: form.isMinor,
-      })
+      const result = await registerParticipant(
+        currentSlug,
+        {
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          role: "participant",
+          is_minor: form.isMinor,
+        },
+        getStoredPortalToken(),
+      )
 
       const isWaitlisted = Boolean(result?.participant?.is_waitlisted)
       const waiver = result?.waiver
