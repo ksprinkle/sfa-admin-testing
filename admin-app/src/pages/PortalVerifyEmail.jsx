@@ -70,15 +70,22 @@ function PortalVerifyEmail() {
     }
   }
 
-  const primaryCta = hasPortalSession ? (
-    <Link to="/portal/my-registrations">
-      <Button variant="primary">View My Registrations</Button>
-    </Link>
-  ) : (
-    <Link to="/portal/login">
-      <Button variant="primary">Log In</Button>
-    </Link>
-  )
+  // Accepts optional router state (e.g. { justClaimed: N }) so the "verified"
+  // state below can hand PortalMyRegistrations a one-time welcome message
+  // without a query param that would linger in the URL on refresh.
+  function renderPrimaryCta(myRegistrationsState) {
+    return hasPortalSession ? (
+      <Link to="/portal/my-registrations" state={myRegistrationsState}>
+        <Button variant="primary">View My Registrations</Button>
+      </Link>
+    ) : (
+      <Link to="/portal/login">
+        <Button variant="primary">Log In</Button>
+      </Link>
+    )
+  }
+
+  const primaryCta = renderPrimaryCta()
 
   if (status === "checking") {
     return (
@@ -100,7 +107,7 @@ function PortalVerifyEmail() {
             your account.
           </p>
         ) : null}
-        {primaryCta}
+        {renderPrimaryCta(claimedRegistrations > 0 ? { justClaimed: claimedRegistrations } : undefined)}
       </Card>
     )
   }

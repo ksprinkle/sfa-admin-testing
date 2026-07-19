@@ -44,7 +44,8 @@ function PortalCreateAccount() {
       <Card>
         <h1 className="text-xl font-bold text-ocean mb-2">Create Account</h1>
         <p className="text-sm text-slate-600 mb-3">
-          Create an account to sign in and view your registrations and waiver status.
+          Create an account to sign in and view your registrations and waiver status. We&apos;ll send a
+          verification link to your email next.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-3">

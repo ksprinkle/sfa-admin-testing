@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import Card from "../components/Card"
 import Button from "../components/Button"
 import { fetchMyRegistrations } from "../api/portal"
@@ -30,6 +30,13 @@ function waiverTone(status) {
 // of a broader admin endpoint (which would also require admin permissions
 // this role doesn't have, see api/services/authorization.py).
 function PortalMyRegistrations() {
+  const location = useLocation()
+  // Router state only — never a URL query param, so this can't linger after a
+  // refresh or get bookmarked/shared. Set by PortalVerifyEmail.jsx's success
+  // state when the verification just claimed one or more historical
+  // registrations.
+  const justClaimed = location.state?.justClaimed || 0
+
   const [token] = useState(() => getStoredPortalToken())
   const [registrations, setRegistrations] = useState([])
   const [loading, setLoading] = useState(Boolean(token))
@@ -85,6 +92,13 @@ function PortalMyRegistrations() {
         <h1 className="text-xl font-bold text-ocean mb-1">My Registrations</h1>
         <p className="text-sm text-slate-500">Your event registrations and waiver status.</p>
       </div>
+
+      {justClaimed > 0 ? (
+        <div className="rounded-[var(--radius-md)] border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+          Welcome back! We found and linked {justClaimed} past registration{justClaimed === 1 ? "" : "s"} to your
+          account.
+        </div>
+      ) : null}
 
       {loading ? <p className="text-sm text-slate-500">Loading your registrations...</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
