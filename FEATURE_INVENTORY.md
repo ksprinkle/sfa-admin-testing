@@ -127,11 +127,13 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 
 **Feature Status:** Shipped. The `beta_uat` form covers the original login/navigation and core-event-operations tasks plus five later additions: Executive Dashboard, Search & Keyboard Navigation, Event Operations, Communications Center, and Overall Experience. As of 2026-07-17 it also covers the four most recently shipped admin features — Admin Audit Log Viewer, Communications Center (Detailed), Permissions Management, and Automation Management — plus a dedicated Overall Administration Experience section, added without any schema/API change (responses are stored as a single JSON blob per `Feedback.responses`, so new question keys require no migration). A Notification Center section (5 tasks covering discovery, understanding notifications, the auto-refresh preference, live updates, and read/unread state — see §9) was added the same way, ahead of Overall Administration Experience. `admin-app/src/pages/FeedbackReview.jsx`'s `FEEDBACK_SCHEMAS.beta_uat` map was extended in step so the new sections render and summarize like the existing ones.
 
+**Participant Portal beta feedback (shipped 2026-07-19):** `Feedback.feature="participant_portal_beta"` reuses every piece of the above as-is — same table, same `POST /api/feedback` endpoint, same `submitted_by_*` attribution (from `get_current_user_optional`), same value vocabulary (`worked`/`confusing`/`failed`/`not_tested`, `good`/`okay`/`frustrating`) — added as a new `FEEDBACK_SCHEMAS` entry in `FeedbackReview.jsx` (`event_creation`/`beta_uat` untouched), which gets filter-by-schema and submitter-attribution display for free since both were already schema-agnostic. Unlike the admin app's forms, submission is **auth-required, not optional** — `PortalFeedback.jsx` (`/portal/feedback`, linked from the portal footer) shows a sign-in prompt instead of the form when no portal session exists, so every beta-period submission is attributable to a specific tester; `api/routers/feedback.py` itself is unchanged; nothing prevents anonymous submission there. Each submission's `responses` blob also carries `portal: "participant_portal"` and uses the actual deployed build id (`import.meta.env.VITE_BUILD_ID`, the same expression `App.jsx` uses for its own build fingerprint) as `version`, rather than a hand-maintained release tag — both are stored in the existing JSON blob, no new column — a first step toward a unified multi-portal feedback platform, should other portals be added later. See `KNOWN_TECHNICAL_DEBT.md` for the `Feedback.feature` vs. "schema" naming note this surfaced.
+
 | Layer | Location |
 |---|---|
 | Backend router | `api/routers/feedback.py` |
 | Data model | `Feedback` |
-| Frontend | `admin-app/src/pages/FeedbackReview.jsx`, `admin-app/src/api/feedback.js`; static intake forms `admin-app/public/beta-uat-feedback-form.html`, `event-creation-feedback-form.html` |
+| Frontend | `admin-app/src/pages/FeedbackReview.jsx`, `admin-app/src/api/feedback.js`; static intake forms `admin-app/public/beta-uat-feedback-form.html`, `event-creation-feedback-form.html`; participant portal — `admin-app/src/pages/PortalFeedback.jsx`, `admin-app/src/api/portal.js::submitPortalFeedback()` |
 
 ## 12. Event Operations Timeline
 
@@ -173,7 +175,7 @@ This is the doc most likely to need a small update alongside ordinary feature wo
 |---|---|
 | Backend router | `GET /api/participants/mine` added to `api/routers/participant_self.py` (existing router, existing permission dependency) |
 | Backend service | `api/services/public_onboarding.py` (waiver continuation); `api/services/participant_identity.py::list_own_registrations()` (My Registrations, new) |
-| Frontend | `admin-app/src/components/PortalLayout.jsx`, `PortalVerificationBanner.jsx`; `admin-app/src/pages/PortalHome.jsx`, `PortalEvents.jsx`, `PortalRegister.jsx`, `PortalMyRegistrations.jsx`, `PortalLogin.jsx`, `PortalCreateAccount.jsx`, `PortalVerifyEmail.jsx`; `admin-app/src/api/portal.js`, `portalAuth.js`; `admin-app/src/utils/portalFormat.js`; routing in `admin-app/src/App.jsx` |
+| Frontend | `admin-app/src/components/PortalLayout.jsx`, `PortalVerificationBanner.jsx`; `admin-app/src/pages/PortalHome.jsx`, `PortalEvents.jsx`, `PortalRegister.jsx`, `PortalMyRegistrations.jsx`, `PortalLogin.jsx`, `PortalCreateAccount.jsx`, `PortalVerifyEmail.jsx`, `PortalFeedback.jsx` (§11); `admin-app/src/api/portal.js`, `portalAuth.js`; `admin-app/src/utils/portalFormat.js`; routing in `admin-app/src/App.jsx` |
 
 ## Reporting
 
