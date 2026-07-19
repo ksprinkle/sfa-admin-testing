@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,8 +21,11 @@ from api.config import settings
 from api.services.account_verification import create_verification_token, verify_email_token
 from api.services.admin_audit import record_admin_audit_event
 from api.services.authorization import ROLE_PARTICIPANT, is_supported_role
+from api.services.email_delivery import EmailDeliveryError
 from api.services.rate_limiting import enforce_rate_limit
 from api.utils.email_normalization import normalize_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -48,9 +52,19 @@ def register(
     db.commit()
     db.refresh(user)
 
+    # Best-effort: account creation must not fail because the verification
+    # email couldn't be sent - the account already exists and committed above.
+    # An EmailDeliveryError (SMTP down, auth failure, etc.) is logged so it's
+    # actually visible, rather than silently swallowed as before; the tester
+    # can still request a fresh one via /verify-email/resend, which does
+    # surface a real error (see below) since sending is that endpoint's only
+    # job.
     try:
         create_verification_token(db, user=user)
         db.commit()
+    except EmailDeliveryError as exc:
+        db.rollback()
+        logger.warning("Verification email failed to send during registration for user_id=%s: %s", user.id, exc)
     except Exception:
         db.rollback()
 
@@ -67,8 +81,13 @@ def resend_verification_email(
     user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
 
     if user and user.email_verified_at is None:
-        create_verification_token(db, user=user)
-        db.commit()
+        try:
+            create_verification_token(db, user=user)
+            db.commit()
+        except EmailDeliveryError as exc:
+            db.rollback()
+            logger.warning("Verification email resend failed for user_id=%s: %s", user.id, exc)
+            raise HTTPException(status_code=502, detail="Unable to send verification email right now. Please try again shortly.")
 
     return {"message": "If that email exists and is not yet verified, a verification email has been sent"}
 

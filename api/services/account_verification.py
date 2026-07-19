@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from api.config import settings
 from api.models.user_action_tokens import UserActionToken
 from api.models.users import User
-from api.services.email_delivery import EmailRequest, get_email_provider
+from api.services.email_delivery import DeliveryStatus, EmailDeliveryError, EmailRequest, get_email_provider
 from api.services.participant_claiming import ClaimResult, claim_participants_for_user
 
 VERIFICATION_EXPIRES_IN_MINUTES = 24 * 60
@@ -79,7 +79,9 @@ def _send_verification_email(user: User, *, raw_token: str, expires_at: datetime
             expires_at=expires_at.isoformat(),
         ),
     )
-    get_email_provider().send(request)
+    result = get_email_provider().send(request)
+    if result.status != DeliveryStatus.SUCCESS:
+        raise EmailDeliveryError(result)
 
 
 def create_verification_token(

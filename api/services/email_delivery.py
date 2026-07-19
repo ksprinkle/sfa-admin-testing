@@ -79,6 +79,20 @@ class EmailProvider(Protocol):
         ...
 
 
+class EmailDeliveryError(Exception):
+    """Raised by callers that want fail-loud semantics around a non-success
+    DeliveryResult, instead of the default (send() returns a result, doesn't
+    raise). Carries only what DeliveryResult itself exposes - status/error
+    code/error message - never request or provider credentials."""
+
+    def __init__(self, result: DeliveryResult):
+        self.result = result
+        super().__init__(
+            f"Email delivery failed via {result.provider}: {result.status.value}"
+            + (f" ({result.error_message})" if result.error_message else "")
+        )
+
+
 def _normalize_provider_key(value: str | None) -> str:
     return (value or _default_provider_key()).strip().lower() or _default_provider_key()
 

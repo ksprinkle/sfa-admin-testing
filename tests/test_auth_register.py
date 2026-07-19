@@ -4,6 +4,7 @@ import os
 import unittest
 import uuid
 from datetime import date, timedelta
+from unittest.mock import patch
 
 os.environ.setdefault("DEBUG", "true")
 
@@ -20,6 +21,7 @@ from api.models.events import Event
 from api.models.participants import Participant
 from api.models.user_action_tokens import UserActionToken
 from api.models.users import User
+from api.services.email_delivery import DeliveryResult, DeliveryStatus
 from api.services.rate_limiting import _request_log
 from api.utils.email_normalization import normalize_email
 
@@ -494,6 +496,73 @@ class ParticipantClaimingTests(unittest.TestCase):
         for p in (p1, p2, p3):
             self.db.refresh(p)
             self.assertEqual(p.user_id, user.id)
+
+
+class EmailDeliveryFailureTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.engine = create_engine(
+            "sqlite://",
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=self.engine)
+        self.SessionLocal = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
+
+        self.client = TestClient(app)
+        self.original_overrides = dict(app.dependency_overrides)
+        app.dependency_overrides.clear()
+        app.dependency_overrides[get_db] = self._override_get_db
+
+        self.db = self.SessionLocal()
+        _request_log.clear()
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.original_overrides)
+        self.db.close()
+        self.engine.dispose()
+        _request_log.clear()
+
+    def _override_get_db(self):
+        db = self.SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    def _failing_provider(self):
+        provider = type("FailingProvider", (), {})()
+        provider.key = "email.smtp"
+        provider.send = lambda request: DeliveryResult(
+            status=DeliveryStatus.FAILED,
+            provider="email.smtp",
+            error_code="smtp_failure",
+            error_message="Connection refused",
+        )
+        return provider
+
+    def test_registration_still_succeeds_when_email_delivery_fails(self) -> None:
+        with patch("api.services.account_verification.get_email_provider", return_value=self._failing_provider()):
+            response = self.client.post(
+                "/api/auth/register", json={"email": "delivery-fail@example.com", "password": "correcthorse"}
+            )
+        self.assertEqual(response.status_code, 200)
+
+        user = self.db.query(User).filter(User.email == "delivery-fail@example.com").first()
+        self.assertIsNotNone(user)
+
+    def test_resend_surfaces_a_real_error_when_email_delivery_fails(self) -> None:
+        response = self.client.post(
+            "/api/auth/register", json={"email": "resend-fail@example.com", "password": "correcthorse"}
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with patch("api.services.account_verification.get_email_provider", return_value=self._failing_provider()):
+            resend = self.client.post(
+                "/api/auth/verify-email/resend", json={"email": "resend-fail@example.com"}
+            )
+        self.assertEqual(resend.status_code, 502)
 
 
 if __name__ == "__main__":
