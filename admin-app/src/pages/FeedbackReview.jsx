@@ -169,6 +169,49 @@ const FEEDBACK_SCHEMAS = {
       { key: "anything_else", label: "Other" },
     ],
   },
+  participant_portal_beta: {
+    label: "Participant Portal Beta",
+    groups: [
+      {
+        key: "account_creation",
+        label: "Account Creation",
+        tasks: [{ key: "account_creation_task", label: "Creating an account" }],
+      },
+      {
+        key: "verification_email",
+        label: "Verification Email",
+        tasks: [{ key: "verification_email_task", label: "Receiving and understanding the verification email" }],
+      },
+      {
+        key: "verification_experience",
+        label: "Verification Experience",
+        tasks: [{ key: "verification_experience_task", label: "Clicking the link and verifying your email" }],
+      },
+      {
+        key: "verification_banner",
+        label: "Verification Banner",
+        tasks: [{ key: "verification_banner_task", label: "Noticing and using the verification reminder banner" }],
+      },
+      {
+        key: "my_registrations",
+        label: "My Registrations",
+        tasks: [
+          { key: "my_registrations_task", label: "Viewing your registrations, including any automatically linked ones" },
+        ],
+      },
+    ],
+    commentFields: [
+      { key: "test_scenario", label: "Test Scenario" },
+      { key: "test_scenario_other", label: "Test scenario (other)" },
+      { key: "account_creation_comment", label: "Account Creation comments" },
+      { key: "verification_email_comment", label: "Verification Email comments" },
+      { key: "verification_experience_comment", label: "Verification Experience comments" },
+      { key: "verification_banner_comment", label: "Verification Banner comments" },
+      { key: "my_registrations_comment", label: "My Registrations comments" },
+      { key: "bugs_issues", label: "Bugs / Issues" },
+      { key: "additional_comments", label: "Additional Comments" },
+    ],
+  },
 }
 
 const FEATURES = Array.from(new Set([FEEDBACK_RELEASE.feature, ...Object.keys(FEEDBACK_SCHEMAS)]))
