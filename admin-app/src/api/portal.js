@@ -71,6 +71,53 @@ export async function registerParticipant(slug, payload, token) {
   return res.json()
 }
 
+// POST /api/auth/verify-email/confirm. Expected (non-exceptional) outcomes —
+// verified, expired, already used, or an invalid/unrecognized token — are
+// returned as a status, not thrown, since PortalVerifyEmail.jsx renders each
+// as its own state rather than treating them as errors. The backend doesn't
+// return a machine-readable error code, so this matches on response.detail
+// text — the same pattern registerParticipant()'s 409 handling above uses.
+export async function confirmEmailVerification(token) {
+  const res = await fetch(joinApiUrl("/api/auth/verify-email/confirm"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ token }),
+  })
+
+  const body = await res.json().catch(() => ({}))
+
+  if (res.ok) {
+    return { status: "verified", claimedRegistrations: body?.claimed_registrations ?? 0 }
+  }
+
+  const detail = typeof body?.detail === "string" ? body.detail : ""
+  if (detail.includes("expired")) return { status: "expired", claimedRegistrations: 0 }
+  if (detail.includes("already been used")) return { status: "already_used", claimedRegistrations: 0 }
+  return { status: "invalid", claimedRegistrations: 0 }
+}
+
+// POST /api/auth/verify-email/resend. Always returns the same generic
+// message server-side regardless of whether the email exists or is already
+// verified (anti-enumeration, see api/routers/auth.py) — callers should
+// display that message as-is, not infer success/failure from it.
+export async function resendVerificationEmail(email) {
+  const res = await fetch(joinApiUrl("/api/auth/verify-email/resend"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email }),
+  })
+
+  if (res.status === 429) {
+    throw new Error("Too many attempts. Please wait a few minutes before trying again.")
+  }
+
+  if (!res.ok) {
+    throw new Error("Unable to resend the verification email right now.")
+  }
+
+  return res.json()
+}
+
 // GET /api/participants/mine — scoped server-side to the authenticated
 // participant's own records (api/services/participant_identity.py). Unlike
 // the other functions in this file, this one does require a token — it's
