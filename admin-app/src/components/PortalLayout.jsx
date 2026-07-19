@@ -107,7 +107,8 @@ function PortalLayout() {
       <footer className="mx-auto w-full max-w-[1100px] px-4 pb-6 text-xs text-slate-500">
         <p>
           Surfers For Autism — Participant &amp; Family Portal. Staff and volunteer administration
-          lives at <Link to="/login" className="underline">the admin sign-in</Link>.
+          lives at <Link to="/login" className="underline">the admin sign-in</Link>.{" "}
+          <Link to="/portal/feedback" className="underline">Beta Feedback</Link>.
         </p>
       </footer>
     </div>

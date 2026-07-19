@@ -31,6 +31,7 @@ import PortalLogin from "./pages/PortalLogin"
 import PortalCreateAccount from "./pages/PortalCreateAccount"
 import PortalMyRegistrations from "./pages/PortalMyRegistrations"
 import PortalVerifyEmail from "./pages/PortalVerifyEmail"
+import PortalFeedback from "./pages/PortalFeedback"
 import {
   clearAuthSession,
   fetchMyProfile,
@@ -1238,6 +1239,7 @@ function App() {
           <Route path="login" element={<PortalLogin />} />
           <Route path="create-account" element={<PortalCreateAccount />} />
           <Route path="verify-email" element={<PortalVerifyEmail />} />
+          <Route path="feedback" element={<PortalFeedback />} />
           <Route path="*" element={<Navigate to="/portal" replace />} />
         </Route>
       </Routes>
