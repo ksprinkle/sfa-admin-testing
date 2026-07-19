@@ -6,6 +6,7 @@ import {
   getStoredPortalProfile,
   getStoredPortalToken,
 } from "../api/portalAuth"
+import PortalVerificationBanner from "./PortalVerificationBanner"
 
 const NAV_LINKS = [
   { to: "/portal", label: "Home", end: true },
@@ -94,6 +95,10 @@ function PortalLayout() {
           </nav>
         </div>
       </header>
+
+      {token && profile && !profile.email_verified_at ? (
+        <PortalVerificationBanner email={profile.email} />
+      ) : null}
 
       <main className="mx-auto w-full max-w-[1100px] px-4 py-6">
         <Outlet />
