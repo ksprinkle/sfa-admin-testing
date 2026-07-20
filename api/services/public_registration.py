@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from api.crud.events import get_event_by_slug
 from api.crud.participants import create_participant, get_confirmed_participant_count
 from api.models.participants import Participant
+from api.models.person import Person
 from api.models.users import User
 from api.schemas.participants import ParticipantCreate, PublicEventRegister
 from api.services.authorization import ROLE_PARTICIPANT, normalize_role
@@ -43,5 +44,16 @@ def register_public_participant(
     # not claim ownership of the resulting row.
     if current_user is not None and normalize_role(current_user.role) == ROLE_PARTICIPANT:
         participant.user_id = current_user.id
+
+        # Phase 3B Slice B7: parallel identity-write-path bookkeeping.
+        # person_id is not yet read by any ownership check anywhere -
+        # user_id remains authoritative. Every account created since
+        # Slice B7 has a Person (api/routers/auth.py); older accounts
+        # from the gap window were backfilled by migration d5a9e2c7f3b1;
+        # a None lookup result here (e.g. a not-yet-backfilled edge case)
+        # simply leaves person_id null, same as it is today.
+        person = db.query(Person).filter(Person.user_id == current_user.id).first()
+        if person is not None:
+            participant.person_id = person.id
 
     return participant

@@ -18,6 +18,7 @@ from api.schemas.users import (
 )
 from api.dependencies import require_admin
 from api.config import settings
+from api.models.person import Person
 from api.services.account_verification import create_verification_token, verify_email_token
 from api.services.admin_audit import record_admin_audit_event
 from api.services.authorization import ROLE_PARTICIPANT, is_supported_role
@@ -51,6 +52,16 @@ def register(
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Phase 3B Slice B7: every new account gets a correlated Person going
+    # forward, mirroring exactly what Slice B1's one-time migration did
+    # retroactively for pre-existing accounts. Not yet read by any
+    # authorization or ownership decision outside api/services/
+    # participant_claiming.py and public_registration.py's own person_id
+    # bookkeeping - user_id remains fully authoritative everywhere else.
+    person = Person(email=user.email, user_id=user.id)
+    db.add(person)
+    db.commit()
 
     # Best-effort: account creation must not fail because the verification
     # email couldn't be sent - the account already exists and committed above.

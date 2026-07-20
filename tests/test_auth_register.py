@@ -19,6 +19,8 @@ from api.main import app
 from api.models.admin_audit_events import AdminAuditEvent
 from api.models.events import Event
 from api.models.participants import Participant
+from api.models.person import Person
+from api.models.person_relationship import PersonRelationship
 from api.models.user_action_tokens import UserActionToken
 from api.models.users import User
 from api.services.email_delivery import DeliveryResult, DeliveryStatus
@@ -117,6 +119,26 @@ class RegisterEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(self.db.query(User).count(), 0)
+
+    def test_registration_creates_correlated_person(self) -> None:
+        # Phase 3B Slice B7 Part 1a.
+        response = self.client.post(
+            "/api/auth/register", json={"email": "gets-a-person@example.com", "password": "correcthorse"}
+        )
+        self.assertEqual(response.status_code, 200)
+
+        user = self.db.query(User).filter(User.email == "gets-a-person@example.com").first()
+        person = self.db.query(Person).filter(Person.user_id == user.id).first()
+        self.assertIsNotNone(person)
+        self.assertEqual(person.email, user.email)
+
+    def test_registration_creates_exactly_one_person(self) -> None:
+        self.client.post(
+            "/api/auth/register", json={"email": "exactly-one-person@example.com", "password": "correcthorse"}
+        )
+        user = self.db.query(User).filter(User.email == "exactly-one-person@example.com").first()
+        count = self.db.query(Person).filter(Person.user_id == user.id).count()
+        self.assertEqual(count, 1)
 
     def test_rate_limit_blocks_excess_requests(self) -> None:
         for i in range(5):
@@ -496,6 +518,292 @@ class ParticipantClaimingTests(unittest.TestCase):
         for p in (p1, p2, p3):
             self.db.refresh(p)
             self.assertEqual(p.user_id, user.id)
+
+    # --- Phase 3B Slice B7 Part 1d: person_id set alongside user_id on email-matched claims ---
+
+    def test_email_matched_claim_also_sets_person_id(self) -> None:
+        event = self._make_event()
+        participant = self._make_participant(event=event, email="gets-person-id@example.com")
+
+        user, body = self._register_and_verify("gets-person-id@example.com")
+        self.assertEqual(body["claimed_registrations"], 1)
+
+        person = self.db.query(Person).filter(Person.user_id == user.id).first()
+        self.assertIsNotNone(person)
+
+        self.db.refresh(participant)
+        self.assertEqual(participant.user_id, user.id)
+        self.assertEqual(participant.person_id, person.id)
+
+
+class RelationshipAwareClaimingTests(unittest.TestCase):
+    """
+    Phase 3B Slice B7 Part 2 - relationship-based claiming.
+
+    No PersonRelationship row exists in production today (Slice B4
+    introduced the table with zero backfill/inference), so every test
+    here constructs the relationship directly as a fixture - this is
+    real, tested logic with no live trigger condition yet, exactly the
+    honesty standard used for B4/B5's scaffolding.
+    """
+
+    def setUp(self) -> None:
+        self.engine = create_engine(
+            "sqlite://",
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=self.engine)
+        self.SessionLocal = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
+
+        self.client = TestClient(app)
+        self.original_overrides = dict(app.dependency_overrides)
+        app.dependency_overrides.clear()
+        app.dependency_overrides[get_db] = self._override_get_db
+
+        self.db = self.SessionLocal()
+        _request_log.clear()
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.original_overrides)
+        self.db.close()
+        self.engine.dispose()
+        _request_log.clear()
+
+    def _override_get_db(self):
+        db = self.SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    def _make_event(self) -> Event:
+        event = Event(
+            title="Relationship Claiming Event",
+            slug="rel-claim-" + uuid.uuid4().hex[:8],
+            event_type="surf",
+            status="published",
+            start_date=date.today() + timedelta(days=20),
+            end_date=date.today() + timedelta(days=20),
+            participant_open=True,
+        )
+        self.db.add(event)
+        self.db.commit()
+        self.db.refresh(event)
+        return event
+
+    def _make_child_person_and_unclaimed_participant(self, *, event: Event, email: str) -> tuple[Person, Participant]:
+        # Represents a registrant who has their own Person (as a real
+        # future slice might create for a dependent with no login) but
+        # no User/account of their own - user_id stays null.
+        child_person = Person(email=email)
+        self.db.add(child_person)
+        self.db.commit()
+        self.db.refresh(child_person)
+
+        participant = Participant(
+            event_id=event.id,
+            first_name="Child",
+            last_name="Registrant",
+            email=email,
+            role="participant",
+            user_id=None,
+            person_id=child_person.id,
+        )
+        self.db.add(participant)
+        self.db.commit()
+        self.db.refresh(participant)
+        return child_person, participant
+
+    def _register_parent_and_get_person(self, email: str) -> tuple[User, Person]:
+        response = self.client.post("/api/auth/register", json={"email": email, "password": "correcthorse"})
+        self.assertEqual(response.status_code, 200)
+        user = self.db.query(User).filter(User.email == normalize_email(email)).first()
+        person = self.db.query(Person).filter(Person.user_id == user.id).first()
+        return user, person
+
+    def test_relationship_based_claim_succeeds_with_active_registration_capable_relationship(self) -> None:
+        from api.services.participant_claiming import claim_participants_for_user
+
+        event = self._make_event()
+        child_person, participant = self._make_child_person_and_unclaimed_participant(
+            event=event, email="child-a@example.com"
+        )
+        parent_user, parent_person = self._register_parent_and_get_person("parent-a@example.com")
+
+        self.db.add(
+            PersonRelationship(
+                subject_person_id=parent_person.id,
+                related_person_id=child_person.id,
+                relationship_type="parent",
+                can_register_for=True,
+                status=PersonRelationship.STATUS_ACTIVE,
+            )
+        )
+        self.db.commit()
+
+        result = claim_participants_for_user(self.db, parent_user)
+        self.db.commit()
+
+        self.assertEqual(result.count, 1)
+        self.db.refresh(participant)
+        self.assertEqual(participant.user_id, parent_user.id)
+        # person_id is untouched - it still correctly identifies the child,
+        # not the claiming parent.
+        self.assertEqual(participant.person_id, child_person.id)
+
+        events = (
+            self.db.query(AdminAuditEvent)
+            .filter(AdminAuditEvent.action == "participant_relationship_claimed")
+            .all()
+        )
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].actor_user_id, parent_user.id)
+        self.assertEqual(events[0].target_id, str(participant.id))
+
+    def test_relationship_without_can_register_for_does_not_claim(self) -> None:
+        from api.services.participant_claiming import claim_participants_for_user
+
+        event = self._make_event()
+        child_person, participant = self._make_child_person_and_unclaimed_participant(
+            event=event, email="child-b@example.com"
+        )
+        parent_user, parent_person = self._register_parent_and_get_person("parent-b@example.com")
+
+        self.db.add(
+            PersonRelationship(
+                subject_person_id=parent_person.id,
+                related_person_id=child_person.id,
+                relationship_type="emergency_contact",
+                can_register_for=False,  # explicitly not granted
+                status=PersonRelationship.STATUS_ACTIVE,
+            )
+        )
+        self.db.commit()
+
+        result = claim_participants_for_user(self.db, parent_user)
+        self.db.commit()
+
+        self.assertEqual(result.count, 0)
+        self.db.refresh(participant)
+        self.assertIsNone(participant.user_id)
+
+    def test_revoked_relationship_does_not_claim(self) -> None:
+        from api.services.participant_claiming import claim_participants_for_user
+
+        event = self._make_event()
+        child_person, participant = self._make_child_person_and_unclaimed_participant(
+            event=event, email="child-c@example.com"
+        )
+        parent_user, parent_person = self._register_parent_and_get_person("parent-c@example.com")
+
+        self.db.add(
+            PersonRelationship(
+                subject_person_id=parent_person.id,
+                related_person_id=child_person.id,
+                relationship_type="parent",
+                can_register_for=True,
+                status=PersonRelationship.STATUS_REVOKED,
+            )
+        )
+        self.db.commit()
+
+        result = claim_participants_for_user(self.db, parent_user)
+        self.db.commit()
+
+        self.assertEqual(result.count, 0)
+        self.db.refresh(participant)
+        self.assertIsNone(participant.user_id)
+
+    def test_no_relationship_at_all_does_not_claim(self) -> None:
+        from api.services.participant_claiming import claim_participants_for_user
+
+        event = self._make_event()
+        _child_person, participant = self._make_child_person_and_unclaimed_participant(
+            event=event, email="child-d@example.com"
+        )
+        parent_user, _parent_person = self._register_parent_and_get_person("parent-d@example.com")
+
+        result = claim_participants_for_user(self.db, parent_user)
+        self.db.commit()
+
+        self.assertEqual(result.count, 0)
+        self.db.refresh(participant)
+        self.assertIsNone(participant.user_id)
+
+    def test_relationship_pointed_the_wrong_direction_does_not_claim(self) -> None:
+        # subject/related reversed - the child does not have a
+        # can_register_for relationship *to* the parent, only the parent
+        # to the child. Must not be treated as symmetric.
+        from api.services.participant_claiming import claim_participants_for_user
+
+        event = self._make_event()
+        child_person, participant = self._make_child_person_and_unclaimed_participant(
+            event=event, email="child-e@example.com"
+        )
+        parent_user, parent_person = self._register_parent_and_get_person("parent-e@example.com")
+
+        self.db.add(
+            PersonRelationship(
+                subject_person_id=child_person.id,
+                related_person_id=parent_person.id,
+                relationship_type="parent",
+                can_register_for=True,
+                status=PersonRelationship.STATUS_ACTIVE,
+            )
+        )
+        self.db.commit()
+
+        result = claim_participants_for_user(self.db, parent_user)
+        self.db.commit()
+
+        self.assertEqual(result.count, 0)
+        self.db.refresh(participant)
+        self.assertIsNone(participant.user_id)
+
+    def test_email_match_and_relationship_match_both_run_without_double_counting(self) -> None:
+        from api.services.participant_claiming import claim_participants_for_user
+
+        event = self._make_event()
+        # One participant claimable by email match, one only by relationship.
+        parent_user, parent_person = self._register_parent_and_get_person("both-parent@example.com")
+        own_participant = Participant(
+            event_id=event.id,
+            first_name="Parent",
+            last_name="Self",
+            email="both-parent@example.com",
+            role="participant",
+        )
+        self.db.add(own_participant)
+        self.db.commit()
+        self.db.refresh(own_participant)
+
+        child_person, child_participant = self._make_child_person_and_unclaimed_participant(
+            event=event, email="both-child@example.com"
+        )
+        self.db.add(
+            PersonRelationship(
+                subject_person_id=parent_person.id,
+                related_person_id=child_person.id,
+                relationship_type="parent",
+                can_register_for=True,
+                status=PersonRelationship.STATUS_ACTIVE,
+            )
+        )
+        self.db.commit()
+
+        result = claim_participants_for_user(self.db, parent_user)
+        self.db.commit()
+
+        self.assertEqual(result.count, 2)
+        self.db.refresh(own_participant)
+        self.db.refresh(child_participant)
+        self.assertEqual(own_participant.user_id, parent_user.id)
+        self.assertEqual(own_participant.person_id, parent_person.id)
+        self.assertEqual(child_participant.user_id, parent_user.id)
+        self.assertEqual(child_participant.person_id, child_person.id)
 
 
 class EmailDeliveryFailureTests(unittest.TestCase):
