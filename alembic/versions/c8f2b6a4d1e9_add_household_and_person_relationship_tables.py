@@ -60,14 +60,14 @@ def upgrade() -> None:
             sa.Column("subject_person_id", sa.UUID(), nullable=False),
             sa.Column("related_person_id", sa.UUID(), nullable=False),
             sa.Column("relationship_type", sa.String(), nullable=False),
-            sa.Column("can_register_for", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-            sa.Column("can_view_documents", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-            sa.Column("can_manage_documents", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            sa.Column("can_register_for", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column("can_view_documents", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column("can_manage_documents", sa.Boolean(), nullable=False, server_default=sa.false()),
             sa.Column(
-                "can_receive_communications", sa.Boolean(), nullable=False, server_default=sa.text("0")
+                "can_receive_communications", sa.Boolean(), nullable=False, server_default=sa.false()
             ),
             sa.Column(
-                "is_emergency_contact_only", sa.Boolean(), nullable=False, server_default=sa.text("0")
+                "is_emergency_contact_only", sa.Boolean(), nullable=False, server_default=sa.false()
             ),
             sa.Column("household_id", sa.UUID(), nullable=True),
             sa.Column("status", sa.String(), nullable=False, server_default="active"),
