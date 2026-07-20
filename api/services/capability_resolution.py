@@ -135,6 +135,22 @@ def resolve_household_ids_for_person(db: Session, person: Person | None) -> set[
     return {row[0] for row in rows}
 
 
+def resolve_capabilities_with_context(
+    db: Session, *, user: User, target_person_id: UUID | None = None
+) -> tuple[set[str], CapabilityContext]:
+    """Same as resolve_capabilities() below, but also returns the
+    CapabilityContext describing which path was taken (role codes used,
+    whether the legacy fallback fired) - useful for diagnostics (Slice
+    B6's shadow-check logging) without changing resolve_capabilities()'s
+    existing signature or behavior at all.
+    """
+    granted, context = _resolve_role_based_permissions(db, user)
+    granted |= _resolve_relationship_capabilities(
+        db, actor_person=context.actor_person, target_person_id=target_person_id
+    )
+    return granted, context
+
+
 def resolve_capabilities(db: Session, *, user: User, target_person_id: UUID | None = None) -> set[str]:
     """The canonical entry point a future slice should call instead of
     api/services/authorization.py::has_permission() - not called from
@@ -143,10 +159,7 @@ def resolve_capabilities(db: Session, *, user: User, target_person_id: UUID | No
     report) with the Relationships layer (scaffolded, contributes
     nothing today) into the resulting permission-string set.
     """
-    granted, context = _resolve_role_based_permissions(db, user)
-    granted |= _resolve_relationship_capabilities(
-        db, actor_person=context.actor_person, target_person_id=target_person_id
-    )
+    granted, _context = resolve_capabilities_with_context(db, user=user, target_person_id=target_person_id)
     return granted
 
 
