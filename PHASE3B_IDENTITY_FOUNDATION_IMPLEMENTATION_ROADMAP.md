@@ -128,7 +128,7 @@ Given this codebase's documented thin test coverage on identity-adjacent routers
 **Ships independently:** yes, backend-only.
 **Rollback:** delete the file; nothing depends on it yet.
 
-**Complete** — see [`PHASE3B_SLICE_B5_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B5_VERIFICATION_REPORT.md), including the Capability Resolution Equivalence Report (9 scenarios, all passing, including a new one proving the Relationships-layer scaffolding grants nothing even when an active, fully-permissive `PersonRelationship` row exists). `api/services/capability_resolution.py` — zero existing files touched at all (first slice with that property). Full test suite: 121/121 non-pre-existing-failure tests pass. Not yet deployed.
+**Complete and deployed** — see [`PHASE3B_SLICE_B5_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B5_VERIFICATION_REPORT.md), including the Capability Resolution Equivalence Report (9 scenarios, all passing, including a new one proving the Relationships-layer scaffolding grants nothing even when an active, fully-permissive `PersonRelationship` row exists). `api/services/capability_resolution.py` — zero existing files touched at all (first slice with that property). Full test suite: 121/121 non-pre-existing-failure tests pass. Committed (`cf5f0a0`), tagged `v1.37.0-phase3b-b5-capability-engine`, deployed to production 2026-07-20 — no schema drift (no migration in this slice), live participant/admin checks confirm behavior identical to pre-B5.
 
 ### B6 — Shadow-check on `GET /api/participants/mine`
 

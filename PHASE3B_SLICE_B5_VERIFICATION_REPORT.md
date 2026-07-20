@@ -89,12 +89,39 @@ The last row is new relative to B3's report and is the one specific to this slic
 
 ---
 
-## 7. Production deployment
+## 7. Production deployment (2026-07-20)
 
-Not yet deployed — pending your direction. Given B4's incident, this migration-free slice carries essentially none of that risk (no schema change at all), but I'll still confirm `Schema status: MATCH` (unchanged from B4) and run the same live participant/admin checks as every prior slice once you authorize the push.
+Committed (`cf5f0a0`), tagged `v1.37.0-phase3b-b5-capability-engine`, pushed to `origin/master`. Render deploy log confirmed no migration ran (correct — B5 has no schema change) and:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: c8f2b6a4d1e9
+   Application migration head: c8f2b6a4d1e9
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+`Schema status: MATCH`, unchanged from B4 as expected — no `Running upgrade` line appears at all, confirming zero schema drift risk for this slice.
+
+**Live production validation:**
+
+| Check | Method | Result |
+|---|---|---|
+| Service starts cleanly | Deploy log | No errors, service live |
+| Schema status | Deploy log | `MATCH` (unchanged from B4) |
+| Participant login | Fresh throwaway test account via real public register/login flow | `200`, JWT issued |
+| Participant-authorized endpoint (`participants.view_own`) | `GET /api/participants/mine` | `200`, `[]` — unchanged from pre-B5 |
+| Admin-only endpoint, denied for a participant | `GET /api/admin/permissions/matrix` | `403` — unchanged from pre-B5 |
+| Public smoke checks | `GET /`, `GET /api/events` | `200` / `200` |
+| Admin login + admin-only endpoint | Confirmed directly | Both work fine |
+
+Every check matches pre-B5 behavior exactly — the capability engine exists in production now, fully wired to real data queries, and changes nothing observable.
 
 ---
 
 ## 8. Conclusion
 
-B5's mission — centralize capability evaluation without changing any authorization decision — held exactly. The engine is real (not a stub) at the Roles layer, correctly scaffolded (queries real data, contributes nothing) at the Relationships layer, and entirely unreferenced by the running application. The equivalence report proves it's already a faithful, provable substitute for `has_permission()` — which is precisely the property that makes B6 (a shadow-check comparing this engine's output against production traffic) possible next, without today's authorization decisions changing at all. Ready for your direction on deployment.
+B5's mission — centralize capability evaluation without changing any authorization decision — held exactly. The engine is real (not a stub) at the Roles layer, correctly scaffolded (queries real data, contributes nothing) at the Relationships layer, and entirely unreferenced by the running application. The equivalence report proves it's already a faithful, provable substitute for `has_permission()` — which is precisely the property that makes B6 (a shadow-check comparing this engine's output against production traffic) possible next, without today's authorization decisions changing at all. **Deployed to production 2026-07-20, confirmed live** (§7) — no schema drift, live participant/admin checks all matching pre-B5 behavior exactly. B5 is complete.
