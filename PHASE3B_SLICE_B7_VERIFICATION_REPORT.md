@@ -96,9 +96,40 @@ No new relationship-creation mechanism was added, per the resolved scope decisio
 
 ---
 
-## 7. Production deployment
+## 7. Production deployment (2026-07-20)
 
-Pending. Given no API exposes `Person`/`person_id` directly (by design — this is internal identity bookkeeping, not a response field), full production validation of the *write* side needs one read-only check only you can perform: after deploying and registering a fresh test account + event registration (which I'll do live, same technique as B3–B6), a quick Render Shell query confirming the new `Person` row and the registration's `person_id` were actually created as expected. Everything else (schema status, clean startup, existing smoke tests, unaffected claiming behavior) follows the same pattern as every prior slice.
+Committed (`479664c`), tagged `v1.39.0-phase3b-b7-identity-write-path`, pushed to `origin/master`. Deploy log confirmed:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+INFO  [alembic.runtime.migration] Running upgrade c8f2b6a4d1e9 -> d5a9e2c7f3b1, backfill Person for any User missing one (identity foundation slice B7)
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: d5a9e2c7f3b1
+   Application migration head: d5a9e2c7f3b1
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live sequence, run end-to-end against production:**
+
+| Step | Result |
+|---|---|
+| Register a brand-new participant account | `200`, account created |
+| Login | `200`, JWT issued |
+| Register that participant for a real published event (`fake-event-test`) | `201`, waiver auto-issuance still working unchanged |
+| `GET /api/participants/mine` | `200`, registration immediately visible with correct `waiver_status` — behavior identical to pre-B7 |
+
+**Database verification** (run directly against production Postgres via a `psycopg2` one-liner in Render Shell — `psql` was not available in that container, and `DATABASE_URL` there is in SQLAlchemy's `postgresql+psycopg2://` form, requiring a scheme fix before `psycopg2.connect()` would accept it):
+
+```
+Query 1 (user -> person link): [('589855df-3d2c-48fa-bcbf-7afa3230311f', 'b7-live-test-...@example.com', 'd044ebc8-f101-43ce-b1df-8f864d573125', 'b7-live-test-...@example.com')]
+Query 2 (duplicate check):     [('589855df-3d2c-48fa-bcbf-7afa3230311f', 1)]
+Query 3 (participant person_id): [('80fc96a3-2bfa-45c9-b6d4-f8739213351c', '589855df-3d2c-48fa-bcbf-7afa3230311f', 'd044ebc8-f101-43ce-b1df-8f864d573125', 'b7-live-test-...@example.com')]
+```
+
+All four objectives confirmed directly against persisted state, not inferred from API behavior: the new `User` has exactly one corresponding `Person` (query 1, non-null); no duplicates exist (query 2, count = 1); the new `Participant.person_id` is populated (query 3, non-null); and the linkage is internally consistent — query 3's `person_id` (`d044ebc8-...`) and `user_id` (`589855df-...`) match query 1's values exactly.
 
 ## 8. Rollback path
 
@@ -106,4 +137,4 @@ Revert the three code changes (`auth.py`, `public_registration.py`, `participant
 
 ## 9. Conclusion
 
-B7's two responsibilities — a real, active identity write-path transition, and a real-but-currently-dormant relationship-aware claiming path — both held to their intended scope exactly, proven via 13 new tests plus the same migration rigor established since B1. `user_id`/`has_permission()`/admin authorization are byte-for-byte unchanged. Ready for deployment and your production validation.
+B7's two responsibilities — a real, active identity write-path transition, and a real-but-currently-dormant relationship-aware claiming path — both held to their intended scope exactly, proven via 13 new tests plus the same migration rigor established since B1. `user_id`/`has_permission()`/admin authorization are byte-for-byte unchanged. **Deployed to production 2026-07-20 and validated against persisted database state, not just API responses** (§7) — the strongest verification standard used in this rollout so far. Per the user's own acceptance sequence, B7 is considered fully accepted once it has also run under normal production traffic for a period with no unexpected exceptions or claim anomalies in the logs, before B8 is authorized.
