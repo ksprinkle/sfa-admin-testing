@@ -101,6 +101,8 @@ Add `households` (id, name, created_at) and `person_relationships` (`subject_per
 **Ships independently:** yes, backend-only.
 **Rollback:** drop both tables; zero blast radius, since nothing outside this slice references them.
 
+**Complete** — see [`PHASE3B_SLICE_B4_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B4_SCHEMA_VERIFICATION_REPORT.md). `Household`/`PersonRelationship` models, migration `c8f2b6a4d1e9`. No admin-CRUD was added this time (narrower than the "may include" language above — the user's explicit B4 authorization ruled out any API change this slice). Verified on clean and populated databases, idempotent replay confirmed, clean downgrade, zero new test failures, and confirmed by grep that neither table is referenced anywhere outside its own model file — full isolation. No backfill or inference attempted, per explicit instruction and consistent with the ownership audit's finding that no existing data exists to infer from. Not yet deployed.
+
 ### B5 — `capability_resolution.py`
 
 New, additive service module implementing the single function every future consumer should call: something like `resolve_capabilities(db, *, actor_person, target_person=None) -> set[str]`, combining (a) the union of the actor's active `PersonRole` grants (via B3), (b) — only when `target_person` is given and differs from the actor — the capability flags on any active `PersonRelationship` from actor to target, and (c) implicit full self-capability when `target_person is None` or equals the actor. This is the one place the §0.1 refinement ("capabilities, not roles") becomes real code — every subsequent slice and every future router should call this function rather than inspecting `role`/`relationship_type` directly.

@@ -41,6 +41,8 @@ import api.models.user_action_tokens
 import api.models.person
 import api.models.role
 import api.models.person_role
+import api.models.household
+import api.models.person_relationship
 import api.models.sessions
 import api.models.event_activity_log
 import api.models.feedback
