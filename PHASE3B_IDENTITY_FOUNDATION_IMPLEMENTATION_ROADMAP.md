@@ -23,7 +23,20 @@ Two adjustments to 3A, recorded here rather than by editing that document:
 
 No single large migration. Every slice below is additive-only until explicitly marked otherwise, independently deployable, leaves the system fully working immediately after merge, and has its own rollback path. A slice that changes real behavior never ships in the same step as the schema it depends on — schema arrives first, inert, is verified against production data, and only then does a later slice start reading it. This mirrors the guarded-migration discipline already mandated project-wide (`CLAUDE.md`), applied at the level of feature sequencing, not just individual migrations — deliberately, since this project's two real production incidents this month both trace back to trusting a migration/stamp state that hadn't been independently verified.
 
-### 1.1 Project-Wide Ownership Constraint
+### 1.1 Migration Verification Checklist (permanent, added after B4's incident)
+
+Every migration in this rollout — and, per the user's direction, every future migration in this project regardless of feature area — must be verified against all of the following before it is deployed, not just the SQLite-only checks used through B3:
+
+1. Clean upgrade on an empty database.
+2. Clean upgrade on a realistically populated database (seeded *before* earlier migrations run, so their own backfills actually populate it).
+3. Idempotent replay (direct re-invocation of `upgrade()` against an already-migrated database).
+4. Partial catch-up validation, if the migration backfills anything.
+5. Clean downgrade.
+6. **Compile the migration's generated DDL against the real PostgreSQL dialect** (`sqlalchemy.schema.CreateTable(table).compile(dialect=sqlalchemy.dialects.postgresql.dialect())` or equivalent for `ALTER TABLE`/index/constraint operations) — no running Postgres server required. Mandatory whenever a migration involves defaults, constraints, indexes, expressions, enums, generated values, or any other database-specific SQL, since SQLite's looser typing (confirmed directly at B4: `BOOLEAN DEFAULT 0` passes silently on SQLite, and PostgreSQL rejects it outright) can let a real bug through every other check on this list.
+
+B4 is the reason this exists: a boolean `server_default` written as a raw integer literal (`sa.text("0")`) passed every other check and still failed in production, caught only by Postgres's own type strictness during a real deploy. The fix (`sa.false()`, a dialect-portable construct) and the dialect-compile check above are both now permanent practice, not a one-off remediation.
+
+### 1.2 Project-Wide Ownership Constraint
 
 No feature implemented during Phase 3B, or after, may introduce a new **subject-ownership** relationship — a new "whose record is this" foreign key — unless the owner is explicitly a `Person` (via `person_id`), or is explicitly and deliberately identified as legacy-for-backward-compatibility (e.g., `Participant.user_id` during the B1–B9 transition described below). Concretely: no `Volunteer.user_id`, no `Sponsor.user_id`, no `Parent.user_id` — no new, parallel, role-specific identity link, even where it looks like the fastest way to unblock a specific feature. Every new ownership decision gets checked against [`PHASE3B_CANONICAL_OWNERSHIP_AUDIT.md`](PHASE3B_CANONICAL_OWNERSHIP_AUDIT.md) (produced in slice B0.5, below) before a new FK is added anywhere — this is what prevents accidental reintroduction of a parallel identity model exactly like the one this whole effort exists to retire.
 
@@ -59,7 +72,7 @@ This constraint applies only to subject ownership. Actor/attribution fields — 
 
 Immediately after B0, and before any schema lands, answer one question across every existing entity: **"What currently belongs to a Person?"** Produced as a standalone, standing reference — [`PHASE3B_CANONICAL_OWNERSHIP_AUDIT.md`](PHASE3B_CANONICAL_OWNERSHIP_AUDIT.md) — rather than a section here, since its purpose is to be checked against by every future feature and code review, not read once. It distinguishes **subject ownership** ("whose record is this") from **actor attribution** ("who performed this action") — the two are easy to conflate under one "owner" column, and only the first is what Phase 3B migrates.
 
-That audit is also where this roadmap's project-wide constraint (§1.1) gets its teeth: a concrete, checkable answer for every entity, not a judgment call made fresh per feature.
+That audit is also where this roadmap's project-wide constraint (§1.2) gets its teeth: a concrete, checkable answer for every entity, not a judgment call made fresh per feature.
 
 **Rollback:** nothing to roll back — it's an audit, kept as a living reference and revised in place as slices land, never superseded by a new file.
 
@@ -114,6 +127,8 @@ Given this codebase's documented thin test coverage on identity-adjacent routers
 **Backward compatibility:** total — a new function nothing calls yet.
 **Ships independently:** yes, backend-only.
 **Rollback:** delete the file; nothing depends on it yet.
+
+**Complete** — see [`PHASE3B_SLICE_B5_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B5_VERIFICATION_REPORT.md), including the Capability Resolution Equivalence Report (9 scenarios, all passing, including a new one proving the Relationships-layer scaffolding grants nothing even when an active, fully-permissive `PersonRelationship` row exists). `api/services/capability_resolution.py` — zero existing files touched at all (first slice with that property). Full test suite: 121/121 non-pre-existing-failure tests pass. Not yet deployed.
 
 ### B6 — Shadow-check on `GET /api/participants/mine`
 

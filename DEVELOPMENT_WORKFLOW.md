@@ -59,6 +59,17 @@ alembic upgrade head
 
 Local development uses SQLite (`api/sfa.db`); production uses PostgreSQL. See `CLAUDE.md`'s Development Guardrails for the rule governing schema changes and `Base.metadata.create_all()`.
 
+**Verify every migration against the PostgreSQL dialect before deploying, not just against local SQLite.** SQLite's looser column typing can let a migration pass every local test and still fail in production — confirmed directly (Phase 3B Slice B4, 2026-07-20): a boolean column's `server_default=sa.text("0")` applied cleanly on SQLite (which has no real boolean type) but PostgreSQL rejected it outright (`column is of type boolean but default expression is of type integer`), failing the deploy's pre-deploy step. No server is required to catch this class of bug — compile the generated DDL against the real dialect directly:
+
+```python
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateTable
+
+print(CreateTable(my_table).compile(dialect=postgresql.dialect()))
+```
+
+Do this whenever a migration involves defaults, constraints, indexes, expressions, enums, generated values, or any other database-specific SQL — not just for boolean columns. Prefer dialect-portable constructs (`sa.false()`/`sa.true()`, not raw `sa.text("0")`/`sa.text("1")`) for boolean defaults specifically.
+
 ## Pull Requests & Review
 
 No automated CI checks run against pull requests in this repository; review is manual. `.github/PULL_REQUEST_TEMPLATE.md` structures that review around validation evidence and regression-check confirmation.
