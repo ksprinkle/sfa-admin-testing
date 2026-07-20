@@ -90,13 +90,36 @@ A genuine mismatch is not naturally reproducible with today's real data — B3's
 
 ---
 
-## 5. Production validation
+## 5. Production validation (2026-07-20)
 
-Pending deployment. Because this slice has no schema change, validation will follow the same pattern as B5: confirm `Schema status: MATCH` (unchanged), clean startup, then live checks — participant login, the shadowed endpoint itself (`GET /api/participants/mine`, confirming the response is unaffected), the admin-route denial check, public smoke checks, and your direct confirmation of admin login/route access. Render's Application Logs are also where any real mismatch would surface (`capability_engine_shadow_mismatch`) — worth a quick log search after deploy, expecting zero hits, consistent with the equivalence reports.
+Committed (`81f7061`), tagged `v1.38.0-phase3b-b6-shadow-validation`, pushed to `origin/master`. Deploy log confirmed no migration ran (correct) and:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: c8f2b6a4d1e9
+   Application migration head: c8f2b6a4d1e9
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live checks:**
+
+| Check | Method | Result |
+|---|---|---|
+| Clean startup | Deploy log | No errors, service live |
+| Schema status | Deploy log | `MATCH` (unchanged from B4/B5) |
+| Participant login | Fresh throwaway test account via real public register/login flow | `200`, JWT issued |
+| `GET /api/participants/mine` (the shadowed endpoint) | Hit twice, consecutively | `200`, `[]` both times — response unaffected |
+| Admin-only endpoint, denied for a participant | `GET /api/admin/permissions/matrix` | `403` — unchanged |
+| Public smoke checks | `GET /`, `GET /api/events` | `200` / `200` |
+| Admin login + admin-only pages | **Confirmed by real production traffic in the Application Logs**, not just a synthetic check — genuine browser requests to `GET /api/admin/events/`, `/api/admin/dashboard/metrics`, `/api/admin/audit/events`, `/api/admin/communications/messages`, `/api/admin/communications/deliveries` all returned `200 OK` in the same log window | Working normally |
 
 ## 6. Mismatch count
 
-**Zero**, in every environment checked so far (local test suite, both the existing unmodified tests and the new dedicated suite). Pending the same in production after deployment — will report back after checking Render's logs.
+**Zero** — confirmed directly against real production Application Logs (not inferred), covering the full deploy window plus the live checks above: **no occurrence of `capability_engine_shadow_mismatch` or `capability_engine_shadow_check_error` anywhere**, across both the genuine admin browsing session and the two direct hits on `GET /api/participants/mine`. Every request to the shadowed endpoint logged a plain `200 OK` with nothing else attached — exactly the "if identical, do nothing" behavior this slice was built to produce. This matches every local check (§4) and the equivalence reports B3 and B5 already established.
 
 ## 7. Performance observations
 
@@ -120,4 +143,4 @@ The shadow-check adds, per eligible request: one `Person` lookup by `user_id` (i
 
 ## 9. Conclusion
 
-B6's mission — run the capability engine in parallel with production authorization and verify equivalence without influencing any outcome — held exactly, proven directly rather than by inference: a dedicated test forces a mismatch and confirms the response is unaffected regardless, a spy confirms the engine runs on every eligible request, and the full existing test suite (including 13 pre-existing tests against this exact endpoint) shows zero spurious warnings. `has_permission()` remains the sole source of truth. Pending your review before deployment.
+B6's mission — run the capability engine in parallel with production authorization and verify equivalence without influencing any outcome — held exactly, proven directly rather than by inference at every level: a dedicated local test forces a mismatch and confirms the response is unaffected regardless, a spy confirms the engine runs on every eligible request, the full existing test suite (including 13 pre-existing tests against this exact endpoint) shows zero spurious warnings, and **production's own Application Logs confirm zero mismatches across real admin traffic and real participant requests** in the same window. `has_permission()` remains the sole source of truth, byte-for-byte unchanged since B3. **Deployed and validated live, 2026-07-20.** B6 is complete.
