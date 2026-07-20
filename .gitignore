@@ -20,7 +20,6 @@ admin-app/dist/
 frontend/dist/
 
 # Generated documentation/build artifacts
-docs/waiver-signing.html
 docs/SFA Liability Waiver.pdf
 
 # Runtime/local files
