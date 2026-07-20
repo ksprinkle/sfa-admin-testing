@@ -64,12 +64,50 @@ No API response shape changed — no endpoint was touched. No authentication or 
 
 ---
 
-## 7. Production deployment
+## 7. Production deployment (2026-07-20)
 
-Not yet deployed — pending your direction on committing/tagging/pushing, matching the checkpoint used for every prior slice.
+**First attempt failed, caught and fixed same day.** Committed (`e305d08`), tagged `v1.36.0-phase3b-b4-relationship-foundation`, pushed. Pre-deploy failed:
+
+```
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.DatatypeMismatch) column "can_register_for" is of type boolean but default expression is of type integer
+==> Pre-deploy has failed
+==> Exited with status 1
+```
+
+**Root cause**: the migration used `server_default=sa.text("0")` for the five capability-flag boolean columns. SQLite tolerates this (booleans are just integers there), so every local test in §4 passed silently — PostgreSQL does not, and rejected it outright. Because Alembic runs each migration inside one transaction for PostgreSQL ("Will assume transactional DDL"), the failed `CREATE TABLE person_relationships` rolled back the entire migration, including the already-issued `CREATE TABLE households` — production was left exactly at the prior (B3) schema revision, confirmed still serving normally throughout (`GET /` returned `200` before, during, and after the failed attempt).
+
+**Fix**: replaced `sa.text("0")` with `sa.false()`, a dialect-portable SQLAlchemy construct — confirmed by directly compiling the `CREATE TABLE` DDL against the real PostgreSQL dialect (no server required) before touching production again: `BOOLEAN DEFAULT false NOT NULL` for PostgreSQL, `BOOLEAN DEFAULT '0'` for SQLite, both dialect-correct. Checked B1–B3 for the same class of bug — none have any boolean column with a literal `server_default`, so this was isolated to B4. Re-ran the full verification suite from §4 against the corrected migration: identical results (clean fresh/populated migration, idempotent replay, clean downgrade, 112/112 non-pre-existing-failure tests).
+
+**Second attempt, successful.** New commit (`ed0f247`), tag moved to point at it (`git tag -f` + force-push, since the original tagged commit never successfully deployed), pushed. Deploy log:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+INFO  [alembic.runtime.migration] Running upgrade b4e6a1d9c3f7 -> c8f2b6a4d1e9, add households and person_relationships tables (identity foundation slice B4)
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: c8f2b6a4d1e9
+   Application migration head: c8f2b6a4d1e9
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live production validation:**
+
+| Check | Method | Result |
+|---|---|---|
+| Schema status | Deploy log | `MATCH` |
+| Clean startup | Deploy log | No errors, service live |
+| Participant login | Fresh throwaway test account via real public register/login flow | `200`, JWT issued |
+| Participant route access (`participants.view_own`) | `GET /api/participants/mine` | `200`, `[]` — unchanged from pre-B4 |
+| Admin-permission denial for a participant | `GET /api/admin/permissions/matrix` | `403` — unchanged from pre-B4 |
+| Public smoke checks | `GET /`, `GET /api/events` | `200` / `200` |
+| Admin login + admin-only route access | Confirmed directly | Both pages work fine |
+
+Every check matches pre-B4 behavior exactly — B4 remained as invisible in production as B1 and B2 were, once the boolean-default bug was fixed.
 
 ---
 
 ## 8. Conclusion
 
-B4's mission — introduce the relationship graph without changing application behavior — held completely. Both tables exist, are correctly wired to `people`/`households`/`users`, contain zero rows, and are referenced nowhere outside their own model definitions. No inference was attempted, no capability evaluation was introduced, and every existing test passes unchanged. With B1–B4 complete, the entire structural identity layer (`Person`, `Role`, `PersonRole`, `Household`, `PersonRelationship`) now exists in production-ready form, fully inert, ready for B5 (`capability_resolution.py`) to be the first thing that actually reads any of it. Ready for your direction on commit/tag/deploy.
+B4's mission — introduce the relationship graph without changing application behavior — held completely, though it took two deploy attempts to get there: a real PostgreSQL/SQLite dialect difference in the boolean column defaults slipped past local-only testing, was caught by production's own pre-deploy guardrail (the migration failed cleanly inside a transaction rather than partially applying), fixed, and re-verified before a successful second deploy. Both tables now exist in production, are correctly wired to `people`/`households`/`users`, contain zero rows, and are referenced nowhere outside their own model definitions. No inference was attempted, no capability evaluation was introduced, and every live and local check matches pre-B4 behavior exactly. With B1–B4 complete, the entire structural identity layer (`Person`, `Role`, `PersonRole`, `Household`, `PersonRelationship`) now exists in production-ready form, fully inert, ready for B5 (`capability_resolution.py`) to be the first thing that actually reads any of it. Compiling migration DDL against the real PostgreSQL dialect before deploying is now a standing step for any future migration with type-sensitive defaults.
