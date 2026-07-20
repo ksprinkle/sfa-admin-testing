@@ -117,12 +117,39 @@ The last row is the one that actually proves this is a dual-read and not just tw
 
 ---
 
-## 7. Production deployment
+## 7. Production deployment (2026-07-20)
 
-Not yet deployed — given this is explicitly the first slice touching a live execution path, holding for your review of this report before committing/tagging/pushing, rather than proceeding automatically as the last two slices did.
+Committed (`2719527`), tagged `v1.35.0-phase3b-b3-authorization-foundation`, pushed to `origin/master`. Render deploy log confirmed:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Running upgrade a7d3f9c2e5b8 -> b4e6a1d9c3f7, add person_roles table and backfill from User.role (identity foundation slice B3)
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: b4e6a1d9c3f7
+   Application migration head: b4e6a1d9c3f7
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live production validation, beyond the deploy log:**
+
+| Check | Method | Result |
+|---|---|---|
+| Schema status | Deploy log | `MATCH` |
+| Participant login | Registered a fresh throwaway test account via the real public `POST /api/auth/register` → `POST /api/auth/login` flow | `200`, JWT issued |
+| Participant route access (`participants.view_own`) | `GET /api/participants/mine` with that account's token | `200`, `[]` — **Allow, correct** |
+| Admin-permission denial for a participant | `GET /api/admin/permissions/matrix` with the same token | `403 "Admin access required"` — **Deny, correct** |
+| Public smoke checks | `GET /`, `GET /api/events` | `200` / `200` |
+| Admin login | User confirmed directly | Dashboard loads normally |
+| Admin-only route access | User confirmed directly | Admin-only page works normally |
+
+One nuance worth recording precisely: the throwaway test account was created *after* B3 deployed, so it has no `Person`/`PersonRole` row at all — meaning this specific live test exercised the **"no Person exists" fallback path** (Authorization Equivalence Report scenario 6), not the PersonRole-populated path. That's arguably the more important one to confirm live, since every new signup takes exactly this path until a later slice starts creating `Person` rows at registration time. The PersonRole-populated path (every pre-existing user, backfilled at this same deploy) is what the admin login/route-access check above confirms directly, since every real admin account was backfilled an active `PersonRole` row by this exact migration.
 
 ---
 
 ## 8. Conclusion
 
-B3's mission — change where permissions are resolved, not what permissions are granted — held throughout. Every existing test passed unchanged, the new equivalence suite proves parity across every real and edge-case scenario the roadmap asked for, and the one live code path touched (`has_permission()`) required zero changes to routers, dependencies, login, JWT, or the frontend. `User.role` remains fully authoritative wherever `PersonRole` hasn't been populated, and the fallback structure is shaped for a minimal-diff removal when B7/B8 retire it. Ready for your review before deployment.
+B3's mission — change where permissions are resolved, not what permissions are granted — held throughout. Every existing test passed unchanged, the new equivalence suite proves parity across every real and edge-case scenario the roadmap asked for, and the one live code path touched (`has_permission()`) required zero changes to routers, dependencies, login, JWT, or the frontend. `User.role` remains fully authoritative wherever `PersonRole` hasn't been populated, and the fallback structure is shaped for a minimal-diff removal when B7/B8 retire it. **Deployed to production 2026-07-20, confirmed live** (§7) — schema status `MATCH`, live participant login/route-access/denial confirmed via a real throwaway account, admin login and admin-only route access confirmed directly. B3 is complete.

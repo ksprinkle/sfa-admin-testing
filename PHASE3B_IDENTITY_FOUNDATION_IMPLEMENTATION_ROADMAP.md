@@ -91,7 +91,7 @@ Add `person_roles` (`person_id`, `role_code`, `granted_at`, `granted_by_user_id`
 **Ships independently:** yes, backend-only — permission *strings* returned to any router are unchanged, only their computation path changes.
 **Rollback:** revert the `has_permission()` change (trivial single-function revert); `person_roles` table stays but goes unread again, harmless.
 
-**Complete and approved** — see [`PHASE3B_SLICE_B3_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B3_SCHEMA_VERIFICATION_REPORT.md), including the full Authorization Equivalence Report (10 scenarios, all passing, including forward-compatibility and revoked-role edge cases). `PersonRole` model, migration `b4e6a1d9c3f7`, dual-read in `has_permission()` via `object_session(user)` — zero router or dependency-signature changes. Full test suite: 112/112 non-pre-existing-failure tests pass.
+**Complete and deployed** — see [`PHASE3B_SLICE_B3_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B3_SCHEMA_VERIFICATION_REPORT.md), including the full Authorization Equivalence Report (10 scenarios, all passing, including forward-compatibility and revoked-role edge cases). `PersonRole` model, migration `b4e6a1d9c3f7`, dual-read in `has_permission()` via `object_session(user)` — zero router or dependency-signature changes. Full test suite: 112/112 non-pre-existing-failure tests pass. Committed (`2719527`), tagged `v1.35.0-phase3b-b3-authorization-foundation`, deployed to production 2026-07-20 — `Schema status: MATCH`, live participant login/route-access/denial confirmed via a real test account, admin login and admin-only route access confirmed directly.
 
 ### B4 — `PersonRelationship` + `Household`
 
