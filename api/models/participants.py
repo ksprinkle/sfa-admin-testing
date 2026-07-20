@@ -21,8 +21,16 @@ class Participant(Base):
     # user references, e.g. ParticipantWaiver.verified_by_user_id.
     user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
 
+    # Phase 3B Slice B2: backfill-only correlation to the Person this
+    # registration belongs to, via people.user_id (see PHASE3B_IDENTITY_
+    # FOUNDATION_IMPLEMENTATION_ROADMAP.md). Not yet read by any ownership
+    # check or authorization decision - user_id remains authoritative
+    # until a later, behavior-changing slice.
+    person_id = Column(UUID(as_uuid=True), ForeignKey("people.id"), nullable=True, index=True)
+
     session = relationship("Session")
     user = relationship("User")
+    person = relationship("Person")
 
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)

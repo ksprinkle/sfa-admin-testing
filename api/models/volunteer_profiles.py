@@ -30,6 +30,12 @@ class VolunteerProfile(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), nullable=False)
 
+    # Phase 3B Slice B2: additive identity link, no existing correlation to
+    # backfill from - starts null for every row (see PHASE3B_IDENTITY_
+    # FOUNDATION_IMPLEMENTATION_ROADMAP.md). Not read anywhere yet.
+    person_id = Column(UUID(as_uuid=True), ForeignKey("people.id"), nullable=True, index=True)
+    person = relationship("Person")
+
     availabilities = relationship(
         "VolunteerAvailability",
         back_populates="volunteer",

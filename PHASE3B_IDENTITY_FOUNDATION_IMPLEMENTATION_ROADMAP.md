@@ -81,6 +81,8 @@ Add nullable `person_id` (FK → `people.id`) to both tables via a guarded migra
 **Ships independently:** yes, backend-only.
 **Rollback:** drop the columns; nothing depended on them being populated.
 
+**Complete** — see [`PHASE3B_SLICE_B2_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B2_SCHEMA_VERIFICATION_REPORT.md). `Participant.person_id`/`VolunteerProfile.person_id`, migration `a7d3f9c2e5b8`. Verified on both a clean and a realistically populated database: correct backfill (linked participants get the correlated `Person`, unlinked stay `NULL`, volunteer profiles all `NULL`), idempotency and partial-catch-up confirmed under direct replay, zero new test failures, zero application call sites reference the new column. `user_id` remains authoritative throughout. Not yet deployed.
+
 ### B3 — `PersonRole`, dual-read authorization
 
 Add `person_roles` (`person_id`, `role_code`, `granted_at`, `granted_by_user_id`, `status`) via a guarded migration. Backfill one active row per existing `User.role`. Change `authorization.py::has_permission()` to compute permissions from the union of a person's active `PersonRole` grants **when any exist**, falling back to the existing single-`role` lookup otherwise (a safety net, not a permanent two-path design — B1's backfill should make every account have a `PersonRole` row, so the fallback should never actually trigger in steady state). Before merging, run a one-off verification script comparing the old permission set and the new resolved permission set for every existing user — this should be an exact match for every account, since nothing about role assignment has changed yet, only how it's read.
