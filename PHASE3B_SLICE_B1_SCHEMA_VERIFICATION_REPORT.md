@@ -91,14 +91,33 @@ Confirmed by direct grep across `api/`: the only references to the new `Person`/
 
 ---
 
-## 10. What was deliberately not done
+## 10. Production deployment (2026-07-20)
 
-- **Not deployed to production.** This report validates the migration against a faithful local reproduction of the full migration history, not against the live Render Postgres database, which this session has no access to. Applying it to production is a separate step requiring its own deploy — not taken here, pending explicit direction.
-- **No commit made.** All changes are in the working tree only, per standing instruction to commit only when asked.
+Committed (`e8ec100` docs, `496e16b` code), tagged `v1.33.0-phase3b-b1-schema-foundation`, pushed to `origin/master`. Render deploy log for this release, confirmed directly from the dashboard:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Running upgrade e8b4a2f6c1d9 -> f3a8d1c6b9e2, add person and role tables (identity foundation slice B1)
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: f3a8d1c6b9e2
+   Application migration head: f3a8d1c6b9e2
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+Exactly one migration applied, against real production PostgreSQL, with the application's own boot-time schema-status diagnostic confirming `MATCH` — the specific signal this project's own postmortems established as the authoritative check (not just "the app responds"). Service came up clean with no startup errors and continued serving `200 OK` on subsequent requests.
+
+Row-count-level confirmation in production (`people` count equals `users` count, `roles` has exactly 2 rows) was not independently queried in this pass — the deploy log's `Schema status: MATCH` confirms the migration executed against production, and this exact backfill logic was already verified idempotent and correct against a faithful local reproduction (§7). Recommended, not blocking: a one-off `SELECT count(*) FROM people; SELECT count(*) FROM users; SELECT count(*) FROM roles;` via Render Shell for full closure.
+
+## 11. What was deliberately not done
+
 - **No `PersonRole`, no `person_id` columns on `Participant`/`VolunteerProfile`, no reads of either new table anywhere** — those are B2 and later, not this slice.
 
 ---
 
-## 11. Conclusion
+## 12. Conclusion
 
-B1 meets every success criterion from `PHASE3B_IDENTITY_FOUNDATION_IMPLEMENTATION_ROADMAP.md` §5: the tables exist, backfill is confirmed exactly 1:1 (plus verified idempotent under direct replay), no production behavior changed, no API changed, and existing tests pass unchanged. Per this slice's own stated bar: if deployed, nothing observable to a user or another engineer reading logs/responses would differ from before — the only new artifact is two populated-but-unread tables. Ready for B2, pending approval.
+B1 meets every success criterion from `PHASE3B_IDENTITY_FOUNDATION_IMPLEMENTATION_ROADMAP.md` §5: the tables exist, backfill is confirmed exactly 1:1 (plus verified idempotent under direct replay), no production behavior changed, no API changed, and existing tests pass unchanged. **Deployed to production 2026-07-20, confirmed live** (§10) — schema status `MATCH`, no startup errors, service serving normally afterward. Per this slice's own stated bar: nothing observable to a user or another engineer reading logs/responses differs from before deployment — the only new artifact is two populated-but-unread tables. B1 is complete. Ready for B2.

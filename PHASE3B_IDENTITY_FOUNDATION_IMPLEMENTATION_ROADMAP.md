@@ -71,7 +71,7 @@ Add `people` (id, email, first_name/last_name if desired, created_at) and `roles
 **Ships independently:** yes, backend-only, zero frontend involvement.
 **Rollback:** drop `people`/`roles` (guarded `downgrade()`); safe, since nothing references them.
 
-**Complete** — see [`PHASE3B_SLICE_B1_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B1_SCHEMA_VERIFICATION_REPORT.md). `api/models/person.py`, `api/models/role.py`, migration `f3a8d1c6b9e2`. Verified against a full local replay of the migration history (not yet applied to production): clean upgrade/downgrade, 1:1 backfill confirmed, idempotency confirmed under direct replay (including a partial-catch-up scenario), zero new test failures, zero existing call sites touched. Not yet deployed.
+**Complete and deployed** — see [`PHASE3B_SLICE_B1_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B1_SCHEMA_VERIFICATION_REPORT.md). `api/models/person.py`, `api/models/role.py`, migration `f3a8d1c6b9e2`. Verified against a full local replay of the migration history (clean upgrade/downgrade, 1:1 backfill, idempotency confirmed under direct replay including a partial-catch-up scenario, zero new test failures, zero existing call sites touched), then committed (`e8ec100`, `496e16b`), tagged `v1.33.0-phase3b-b1-schema-foundation`, and deployed to production 2026-07-20 — confirmed live via the Render deploy log (`alembic upgrade head` applied `e8b4a2f6c1d9 -> f3a8d1c6b9e2` against real production Postgres, boot diagnostic reports `Schema status: MATCH`).
 
 ### B2 — `person_id` on `Participant` and `VolunteerProfile`
 
