@@ -80,6 +80,28 @@ Because preflight does not run the test suite, run `python -m unittest discover 
 
 Full deployment topology and rationale → [`ARCHITECTURE_OVERVIEW.md`](ARCHITECTURE_OVERVIEW.md).
 
+## Email Delivery
+
+`api/services/email_delivery.py` provides two providers behind one abstraction, selected entirely by environment variable — no code change needed to switch: `EmailNoopProvider` (fabricates a fake success, sends nothing — the default, correct for local dev and any environment without real SMTP configured) and `SMTPEmailProvider` (real SMTP, STARTTLS or SSL).
+
+**Because `sfa-api` is not Blueprint-synced to this repo** (see `KNOWN_TECHNICAL_DEBT.md`'s `preDeployCommand` postmortem), the variables below are declared in `render.yaml` for documentation purposes only — they do **not** get applied automatically. Set them by hand in the Render dashboard: `sfa-api` → **Environment** → **Environment Variables** → **Edit**.
+
+| Variable | Example (Gmail) | Notes |
+|---|---|---|
+| `EMAIL_PROVIDER_KEY` | `email.smtp` | Selects `SMTPEmailProvider`. Leaving this unset (or `email.noop`) is fine for local/dev — **production refuses to start** if it resolves to the no-op provider (`api/main.py`'s `_enforce_startup_guardrails`). |
+| `SMTP_HOST` | `smtp.gmail.com` | |
+| `SMTP_PORT` | `587` | STARTTLS port. Leave `SMTP_USE_SSL` unset/`false` — it can't be combined with `SMTP_USE_TLS` (the default, `true`). |
+| `SMTP_USERNAME` | `sfa.app.testing@gmail.com` | |
+| `SMTP_PASSWORD` | *(Gmail App Password)* | **Secret — set only in the Render dashboard, never committed.** See below for how to generate one. |
+| `EMAIL_DEFAULT_SENDER` | `sfa.app.testing@gmail.com` | The actual sender/envelope address used everywhere email is sent — note this is the variable that matters, **not** `SMTP_FROM_ADDRESS` (declared in `api/config.py` but not referenced anywhere in the send path — dead configuration, don't set it expecting it to do anything). |
+| `EMAIL_SENDER_DISPLAY_NAME` | `Surfers For Autism` | Optional. Adds a friendly name to the `From:` header only (`Surfers For Autism <sfa.app.testing@gmail.com>`) — the envelope sender stays the bare `EMAIL_DEFAULT_SENDER` address either way. Leave unset for no display name. |
+
+**Generating a Gmail App Password** (required — Gmail rejects SMTP auth with the account's normal password): the Google Account must have 2-Step Verification enabled first, then Google Account → Security → 2-Step Verification → App passwords → create one scoped to "Mail" → use the generated 16-character value as `SMTP_PASSWORD` (spaces don't matter, Google accepts it either way).
+
+**Deployment steps**: set the variables above in the Render dashboard → trigger a deploy (or push a commit) → check the Application log for the boot-time diagnostic lines (`Email provider: email.smtp`, `SMTP enabled: True`, `Sender address: ...` — never the password) → run through Release Verification below, including an actual send.
+
+**Swapping the sender later** (e.g. once the organization's real domain is available) needs no code change — just update `EMAIL_DEFAULT_SENDER` (and `EMAIL_SENDER_DISPLAY_NAME` if desired) in the dashboard and redeploy.
+
 ## Release Verification
 
 Run after every production deploy — a couple of minutes, and it's the step that would have caught the 2026-07-19 migration-drift incident immediately instead of several slices later (see `KNOWN_TECHNICAL_DEBT.md`'s postmortem). Use the existing published **"Fake Event Test"** event for the registration check, never a real chapter event, and the standing verification account (`kellysprinkle2016+release-check@yahoo.com` — a `+`-tagged alias of a real inbox, `role=participant`; password is in the project maintainer's password manager, not in this repo) rather than registering a fresh one each time (registering repeatedly trips `/auth/register`'s own rate limiter, 5 requests/15 min).
