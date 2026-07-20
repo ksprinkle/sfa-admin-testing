@@ -91,6 +91,8 @@ Add `person_roles` (`person_id`, `role_code`, `granted_at`, `granted_by_user_id`
 **Ships independently:** yes, backend-only — permission *strings* returned to any router are unchanged, only their computation path changes.
 **Rollback:** revert the `has_permission()` change (trivial single-function revert); `person_roles` table stays but goes unread again, harmless.
 
+**Complete and approved** — see [`PHASE3B_SLICE_B3_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B3_SCHEMA_VERIFICATION_REPORT.md), including the full Authorization Equivalence Report (10 scenarios, all passing, including forward-compatibility and revoked-role edge cases). `PersonRole` model, migration `b4e6a1d9c3f7`, dual-read in `has_permission()` via `object_session(user)` — zero router or dependency-signature changes. Full test suite: 112/112 non-pre-existing-failure tests pass.
+
 ### B4 — `PersonRelationship` + `Household`
 
 Add `households` (id, name, created_at) and `person_relationships` (`subject_person_id`, `related_person_id`, `relationship_type`, capability flag columns, `household_id` nullable, `status`, `verified_at`/`verified_by_user_id` nullable) via a guarded migration. No backfill — nothing analogous exists today (confirmed in 3A §5, `Participant` has no emergency-contact or guardian fields to migrate off of). Per the §0 refinement, `relationship_type` populates the capability-flag columns only **at row-creation time** (application-layer default, not a DB trigger or computed column) — once created, a row's flags are independent of its type. This slice may include minimal admin-only CRUD to create/edit relationships for manual testing, but no existing flow reads or writes them yet.
