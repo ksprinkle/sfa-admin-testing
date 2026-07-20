@@ -70,9 +70,24 @@ Same 104/4 result as B1's baseline run — no change in pass/fail composition.
 - **Partial catch-up, tested directly**: added a new `Participant` row for a user who already had a `Person` (but no prior participant row), then replayed `upgrade()` — exactly that one new row was backfilled correctly; all other rows were untouched. This is the same class of scenario tested for B1 and, per your standing instruction, now the baseline expectation for every future migration in this rollout.
 - **Downgrade verified**: `alembic downgrade -1` dropped both columns (and their indexes/FKs) cleanly; all row counts and remaining data confirmed unaffected afterward.
 
-## 9. Production deployment
+## 9. Production deployment (2026-07-20)
 
-Not yet deployed — pending your direction on committing/tagging/pushing, matching the same checkpoint used for B1.
+Committed (`c9ac9c6`), tagged `v1.34.0-phase3b-b2-schema-foundation`, pushed to `origin/master`. Render deploy log confirmed:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Running upgrade f3a8d1c6b9e2 -> a7d3f9c2e5b8, add person_id to participants and volunteer_profiles (identity foundation slice B2)
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: a7d3f9c2e5b8
+   Application migration head: a7d3f9c2e5b8
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+Exactly one migration applied, against real production PostgreSQL, boot diagnostic confirms `MATCH`. Service came up clean with no startup errors.
 
 ## 10. Smoke tests show no regressions
 
@@ -84,4 +99,4 @@ Not yet deployed — pending your direction on committing/tagging/pushing, match
 
 ## 11. Conclusion
 
-B2 meets every success criterion set for this slice: the two `person_id` columns exist, are correctly populated exactly where the roadmap specifies (and nowhere else), existing foreign keys and ownership resolution are completely untouched, no production behavior changed, and the migration is verified idempotent under direct replay — including the partial-catch-up case — on both a clean and a realistically populated database. `user_id` remains the sole source of truth on both tables, exactly as instructed; nothing in this slice reads the new column. Ready for your direction on commit/tag/deploy.
+B2 meets every success criterion set for this slice: the two `person_id` columns exist, are correctly populated exactly where the roadmap specifies (and nowhere else), existing foreign keys and ownership resolution are completely untouched, no production behavior changed, and the migration is verified idempotent under direct replay — including the partial-catch-up case — on both a clean and a realistically populated database. `user_id` remains the sole source of truth on both tables, exactly as instructed; nothing in this slice reads the new column. **Deployed to production 2026-07-20, confirmed live** (§9) — schema status `MATCH`, no startup errors. B2 is complete. Ready for B3.

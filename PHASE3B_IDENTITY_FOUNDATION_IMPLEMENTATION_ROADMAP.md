@@ -81,7 +81,7 @@ Add nullable `person_id` (FK → `people.id`) to both tables via a guarded migra
 **Ships independently:** yes, backend-only.
 **Rollback:** drop the columns; nothing depended on them being populated.
 
-**Complete** — see [`PHASE3B_SLICE_B2_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B2_SCHEMA_VERIFICATION_REPORT.md). `Participant.person_id`/`VolunteerProfile.person_id`, migration `a7d3f9c2e5b8`. Verified on both a clean and a realistically populated database: correct backfill (linked participants get the correlated `Person`, unlinked stay `NULL`, volunteer profiles all `NULL`), idempotency and partial-catch-up confirmed under direct replay, zero new test failures, zero application call sites reference the new column. `user_id` remains authoritative throughout. Not yet deployed.
+**Complete and deployed** — see [`PHASE3B_SLICE_B2_SCHEMA_VERIFICATION_REPORT.md`](PHASE3B_SLICE_B2_SCHEMA_VERIFICATION_REPORT.md). `Participant.person_id`/`VolunteerProfile.person_id`, migration `a7d3f9c2e5b8`. Verified on both a clean and a realistically populated database: correct backfill (linked participants get the correlated `Person`, unlinked stay `NULL`, volunteer profiles all `NULL`), idempotency and partial-catch-up confirmed under direct replay, zero new test failures, zero application call sites reference the new column. `user_id` remains authoritative throughout. Committed (`c9ac9c6`), tagged `v1.34.0-phase3b-b2-schema-foundation`, deployed to production 2026-07-20 — confirmed live via the Render deploy log (`f3a8d1c6b9e2 -> a7d3f9c2e5b8` applied against production Postgres, `Schema status: MATCH`).
 
 ### B3 — `PersonRole`, dual-read authorization
 
