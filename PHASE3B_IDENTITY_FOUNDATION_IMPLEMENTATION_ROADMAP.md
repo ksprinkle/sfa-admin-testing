@@ -17,6 +17,19 @@ One unrelated production bug (`docs/waiver-signing.html` accidentally gitignored
 
 **B8 onward is not authorized by this closeout.** Per the user's explicit framing, B8 requires its own fresh architecture review before any implementation, rather than the direct per-slice authorization B1–B7 received — it's the first slice to expose the capability engine through a real endpoint. Do not begin B8 work of any kind until that review happens and is explicitly approved.
 
+### Naming clarification (2026-07-21) — "Phase 3C" disambiguated going forward
+
+Two unrelated efforts had both used the label "Phase 3C": the original `PHASE3_DIGITAL_DOCUMENTS_PLATFORM_ARCHITECTURE_REVIEW.md` (Digital Documents Platform, paused pending this identity work) and B8's own baseline tag, `v1.40.0-phase3c-b8-capability-exposure`. Resolved by explicit user decision: **historical work is not renamed** — `PHASE3_DIGITAL_DOCUMENTS_PLATFORM_ARCHITECTURE_REVIEW.md` and the existing `v1.40.0-phase3c-b8-capability-exposure` tag both stand exactly as written. Going forward, the two streams are distinguished as:
+
+- **Phase 3C – Identity Capability Transition**: B8 onward (capability exposure, and eventually capability-based authorization decisions replacing legacy checks).
+- **Phase 4 – Digital Documents Platform**: the work described in `PHASE3_DIGITAL_DOCUMENTS_PLATFORM_ARCHITECTURE_REVIEW.md`, still paused, to be referred to as Phase 4 in any new document or discussion from this point on.
+
+B8's status, per the user's own framing: **production validated; observation window in progress** — not formally closed until that window completes cleanly with no unexpected `capability_engine_expose_error` entries, matching the precedent set by B6 and B7.
+
+### B9 — first authoritative capability decision (not yet started, review required before implementation)
+
+Per the user: B9 is "the first slice that changes who decides access rather than merely exposing or validating information," and warrants at least the scrutiny B3 and B7 received — arguably more. A dedicated architecture review (not implementation) is required before any B9 code, and must address at minimum: candidate endpoint selection and why it's the safest first migration; capability-mapping equivalence (legacy permission → capability); authorization semantics (no unintended privilege change); rollback strategy (single-commit, no data implications); observability plan; backward-compatibility analysis; a production validation plan covering positive/negative/regression cases; blast-radius justification; and an explicit decision on whether B9 replaces the legacy check outright or runs a temporary dual-decision, fail-closed comparison first. **Do not begin the B9 review until the user explicitly brings it forward** — it is contingent on B8's observation window closing first.
+
 ---
 
 ## 0. Refinements Adopted Since 3A
