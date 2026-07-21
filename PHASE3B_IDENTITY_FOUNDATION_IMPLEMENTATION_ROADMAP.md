@@ -37,7 +37,30 @@ Per the user: B9 is "the first slice that changes who decides access rather than
 
 **Condition confirmed** — no matches found searching all Application Logs for `capability_engine_shadow_mismatch`. Implemented, deployed (`405b8c3`, tagged `v1.41.0-phase3c-b9-capability-enforcement`), and validated live 2026-07-21: fresh throwaway participant account succeeds (`200`) on `GET /api/participants/mine`, anonymous request still `401`, zero `capability_engine_authorization_error`/`capability_engine_authorization_denied` log entries, admin dashboard/executive dashboard/communications unaffected. Full detail in [`PHASE3C_SLICE_B9_VERIFICATION_REPORT.md`](PHASE3C_SLICE_B9_VERIFICATION_REPORT.md).
 
-**B9 – First Capability-Based Authorization: CLOSED (2026-07-21).** Observation window completed cleanly — no unexpected `capability_engine_authorization_error` entries — matching the precedent set by B6 through B8. `v1.41.0-phase3c-b9-capability-enforcement` is adopted as the new canonical production baseline for Phase 3C – Identity Capability Transition. This is the first production endpoint whose authorization is decided solely by the Capability Resolution Engine; legacy `has_permission()`/`require_permission()` remains authoritative for every other endpoint. Next architectural focus (per the user): a new architecture review — not implementation — for either B10 (renumbered retirement of `User.role`/`Participant.user_id`) or the next single-endpoint capability migration, following the same review → minimal slice → production validation → observation window → closeout rhythm.
+**B9 – First Capability-Based Authorization: CLOSED (2026-07-21).** Observation window completed cleanly — no unexpected `capability_engine_authorization_error` entries — matching the precedent set by B6 through B8. `v1.41.0-phase3c-b9-capability-enforcement` is adopted as the new canonical production baseline for Phase 3C – Identity Capability Transition. This is the first production endpoint whose authorization is decided solely by the Capability Resolution Engine; legacy `has_permission()`/`require_permission()` remains authoritative for every other endpoint.
+
+### B10 — redefined (2026-07-21): second capability migration, not legacy-field retirement
+
+A dedicated architecture review ([`PHASE3C_SLICE_B10_ARCHITECTURE_REVIEW.md`](PHASE3C_SLICE_B10_ARCHITECTURE_REVIEW.md)) was run against the *current* codebase, per the user's request, rather than against this roadmap's original assumption that B10 would retire `User.role`/`Participant.user_id`. It found that assumption unsafe, for two reasons the user agreed are the review's most important findings:
+
+1. **`PersonRole` issuance is not continuous.** Tracing every migration that creates a `PersonRole` row: B3's migration backfilled one, once, at its own deploy time. Nothing since then — not `POST /auth/register`, not any other code path — has ever created a `PersonRole` row. Every account created after B3 deployed (which by now is most or all real accounts, given B5–B9's own testing activity) has a `Person` but zero `PersonRole` rows, and resolves entirely through the legacy fallback in both `has_permission()` and `has_capability()`. The system isn't transitioning away from `User.role` — it's maintaining two permanently-diverging populations, one static (pre-B3, has `PersonRole`) and one growing (post-B3, legacy-only).
+2. **`Participant.person_id` is write-only.** `person_id` is populated everywhere `user_id` is (B7), but `api/services/participant_identity.py` — which backs both self-service participant endpoints — filters exclusively on `Participant.user_id`. No code path anywhere reads `person_id` for row-level ownership scoping. The migration to the canonical identity model is only half-complete on the read side.
+
+Two further findings, agreed to be tracked as **architectural correctness issues** (not ordinary debt) in `KNOWN_TECHNICAL_DEBT.md`, prerequisites for legacy-field retirement rather than blockers to B10 itself: `GET /admin/permissions/me` (`api/routers/admin_permissions.py`) reads `current_user.role` directly, bypassing the capability/dual-read path entirely; and the three role-mutation endpoints in `auth.py` (`update_user_role`, `update_user_role_by_email`, `update_user_role_by_email_body`) only ever write the legacy `User.role` field, never touching `PersonRole` — so changing a role via the admin UI on any account that already has a stale `PersonRole` grant from B3's backfill has no effect on that account's actual resolved permissions today.
+
+**Revised sequencing, approved by the user:**
+
+```
+B9  — First capability enforcement (CLOSED)
+B10 — Second capability migration: GET /api/participants/{participant_id}
+B11 — Continuous PersonRole issuance (new accounts receive PersonRole automatically)
+B12 — person_id read-path migration (remove user_id lookups from participant_identity.py)
+Future — Legacy-field retirement (User.role / Participant.user_id column drops)
+```
+
+**B10 (redefined)**: migrate `GET /api/participants/{participant_id}` from `require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN)` to `require_capability(...)` — the sibling of the one permission B9 already proved live, same file, same author, zero new schema risk. Architecture accepted 2026-07-21; **implementation not yet authorized** — awaiting the user's explicit go-ahead, per this project's one-slice-at-a-time authorization practice.
+
+**B11 and B12 are explicitly deferred**, each requiring its own dedicated architecture review before any implementation, since both alter fundamental identity behavior (continuous `PersonRole` issuance changes what happens on every registration and role change; the `person_id` read-path migration changes what rows a caller can see). Neither review has started.
 
 ---
 
@@ -89,7 +112,11 @@ This constraint applies only to subject ownership. Actor/attribution fields — 
 | **B6** | Shadow-check on `GET /participants/mine` | None | Compares old vs. new access decision, logs mismatches, still serves the old decision | Yes — backend only |
 | **B7** | Relationship-aware claiming; `person_id` becomes the write target for new registrations | None (uses B1–B4 schema) | Behavior change: claiming can now create/attach `PersonRelationship` rows | Backend-only to ship; a registration-flow UI enhancement is optional and separable |
 | **B8** | `GET /api/me/capabilities` (or extend `GET /auth/me`) | None | Read-only, exposes resolved capabilities | Backend ships independently; has no visible effect until a frontend (Phase 3D) consumes it |
-| **B10** *(future, not in this rollout)* | Retire `User.role` / `Participant.user_id` | Drop columns, guarded | Only after a full burn-in period post-B7 | Its own future roadmap item, deliberately excluded here |
+| **B9** | `GET /participants/mine` migrates to `require_capability()` | None | First real capability-based authorization decision | Yes — backend only |
+| **B10** | `GET /participants/{participant_id}` migrates to `require_capability()` | None | Second capability migration — sibling of B9's endpoint, same permission | Yes — backend only |
+| **B11** *(future, review not started)* | Continuous `PersonRole` issuance at registration and role-change time | None (writes to existing table) | Closes the gap found in B10's review: `PersonRole` backfill was a one-time B3 snapshot, not ongoing | Its own future roadmap item |
+| **B12** *(future, review not started)* | `person_id`-based row scoping in `participant_identity.py`, replacing `user_id` reads | None | Closes the gap found in B10's review: `person_id` is currently write-only | Its own future roadmap item |
+| **Future** *(not in this rollout)* | Retire `User.role` / `Participant.user_id` | Drop columns, guarded | Only after B11 and B12 are both proven in production | Its own future roadmap item, deliberately excluded here |
 
 ### B0 — Call-site audit (no schema, no code)
 
@@ -188,11 +215,23 @@ A new, read-only endpoint (or an additive field on the existing `GET /auth/me`) 
 **Backward compatibility:** total — purely additive endpoint/field.
 **Ships independently:** yes, on the backend; it has no user-visible effect until a frontend (out of this roadmap's scope, belongs to Phase 3D) starts calling it.
 
-### B10 — Retirement of `User.role` / `Participant.user_id` (explicitly future, not part of this rollout)
+### B10 — second capability migration: `GET /api/participants/{participant_id}`
 
-Only after B7 has run in production through a full, deliberate burn-in period with no discrepancies surfaced by B6-style shadow-checking, plan a dedicated future slice to stop writing the legacy fields and, eventually, drop them — with its own guarded migration and its own call-site audit, repeating B0's discipline rather than assuming the original audit still holds. Explicitly out of scope for this roadmap; listed only so it isn't lost.
+Migrates the sibling of B9's endpoint from `require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN)` to `require_capability(...)` — same permission, same file, same proven-equivalent engine, no schema change. Architecture reviewed and accepted 2026-07-21 (`PHASE3C_SLICE_B10_ARCHITECTURE_REVIEW.md`); implementation awaits the user's explicit authorization.
 
-**Renumbered from B9 to B10 (2026-07-21)** to resolve a naming collision with the actual B9 (first authoritative capability-based authorization decision, `PHASE3C_SLICE_B9_ARCHITECTURE_REVIEW.md`) — see that document's §12 for the full reasoning. This is a documentation renumbering only; nothing about this slice's scope or timing changed.
+### B11 — Continuous `PersonRole` issuance (explicitly future, review not started)
+
+B10's architecture review found that `PersonRole` backfill has only ever run once, at B3's deploy — every account created since then has no `PersonRole` at all and resolves entirely through the legacy `User.role` fallback. B11 would make `PersonRole` issuance continuous: grant one at registration time, and update it (rather than only the legacy field) whenever an admin changes a user's role. This is a prerequisite for legacy-field retirement, not the retirement itself, and needs its own dedicated architecture review — it changes what happens on every registration and every role change, exactly the kind of behavior change this project gates on review first.
+
+### B12 — `person_id`-based row scoping (explicitly future, review not started)
+
+B10's review also found `Participant.person_id` is currently write-only: `api/services/participant_identity.py` — which backs both self-service participant endpoints — filters exclusively on `Participant.user_id`, never `person_id`. B12 would replace those filters with a proven-equivalent `person_id`-based query, the second prerequisite for legacy-field retirement. Needs its own dedicated architecture review — it changes which rows a caller can see, the highest-stakes kind of change this rollout makes.
+
+### Future — Retirement of `User.role` / `Participant.user_id` (explicitly future, not part of this rollout)
+
+Only after B11 and B12 have both run in production through a full, deliberate burn-in period, plan a dedicated future slice to stop writing the legacy fields and, eventually, drop them — with its own guarded migration and its own call-site audit, repeating B0's discipline rather than assuming the original audit still holds. Explicitly out of scope for this roadmap; listed only so it isn't lost.
+
+**Sequencing history**: this item was originally labeled "B9" (renamed to "B10" on 2026-07-21 to resolve a naming collision with the real B9), then redefined again on 2026-07-21 after B10's own architecture review found legacy-field retirement unsafe as a next slice — see `PHASE3C_SLICE_B10_ARCHITECTURE_REVIEW.md` for the full reasoning. "B10" now refers to the second capability migration above; this retirement work is deferred, unnumbered ("Future"), pending B11 and B12.
 
 ---
 
