@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from api.db.session import get_db
-from api.dependencies import require_capability, require_permission
+from api.dependencies import require_capability
 from api.models.users import User
 from api.schemas.participants import MyRegistrationOut, ParticipantOut
 from api.services.authorization import PERMISSION_PARTICIPANTS_VIEW_OWN
@@ -134,10 +134,14 @@ def list_my_registrations(
 
 
 # Minimal self-service read, scoped to a single record the caller owns.
+# Phase 3C Slice B10: second endpoint decided solely by the Capability
+# Resolution Engine (require_capability()), reusing the same permission
+# already proven live by B9 on GET /participants/mine. See
+# PHASE3C_SLICE_B10_ARCHITECTURE_REVIEW.md.
 @router.get("/{participant_id}", response_model=ParticipantOut)
 def get_own_participant(
     participant_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN)),
+    current_user: User = Depends(require_capability(PERMISSION_PARTICIPANTS_VIEW_OWN)),
 ):
     return get_own_participant_or_404(db, participant_id=participant_id, current_user=current_user)
