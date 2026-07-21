@@ -53,10 +53,37 @@ Revert the single commit touching `api/routers/participant_self.py` (plus its te
 
 ---
 
-## 9. Production deployment
+## 9. Production deployment (2026-07-21)
 
-*Pending review and approval to commit, tag, and deploy.*
+Committed (`d794396`), tagged `v1.42.0-phase3c-b10-own-participant-capability`, pushed to `origin/master`. Deploy log confirmed no migration ran (correct — no schema change in this slice) and:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: d5a9e2c7f3b1
+   Application migration head: d5a9e2c7f3b1
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live validation**, using the event slug `fake-event-test` and two fresh throwaway accounts:
+
+| Check | Method | Result |
+|---|---|---|
+| Clean startup | Deploy log | No errors, service live |
+| Schema status | Deploy log | `MATCH` (unchanged — no migration this slice) |
+| Owner success | Participant A registers for `fake-event-test`, then `GET /api/participants/{their own id}` | `200`, correct record |
+| Non-owner denial (ownership scoping unaffected) | Fresh Participant B → `GET /api/participants/{A's id}` | `404`, `{"detail":"Participant not found"}` |
+| Anonymous | `GET /api/participants/{A's id}`, no token | `401`, `{"detail":"Not authenticated"}` |
+| Anonymous on invalid id | `GET /api/participants/00000000-...`, no token | `401` — confirms `require_capability()` rejects before the route body/lookup ever runs |
+| `GET /api/participants/mine` unaffected | Participant A | `200`, correct single-item payload, unchanged from B9's shape |
+
+Every check matches expected behavior exactly. Admin dashboard/executive dashboard/communications confirmed working normally. Application Logs searched for `capability_engine_authorization_error` and `capability_engine_authorization_denied` on this endpoint — zero matches for either.
 
 ## 10. Conclusion
 
 B10 completes the migration of this rollout's one fully-proven permission (`participants.view_own`) across both endpoints that use it, reusing `require_capability()` and the Capability Resolution Engine exactly as they existed after B9 — zero changes to either. Ownership scoping, response shape, and every other endpoint remain untouched. The B11/B12 findings from the architecture review are deliberately not addressed here, per the authorized scope.
+
+**Deployed to production 2026-07-21 and validated live** (§9). **Status: Production validated; observation window in progress.**
