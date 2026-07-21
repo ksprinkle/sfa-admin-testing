@@ -34,6 +34,8 @@ Per the user: B9 is "the first slice that changes who decides access rather than
 
 **One condition remains before implementation begins**: confirmation that B6's production shadow-check logged zero genuine authorization mismatches during its observation window. If confirmed, implementation proceeds under direct replacement as approved. If B6 in fact surfaced a real mismatch, stop and investigate before writing any B9 code.
 
+**Condition confirmed** — no matches found searching all Application Logs for `capability_engine_shadow_mismatch`. Implemented, deployed (`405b8c3`, tagged `v1.41.0-phase3c-b9-capability-enforcement`), and validated live 2026-07-21: fresh throwaway participant account succeeds (`200`) on `GET /api/participants/mine`, anonymous request still `401`, zero `capability_engine_authorization_error`/`capability_engine_authorization_denied` log entries, admin dashboard/executive dashboard/communications unaffected. Full detail in [`PHASE3C_SLICE_B9_VERIFICATION_REPORT.md`](PHASE3C_SLICE_B9_VERIFICATION_REPORT.md). **Status: Production validated; observation window in progress**, same precedent as B6 through B8.
+
 ---
 
 ## 0. Refinements Adopted Since 3A

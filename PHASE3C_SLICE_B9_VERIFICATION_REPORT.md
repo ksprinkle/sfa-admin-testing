@@ -63,10 +63,37 @@ Revert the single commit touching `api/dependencies.py` and `api/routers/partici
 
 ---
 
-## 9. Production deployment
+## 9. Production deployment (2026-07-21)
 
-*Pending user approval to commit, tag, and deploy.*
+Committed (`405b8c3`), tagged `v1.41.0-phase3c-b9-capability-enforcement`, pushed to `origin/master`. Deploy log confirmed no migration ran (correct — no schema change in this slice) and:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: d5a9e2c7f3b1
+   Application migration head: d5a9e2c7f3b1
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live validation:**
+
+| Check | Method | Result |
+|---|---|---|
+| Clean startup | Deploy log | No errors, service live |
+| Schema status | Deploy log | `MATCH` (unchanged — no migration this slice) |
+| Positive case | Fresh throwaway participant account → `GET /api/participants/mine` | `200`, `[]` — capability engine grants access via the real production fallback path |
+| Anonymous | `GET /api/participants/mine`, no token | `401`, `{"detail":"Not authenticated"}` — unchanged |
+| Fail-closed path in production | Application Logs search: `capability_engine_authorization_error` | Zero matches |
+| Denial path in production | Application Logs search: `capability_engine_authorization_denied` | Zero matches — expected steady state, since nothing besides the participant portal calls this endpoint under normal use |
+| Admin regression | Confirmed directly | Dashboard, Executive Dashboard, and Communications all load normally |
+
+Every check matches expected behavior exactly. Pending: an observation window checking Application Logs for continued zero `capability_engine_authorization_error` occurrences under real traffic, per the acceptance criteria — same discipline as B6, B7, and B8.
 
 ## 10. Conclusion
 
 B9 replaces legacy authorization with the Capability Resolution Engine's decision for the first time in production, on the one endpoint (`GET /api/participants/mine`) whose equivalence was already proven live by B6's shadow-check and confirmed clean by the user's own Application Logs search. Every outcome — who succeeds, who is denied, and why — is unchanged from before this slice; only the mechanism deciding those outcomes has moved to the canonical engine. `api/services/capability_resolution.py` required zero modification, again confirming B5's abstractions are sound four slices later.
+
+**Deployed to production 2026-07-21 and validated live** (§9). **Status: Production validated; observation window in progress.**
