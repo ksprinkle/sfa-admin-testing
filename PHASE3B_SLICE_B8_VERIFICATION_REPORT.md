@@ -69,10 +69,34 @@ Revert the single commit touching `api/routers/auth.py`/`api/schemas/users.py`. 
 
 ---
 
-## 10. Production deployment
+## 10. Production deployment (2026-07-21)
 
-Pending. No schema change means no `alembic upgrade head` step to watch for this slice — deploy validation will focus on: clean startup, `GET /auth/me` returning the new field correctly for both a live admin and a live participant account, both shells continuing to function with zero observable change, and an observation window checking Application Logs for zero `capability_engine_expose_error` occurrences under real traffic.
+Committed (`6922930`), tagged `v1.40.0-phase3c-b8-capability-exposure`, pushed to `origin/master`. Deploy log confirmed no migration ran (correct — no schema change in this slice) and:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: d5a9e2c7f3b1
+   Application migration head: d5a9e2c7f3b1
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live validation:**
+
+| Check | Method | Result |
+|---|---|---|
+| Clean startup | Deploy log | No errors, service live |
+| Schema status | Deploy log | `MATCH` (unchanged — no migration this slice) |
+| New field present and correct | Fresh throwaway participant account → `GET /auth/me` | `"capabilities":["participants.view_own","waivers.view_own"]` — exactly right |
+| Existing flow unaffected | `GET /api/participants/mine` | `200`, `[]` — unchanged |
+| Public smoke check | `GET /` | `200` |
+| Admin session unaffected | Confirmed directly | Dashboard, Executive Dashboard, and Communications all load normally |
+
+Every check matches expected behavior exactly. Pending: an observation window checking Application Logs for zero `capability_engine_expose_error` occurrences under real traffic, per the acceptance criteria.
 
 ## 11. Conclusion
 
-B8 integrated the capability engine into a real, high-traffic production request path for the first time, with zero changes to enforcement, zero router/dependency modification, zero schema change, and a directly-proven graceful-failure path on the one endpoint both shells depend on most. The diff stayed exactly within the boundary the architecture review predicted, confirming B5's abstractions are sound. Ready for your review before deployment.
+B8 integrated the capability engine into a real, high-traffic production request path for the first time, with zero changes to enforcement, zero router/dependency modification, zero schema change, and a directly-proven graceful-failure path on the one endpoint both shells depend on most. The diff stayed exactly within the boundary the architecture review predicted, confirming B5's abstractions are sound. **Deployed to production 2026-07-21 and validated live** (§10). B8 is complete, pending the standard observation window.
