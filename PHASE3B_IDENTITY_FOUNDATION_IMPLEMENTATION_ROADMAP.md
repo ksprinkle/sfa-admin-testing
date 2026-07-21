@@ -24,7 +24,7 @@ Two unrelated efforts had both used the label "Phase 3C": the original `PHASE3_D
 - **Phase 3C – Identity Capability Transition**: B8 onward (capability exposure, and eventually capability-based authorization decisions replacing legacy checks).
 - **Phase 4 – Digital Documents Platform**: the work described in `PHASE3_DIGITAL_DOCUMENTS_PLATFORM_ARCHITECTURE_REVIEW.md`, still paused, to be referred to as Phase 4 in any new document or discussion from this point on.
 
-B8's status, per the user's own framing: **production validated; observation window in progress** — not formally closed until that window completes cleanly with no unexpected `capability_engine_expose_error` entries, matching the precedent set by B6 and B7.
+**B8 – Capability Exposure: CLOSED (2026-07-21).** Observation window completed cleanly, matching the precedent set by B6 and B7. `v1.40.0-phase3c-b8-capability-exposure` is adopted as the new canonical production baseline.
 
 ### B9 — first authoritative capability decision (not yet started, review required before implementation)
 

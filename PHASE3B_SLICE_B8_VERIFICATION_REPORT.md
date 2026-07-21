@@ -99,4 +99,6 @@ Every check matches expected behavior exactly. Pending: an observation window ch
 
 ## 11. Conclusion
 
-B8 integrated the capability engine into a real, high-traffic production request path for the first time, with zero changes to enforcement, zero router/dependency modification, zero schema change, and a directly-proven graceful-failure path on the one endpoint both shells depend on most. The diff stayed exactly within the boundary the architecture review predicted, confirming B5's abstractions are sound. **Deployed to production 2026-07-21 and validated live** (§10). B8 is complete, pending the standard observation window.
+B8 integrated the capability engine into a real, high-traffic production request path for the first time, with zero changes to enforcement, zero router/dependency modification, zero schema change, and a directly-proven graceful-failure path on the one endpoint both shells depend on most. The diff stayed exactly within the boundary the architecture review predicted, confirming B5's abstractions are sound. **Deployed to production 2026-07-21 and validated live** (§10).
+
+**Status: CLOSED (2026-07-21).** The observation window completed cleanly, matching the precedent set by B6 and B7. `v1.40.0-phase3c-b8-capability-exposure` is adopted as the new canonical production baseline for Phase 3C — Identity Capability Transition.
