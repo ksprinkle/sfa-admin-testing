@@ -1,12 +1,21 @@
 # Phase 3B — Identity Foundation: Implementation Roadmap
 
 ## Status
-Phase: 3B Implementation Roadmap
-Mode: Sequencing / Planning Only
-Implementation: Not Authorized
-Repository Changes: None (no code, no migrations, no models — this is a sequencing plan for future implementation slices)
+Phase: 3B — **COMPLETE**
+Production Baseline: `v1.39.0-phase3b-b7-identity-write-path`
+Closed out: 2026-07-21
 
 This document is a roadmap, not an architecture document — the architecture was settled in [`PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md`](PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md), which this roadmap treats as accepted, with the refinements recorded in §0 below. Per project convention, Phase documents are historical record once written — this roadmap does not edit 3A, it amends and sequences it.
+
+## Phase 3B Closeout (2026-07-21)
+
+Slices B0 through B7 are complete, deployed to production, and validated — each with its own report (`PHASE3B_SLICE_B<N>_*.md`). Formally declared **Phase 3B – Identity Foundation: COMPLETE**, with `v1.39.0-phase3b-b7-identity-write-path` adopted as the new production baseline.
+
+What exists in production as of this baseline: `Person`, `Role`, `PersonRole` (dual-read authorization, B3), `Household`/`PersonRelationship` (B4), the capability resolution engine (B5, not yet consulted by anything live), a proven-safe shadow-check on one endpoint (B6), and a real identity write-path — `Participant.person_id` populated at registration and at claim time, plus relationship-aware claiming consultation logic (B7, currently dormant — no relationship-creation flow exists yet). `has_permission()`, every router, and admin authorization remain byte-for-byte what they were before B1. Full detail on what each slice actually shipped is in its own report; this is the index, not a restatement.
+
+One unrelated production bug (`docs/waiver-signing.html` accidentally gitignored since 2026-07-17, never actually deployed) was found and fixed during B7's observation window — see `KNOWN_TECHNICAL_DEBT.md` for the postmortem. It was frontend-only and never touched by any B-slice; it doesn't affect this closeout.
+
+**B8 onward is not authorized by this closeout.** Per the user's explicit framing, B8 requires its own fresh architecture review before any implementation, rather than the direct per-slice authorization B1–B7 received — it's the first slice to expose the capability engine through a real endpoint. Do not begin B8 work of any kind until that review happens and is explicitly approved.
 
 ---
 
