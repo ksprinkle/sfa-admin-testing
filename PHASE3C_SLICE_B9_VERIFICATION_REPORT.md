@@ -96,4 +96,6 @@ Every check matches expected behavior exactly. Pending: an observation window ch
 
 B9 replaces legacy authorization with the Capability Resolution Engine's decision for the first time in production, on the one endpoint (`GET /api/participants/mine`) whose equivalence was already proven live by B6's shadow-check and confirmed clean by the user's own Application Logs search. Every outcome — who succeeds, who is denied, and why — is unchanged from before this slice; only the mechanism deciding those outcomes has moved to the canonical engine. `api/services/capability_resolution.py` required zero modification, again confirming B5's abstractions are sound four slices later.
 
-**Deployed to production 2026-07-21 and validated live** (§9). **Status: Production validated; observation window in progress.**
+**Deployed to production 2026-07-21 and validated live** (§9).
+
+**Status: CLOSED (2026-07-21).** The observation window completed cleanly, with zero unexpected `capability_engine_authorization_error` entries, matching the precedent set by B6, B7, and B8. `v1.41.0-phase3c-b9-capability-enforcement` is adopted as the new canonical production baseline for Phase 3C — Identity Capability Transition.

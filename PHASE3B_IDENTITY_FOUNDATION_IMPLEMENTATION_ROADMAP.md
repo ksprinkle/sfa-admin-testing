@@ -2,8 +2,9 @@
 
 ## Status
 Phase: 3B — **COMPLETE**
-Production Baseline: `v1.39.0-phase3b-b7-identity-write-path`
-Closed out: 2026-07-21
+Phase 3C — Identity Capability Transition: **B8 and B9 CLOSED**
+Production Baseline: `v1.41.0-phase3c-b9-capability-enforcement`
+Closed out: 2026-07-21 (3B); B8 and B9 closed out 2026-07-21
 
 This document is a roadmap, not an architecture document — the architecture was settled in [`PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md`](PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md), which this roadmap treats as accepted, with the refinements recorded in §0 below. Per project convention, Phase documents are historical record once written — this roadmap does not edit 3A, it amends and sequences it.
 
@@ -34,7 +35,9 @@ Per the user: B9 is "the first slice that changes who decides access rather than
 
 **One condition remains before implementation begins**: confirmation that B6's production shadow-check logged zero genuine authorization mismatches during its observation window. If confirmed, implementation proceeds under direct replacement as approved. If B6 in fact surfaced a real mismatch, stop and investigate before writing any B9 code.
 
-**Condition confirmed** — no matches found searching all Application Logs for `capability_engine_shadow_mismatch`. Implemented, deployed (`405b8c3`, tagged `v1.41.0-phase3c-b9-capability-enforcement`), and validated live 2026-07-21: fresh throwaway participant account succeeds (`200`) on `GET /api/participants/mine`, anonymous request still `401`, zero `capability_engine_authorization_error`/`capability_engine_authorization_denied` log entries, admin dashboard/executive dashboard/communications unaffected. Full detail in [`PHASE3C_SLICE_B9_VERIFICATION_REPORT.md`](PHASE3C_SLICE_B9_VERIFICATION_REPORT.md). **Status: Production validated; observation window in progress**, same precedent as B6 through B8.
+**Condition confirmed** — no matches found searching all Application Logs for `capability_engine_shadow_mismatch`. Implemented, deployed (`405b8c3`, tagged `v1.41.0-phase3c-b9-capability-enforcement`), and validated live 2026-07-21: fresh throwaway participant account succeeds (`200`) on `GET /api/participants/mine`, anonymous request still `401`, zero `capability_engine_authorization_error`/`capability_engine_authorization_denied` log entries, admin dashboard/executive dashboard/communications unaffected. Full detail in [`PHASE3C_SLICE_B9_VERIFICATION_REPORT.md`](PHASE3C_SLICE_B9_VERIFICATION_REPORT.md).
+
+**B9 – First Capability-Based Authorization: CLOSED (2026-07-21).** Observation window completed cleanly — no unexpected `capability_engine_authorization_error` entries — matching the precedent set by B6 through B8. `v1.41.0-phase3c-b9-capability-enforcement` is adopted as the new canonical production baseline for Phase 3C – Identity Capability Transition. This is the first production endpoint whose authorization is decided solely by the Capability Resolution Engine; legacy `has_permission()`/`require_permission()` remains authoritative for every other endpoint. Next architectural focus (per the user): a new architecture review — not implementation — for either B10 (renumbered retirement of `User.role`/`Participant.user_id`) or the next single-endpoint capability migration, following the same review → minimal slice → production validation → observation window → closeout rhythm.
 
 ---
 
