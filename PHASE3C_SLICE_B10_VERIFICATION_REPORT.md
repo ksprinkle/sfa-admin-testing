@@ -86,4 +86,6 @@ Every check matches expected behavior exactly. Admin dashboard/executive dashboa
 
 B10 completes the migration of this rollout's one fully-proven permission (`participants.view_own`) across both endpoints that use it, reusing `require_capability()` and the Capability Resolution Engine exactly as they existed after B9 — zero changes to either. Ownership scoping, response shape, and every other endpoint remain untouched. The B11/B12 findings from the architecture review are deliberately not addressed here, per the authorized scope.
 
-**Deployed to production 2026-07-21 and validated live** (§9). **Status: Production validated; observation window in progress.**
+**Deployed to production 2026-07-21 and validated live** (§9).
+
+**Status: CLOSED (2026-07-21).** The observation window completed cleanly, with no production anomalies, matching the precedent set by B6, B7, B8, and B9. `v1.42.0-phase3c-b10-own-participant-capability` is adopted as the new canonical production baseline for Phase 3C — Identity Capability Transition.
