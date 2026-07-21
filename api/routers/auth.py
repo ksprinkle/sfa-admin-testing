@@ -18,10 +18,13 @@ from api.schemas.users import (
 )
 from api.dependencies import require_admin
 from api.config import settings
+from sqlalchemy.orm import object_session
+
 from api.models.person import Person
 from api.services.account_verification import create_verification_token, verify_email_token
 from api.services.admin_audit import record_admin_audit_event
 from api.services.authorization import ROLE_PARTICIPANT, is_supported_role
+from api.services.capability_resolution import resolve_capabilities
 from api.services.email_delivery import EmailDeliveryError
 from api.services.rate_limiting import enforce_rate_limit
 from api.utils.email_normalization import normalize_email
@@ -295,10 +298,39 @@ def update_user_role_by_email_body(
 
     return user
 
+def _resolve_capabilities_for_response(user: User) -> list[str] | None:
+    """
+    Phase 3B Slice B8 - derived runtime state only, never cached or
+    persisted (see PHASE3B_SLICE_B8_ARCHITECTURE_REVIEW.md): resolve
+    user -> resolve person -> resolve roles -> resolve capabilities ->
+    serialize response, recomputed fresh on every call via the Slice B5
+    engine. GET /auth/me is depended on by both the admin shell and the
+    participant portal to establish a session at all, so a failure here
+    must never turn into a 500 on this endpoint - logs and degrades to
+    None instead of raising.
+    """
+    try:
+        session = object_session(user)
+        if session is None:
+            return None
+        return sorted(resolve_capabilities(session, user=user))
+    except Exception:
+        logger.warning(
+            "capability_engine_expose_error user_id=%s", getattr(user, "id", None), exc_info=True
+        )
+        return None
+
+
 #TODO: Implement an endpoint for users to view and update their own profile information, with appropriate authentication and validation.
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user = Depends(get_current_user)):
-    return current_user
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        role=current_user.role,
+        email_verified_at=current_user.email_verified_at,
+        capabilities=_resolve_capabilities_for_response(current_user),
+    )
 
 #TODO: Add endpoint for users to update their own password and email, with appropriate validation and security checks.
 # DEV endpoint is available only in non-production debug runs.
