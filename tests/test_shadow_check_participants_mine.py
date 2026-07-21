@@ -29,10 +29,21 @@ class ShadowCheckParticipantsMineTests(unittest.TestCase):
     """
     Phase 3B Slice B6 - shadow-check validation for GET /api/participants/mine.
 
-    Proves: the capability engine is consulted on every request to this
-    endpoint (observer), a mismatch is logged with the expected structured
-    fields and never raised or surfaced to the client (never an actor),
-    and the endpoint's real response is byte-for-byte unaffected either way.
+    RETIRED as a live request-path concern as of Phase 3C Slice B9: this
+    endpoint's authorization is now decided solely by the Capability
+    Resolution Engine (require_capability()), so there is no separate
+    legacy decision left for _shadow_check_participants_view_own() to
+    shadow. The direct unit tests below still call that function
+    directly and remain valid, unmodified historical evidence that the
+    capability engine agreed with legacy authorization throughout B6's
+    production observation window - the equivalence proof that made
+    B9's direct replacement (no dual-decision period) safe. See
+    PHASE3C_SLICE_B9_ARCHITECTURE_REVIEW.md §5 and §11.
+
+    Proves (as of B6, still true of the function in isolation): a
+    mismatch is logged with the expected structured fields and never
+    raised; an internal error fails safe rather than blocking the
+    caller.
     """
 
     def setUp(self) -> None:
@@ -160,18 +171,15 @@ class ShadowCheckParticipantsMineTests(unittest.TestCase):
         self.assertTrue(result)  # fails safe - never blocks or reports failure to the caller
         self.assertIn("capability_engine_shadow_check_error", captured.output[0])
 
-    # --- Endpoint-level: response is unaffected, shadow-check runs every time ---
+    # --- Endpoint-level: proof of retirement as of Phase 3C Slice B9 ---
 
-    def test_endpoint_response_identical_with_shadow_check_active(self) -> None:
-        owner = self._make_user()
-        self._authenticate(owner)
-
-        response = self.client.get("/api/participants/mine")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), [])
-
-    def test_shadow_check_invoked_on_every_request_without_altering_response(self) -> None:
+    def test_shadow_check_no_longer_invoked_by_endpoint_as_of_b9(self) -> None:
+        # As of B9, GET /api/participants/mine is decided solely by
+        # require_capability() - the route body no longer calls
+        # _shadow_check_participants_view_own() at all. This replaces
+        # B6's "invoked on every request" assertion with its direct
+        # opposite, documenting the retirement rather than leaving a
+        # stale, now-false assertion in place.
         owner = self._make_user()
         self._authenticate(owner)
 
@@ -180,38 +188,15 @@ class ShadowCheckParticipantsMineTests(unittest.TestCase):
             wraps=_shadow_check_participants_view_own,
         ) as spy:
             response = self.client.get("/api/participants/mine")
-            self.assertEqual(spy.call_count, 1)
-
-            response2 = self.client.get("/api/participants/mine")
-            self.assertEqual(spy.call_count, 2)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response2.status_code, 200)
-        self.assertEqual(response.json(), response2.json())
-
-    def test_endpoint_response_unaffected_even_when_shadow_check_would_mismatch(self) -> None:
-        # Even if the shadow-check internally detects/logs a mismatch,
-        # the endpoint's response must be identical to the no-mismatch
-        # case - proving the observer truly cannot become an actor.
-        owner = self._make_user()
-        self._authenticate(owner)
-
-        from api.services.capability_resolution import CapabilityContext
-
-        fake_context = CapabilityContext(actor_person=None, role_codes=(), used_legacy_fallback=True)
-        with patch(
-            "api.routers.participant_self.resolve_capabilities_with_context",
-            return_value=(set(), fake_context),
-        ):
-            response = self.client.get("/api/participants/mine")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
+        self.assertEqual(spy.call_count, 0)
 
-    def test_unauthenticated_request_still_rejected_before_shadow_check_runs(self) -> None:
-        # No auth override - require_permission's own dependency chain
-        # must still reject this before the route body (and therefore
-        # the shadow-check) ever executes.
+    def test_unauthenticated_request_still_rejected(self) -> None:
+        # No auth override - require_capability's own dependency chain
+        # (get_current_user) still rejects this before the route body
+        # ever executes, exactly as require_permission's did before B9.
         response = self.client.get("/api/participants/mine")
         self.assertEqual(response.status_code, 401)
 

@@ -26,9 +26,13 @@ Two unrelated efforts had both used the label "Phase 3C": the original `PHASE3_D
 
 **B8 – Capability Exposure: CLOSED (2026-07-21).** Observation window completed cleanly, matching the precedent set by B6 and B7. `v1.40.0-phase3c-b8-capability-exposure` is adopted as the new canonical production baseline.
 
-### B9 — first authoritative capability decision (not yet started, review required before implementation)
+### B9 — first authoritative capability decision (architecture approved 2026-07-21, pending one production-log condition before implementation)
 
-Per the user: B9 is "the first slice that changes who decides access rather than merely exposing or validating information," and warrants at least the scrutiny B3 and B7 received — arguably more. A dedicated architecture review (not implementation) is required before any B9 code, and must address at minimum: candidate endpoint selection and why it's the safest first migration; capability-mapping equivalence (legacy permission → capability); authorization semantics (no unintended privilege change); rollback strategy (single-commit, no data implications); observability plan; backward-compatibility analysis; a production validation plan covering positive/negative/regression cases; blast-radius justification; and an explicit decision on whether B9 replaces the legacy check outright or runs a temporary dual-decision, fail-closed comparison first. **Do not begin the B9 review until the user explicitly brings it forward** — it is contingent on B8's observation window closing first.
+Per the user: B9 is "the first slice that changes who decides access rather than merely exposing or validating information," and warrants at least the scrutiny B3 and B7 received — arguably more. Full review: [`PHASE3C_SLICE_B9_ARCHITECTURE_REVIEW.md`](PHASE3C_SLICE_B9_ARCHITECTURE_REVIEW.md).
+
+**Architecture approved**, with these decisions: `GET /api/participants/mine` migrates from `require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN)` to a new `require_capability(...)` dependency in `api/dependencies.py` (capability engine itself unmodified); the validation plan treats participant-success as the only positive case and admin-403 as a regression check, not a success case (admin does not carry `participants.view_own` today, unchanged by this slice); the B6 runtime shadow-check call site is removed from this endpoint as part of B9 (its tests and reports remain as historical evidence); direct replacement is used, not a temporary dual-decision phase.
+
+**One condition remains before implementation begins**: confirmation that B6's production shadow-check logged zero genuine authorization mismatches during its observation window. If confirmed, implementation proceeds under direct replacement as approved. If B6 in fact surfaced a real mismatch, stop and investigate before writing any B9 code.
 
 ---
 
@@ -80,7 +84,7 @@ This constraint applies only to subject ownership. Actor/attribution fields — 
 | **B6** | Shadow-check on `GET /participants/mine` | None | Compares old vs. new access decision, logs mismatches, still serves the old decision | Yes — backend only |
 | **B7** | Relationship-aware claiming; `person_id` becomes the write target for new registrations | None (uses B1–B4 schema) | Behavior change: claiming can now create/attach `PersonRelationship` rows | Backend-only to ship; a registration-flow UI enhancement is optional and separable |
 | **B8** | `GET /api/me/capabilities` (or extend `GET /auth/me`) | None | Read-only, exposes resolved capabilities | Backend ships independently; has no visible effect until a frontend (Phase 3D) consumes it |
-| **B9** *(future, not in this rollout)* | Retire `User.role` / `Participant.user_id` | Drop columns, guarded | Only after a full burn-in period post-B7 | Its own future roadmap item, deliberately excluded here |
+| **B10** *(future, not in this rollout)* | Retire `User.role` / `Participant.user_id` | Drop columns, guarded | Only after a full burn-in period post-B7 | Its own future roadmap item, deliberately excluded here |
 
 ### B0 — Call-site audit (no schema, no code)
 
@@ -179,9 +183,11 @@ A new, read-only endpoint (or an additive field on the existing `GET /auth/me`) 
 **Backward compatibility:** total — purely additive endpoint/field.
 **Ships independently:** yes, on the backend; it has no user-visible effect until a frontend (out of this roadmap's scope, belongs to Phase 3D) starts calling it.
 
-### B9 — Retirement of `User.role` / `Participant.user_id` (explicitly future, not part of this rollout)
+### B10 — Retirement of `User.role` / `Participant.user_id` (explicitly future, not part of this rollout)
 
 Only after B7 has run in production through a full, deliberate burn-in period with no discrepancies surfaced by B6-style shadow-checking, plan a dedicated future slice to stop writing the legacy fields and, eventually, drop them — with its own guarded migration and its own call-site audit, repeating B0's discipline rather than assuming the original audit still holds. Explicitly out of scope for this roadmap; listed only so it isn't lost.
+
+**Renumbered from B9 to B10 (2026-07-21)** to resolve a naming collision with the actual B9 (first authoritative capability-based authorization decision, `PHASE3C_SLICE_B9_ARCHITECTURE_REVIEW.md`) — see that document's §12 for the full reasoning. This is a documentation renumbering only; nothing about this slice's scope or timing changed.
 
 ---
 

@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from fastapi import Depends, HTTPException
@@ -9,6 +10,9 @@ from api.db.session import get_db
 from api.models.users import User
 from api.security import SECRET_KEY, ALGORITHM
 from api.services.authorization import PERMISSION_ADMIN_ACCESS, has_permission
+from api.services.capability_resolution import has_capability
+
+logger = logging.getLogger(__name__)
 
 
 # This MUST match your login endpoint
@@ -72,3 +76,46 @@ def require_permission(permission: str):
         return current_user
 
     return _permission_dependency
+
+
+def require_capability(permission: str):
+    """
+    Phase 3C Slice B9 — the capability-based counterpart to
+    require_permission() above. has_permission() recovers its own
+    session via object_session(); has_capability() takes `db` explicitly
+    (Slice B5's design), so this dependency also depends on get_db.
+
+    Fails closed: any exception raised while resolving capabilities is
+    treated as a denial, logged with the reason, and never falls back to
+    require_permission()/has_permission() — for whichever route uses
+    this dependency, the capability engine is now the sole authority,
+    and a silent fallback to legacy would hide a real defect rather than
+    surface it.
+    """
+
+    def _capability_dependency(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        try:
+            granted = has_capability(db, user=current_user, permission=permission)
+        except Exception:
+            logger.warning(
+                "capability_engine_authorization_error user_id=%s permission=%s",
+                current_user.id,
+                permission,
+                exc_info=True,
+            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+        if not granted:
+            logger.info(
+                "capability_engine_authorization_denied user_id=%s permission=%s",
+                current_user.id,
+                permission,
+            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+        return current_user
+
+    return _capability_dependency

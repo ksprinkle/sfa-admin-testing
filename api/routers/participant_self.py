@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from api.db.session import get_db
-from api.dependencies import require_permission
+from api.dependencies import require_capability, require_permission
 from api.models.users import User
 from api.schemas.participants import MyRegistrationOut, ParticipantOut
 from api.services.authorization import PERMISSION_PARTICIPANTS_VIEW_OWN
@@ -22,17 +22,26 @@ logger = logging.getLogger(__name__)
 def _shadow_check_participants_view_own(db: Session, current_user: User) -> bool:
     """Phase 3B Slice B6 - observer only, never an actor.
 
-    Reaching this point already means legacy authorization
+    RETIRED as of Phase 3C Slice B9 (see PHASE3C_SLICE_B9_ARCHITECTURE_
+    REVIEW.md §5): this endpoint's dependency is now require_capability()
+    below, so there is no separate legacy decision left to shadow. Kept,
+    unmodified and uncalled, only because tests/test_shadow_check_
+    participants_mine.py exercises it directly as historical evidence
+    that the capability engine agreed with legacy authorization
+    throughout B6's production observation window - the equivalence
+    proof that made B9's direct replacement safe. Not part of any
+    request path.
+
+    Original docstring, describing its behavior while still live:
+    reaching this point already meant legacy authorization
     (require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN), evaluated
-    before this function is ever called) allowed the request - that
-    decision is already made and cannot be changed by anything below.
-    This function independently asks the capability engine
+    before this function was ever called) allowed the request - that
+    decision was already made and could not be changed by anything
+    below. This function independently asked the capability engine
     (api/services/capability_resolution.py, Slice B5) the same
-    question, compares the two answers, and - on a mismatch only -
-    logs structured diagnostic detail. It never raises, never returns
-    anything the caller acts on, and never touches the response. Any
-    error in this function is caught and logged, never allowed to
-    affect the request it's shadowing.
+    question, compared the two answers, and - on a mismatch only -
+    logged structured diagnostic detail. It never raised, never returned
+    anything the caller acted on, and never touched the response.
     """
     check_id = uuid.uuid4()
 
@@ -89,14 +98,12 @@ def _waiver_status_label(participant) -> str:
 @router.get("/mine", response_model=list[MyRegistrationOut])
 def list_my_registrations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN)),
+    current_user: User = Depends(require_capability(PERMISSION_PARTICIPANTS_VIEW_OWN)),
 ):
-    # Slice B6 shadow-check: observes and logs on mismatch only, never
-    # alters this request. See _shadow_check_participants_view_own's
-    # docstring. The dependency above is unchanged and remains the sole
-    # enforcement point for this endpoint.
-    _shadow_check_participants_view_own(db, current_user)
-
+    # Phase 3C Slice B9: this is the first endpoint whose authorization
+    # is decided solely by the Capability Resolution Engine (via
+    # require_capability() above) rather than legacy has_permission().
+    # See PHASE3C_SLICE_B9_ARCHITECTURE_REVIEW.md.
     participants = list_own_registrations(db, current_user=current_user)
 
     return [
