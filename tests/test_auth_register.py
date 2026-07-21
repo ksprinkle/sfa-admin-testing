@@ -21,6 +21,8 @@ from api.models.events import Event
 from api.models.participants import Participant
 from api.models.person import Person
 from api.models.person_relationship import PersonRelationship
+from api.models.person_role import PersonRole
+from api.models.role import Role
 from api.models.user_action_tokens import UserActionToken
 from api.models.users import User
 from api.services.email_delivery import DeliveryResult, DeliveryStatus
@@ -53,6 +55,9 @@ class RegisterEndpointTests(unittest.TestCase):
         app.dependency_overrides[get_db] = self._override_get_db
 
         self.db = self.SessionLocal()
+        self.db.add(Role(id=uuid.uuid4(), code="participant", display_name="Participant"))
+        self.db.add(Role(id=uuid.uuid4(), code="admin", display_name="Admin"))
+        self.db.commit()
 
         # Rate limiting is keyed process-wide (not per-test-db), so start
         # each test with a clean slate to avoid cross-test interference.
@@ -138,6 +143,37 @@ class RegisterEndpointTests(unittest.TestCase):
         )
         user = self.db.query(User).filter(User.email == "exactly-one-person@example.com").first()
         count = self.db.query(Person).filter(Person.user_id == user.id).count()
+        self.assertEqual(count, 1)
+
+    def test_registration_grants_active_person_role(self) -> None:
+        # Phase 3C Slice B11: every new account becomes capability-native
+        # immediately - no separate future step needed for the initial
+        # role grant, and no window where the account has a Person but
+        # resolves only through the legacy User.role fallback.
+        response = self.client.post(
+            "/api/auth/register", json={"email": "gets-a-person-role@example.com", "password": "correcthorse"}
+        )
+        self.assertEqual(response.status_code, 200)
+
+        user = self.db.query(User).filter(User.email == "gets-a-person-role@example.com").first()
+        person = self.db.query(Person).filter(Person.user_id == user.id).first()
+        self.assertIsNotNone(person)
+
+        grant = (
+            self.db.query(PersonRole)
+            .filter(PersonRole.person_id == person.id, PersonRole.role_code == "participant")
+            .first()
+        )
+        self.assertIsNotNone(grant)
+        self.assertEqual(grant.status, PersonRole.STATUS_ACTIVE)
+
+    def test_registration_grants_exactly_one_person_role(self) -> None:
+        self.client.post(
+            "/api/auth/register", json={"email": "exactly-one-role@example.com", "password": "correcthorse"}
+        )
+        user = self.db.query(User).filter(User.email == "exactly-one-role@example.com").first()
+        person = self.db.query(Person).filter(Person.user_id == user.id).first()
+        count = self.db.query(PersonRole).filter(PersonRole.person_id == person.id).count()
         self.assertEqual(count, 1)
 
     def test_rate_limit_blocks_excess_requests(self) -> None:

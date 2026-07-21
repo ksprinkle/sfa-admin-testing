@@ -26,6 +26,7 @@ from api.services.admin_audit import record_admin_audit_event
 from api.services.authorization import ROLE_PARTICIPANT, is_supported_role
 from api.services.capability_resolution import resolve_capabilities
 from api.services.email_delivery import EmailDeliveryError
+from api.services.person_role_management import grant_person_role, revoke_person_role
 from api.services.rate_limiting import enforce_rate_limit
 from api.utils.email_normalization import normalize_email
 
@@ -58,12 +59,19 @@ def register(
 
     # Phase 3B Slice B7: every new account gets a correlated Person going
     # forward, mirroring exactly what Slice B1's one-time migration did
-    # retroactively for pre-existing accounts. Not yet read by any
-    # authorization or ownership decision outside api/services/
-    # participant_claiming.py and public_registration.py's own person_id
-    # bookkeeping - user_id remains fully authoritative everywhere else.
+    # retroactively for pre-existing accounts.
     person = Person(email=user.email, user_id=user.id)
     db.add(person)
+    db.flush()  # assigns person.id so the grant below can reference it, without ending this transaction
+
+    # Phase 3C Slice B11: grant the initial PersonRole in the same
+    # transaction as Person, not a separate commit - there is no
+    # external dependency here (unlike the verification-email step
+    # below), so there's no reason to allow "Person exists, PersonRole
+    # doesn't" as a reachable state. From this point on, new accounts
+    # resolve authorization via PersonRole immediately, never the
+    # legacy User.role fallback.
+    grant_person_role(db, person=person, role_code=ROLE_PARTICIPANT)
     db.commit()
 
     # Best-effort: account creation must not fail because the verification
@@ -159,6 +167,68 @@ def login(
     }
 
 #TODO: Add endpoint for users to update their own password and email, with appropriate validation and security checks.
+# Phase 3C Slice B11: these two "/admin/users/by-email/..." routes must
+# be registered before "/admin/users/{user_id}/role" below. FastAPI/
+# Starlette matches routes in registration order, and "/admin/users/
+# by-email/role" has the exact same path shape as "/admin/users/
+# {user_id}/role" (4 segments, differing only in the 3rd) - registered
+# after the wildcard route, "by-email" would be captured as user_id
+# and this endpoint would 404 on every real call, permanently
+# unreachable. Discovered while adding this slice's own tests. Fixed
+# here as part of B11 rather than deferred, since B11 already touches
+# this exact endpoint.
+@router.put("/admin/users/by-email/role", response_model=UserResponse)
+def update_user_role_by_email(
+    email: str,
+    new_role: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_admin),
+):
+    normalized_email = email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
+
+    # Query-string '+' can arrive as a space if client URL-encoding is omitted.
+    if not user and " " in normalized_email:
+        plus_variant = normalized_email.replace(" ", "+")
+        user = db.query(User).filter(func.lower(User.email) == plus_variant).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not is_supported_role(new_role):
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    previous_role = user.role
+    user.role = new_role
+
+    # Phase 3C Slice B11: keep PersonRole synchronized - see the
+    # matching comment in update_user_role() below.
+    person = db.query(Person).filter(Person.user_id == user.id).first()
+    if person is not None:
+        revoke_person_role(db, person=person, role_code=previous_role)
+        grant_person_role(db, person=person, role_code=new_role, granted_by_user_id=current_user.id)
+
+    record_admin_audit_event(
+        db,
+        domain="permissions",
+        action="user_role_updated",
+        actor_user_id=current_user.id,
+        target_type="user",
+        target_id=user.id,
+        target_display=user.email,
+        source="auth.admin.users.by_email.role",
+        details={
+            "previous_role": previous_role,
+            "new_role": new_role,
+            "lookup_email": normalized_email,
+        },
+    )
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
 @router.put("/admin/users/{user_id}/role", response_model=UserResponse)
 def update_user_role(
     user_id: str,
@@ -176,6 +246,18 @@ def update_user_role(
 
     previous_role = user.role
     user.role = new_role
+
+    # Phase 3C Slice B11: keep PersonRole synchronized with the legacy
+    # field this endpoint has always written, in the same transaction -
+    # closes the divergence KNOWN_TECHNICAL_DEBT.md flagged (changing a
+    # role here previously had no effect on an account whose PersonRole
+    # already existed, since PersonRole-first resolution took
+    # precedence over the legacy field being updated here).
+    person = db.query(Person).filter(Person.user_id == user.id).first()
+    if person is not None:
+        revoke_person_role(db, person=person, role_code=previous_role)
+        grant_person_role(db, person=person, role_code=new_role, granted_by_user_id=current_user.id)
+
     record_admin_audit_event(
         db,
         domain="permissions",
@@ -216,50 +298,6 @@ def list_users(
     return query.order_by(User.email.asc()).all()
 
 
-@router.put("/admin/users/by-email/role", response_model=UserResponse)
-def update_user_role_by_email(
-    email: str,
-    new_role: str,
-    db: Session = Depends(get_db),
-    current_user = Depends(require_admin),
-):
-    normalized_email = email.strip().lower()
-    user = db.query(User).filter(func.lower(User.email) == normalized_email).first()
-
-    # Query-string '+' can arrive as a space if client URL-encoding is omitted.
-    if not user and " " in normalized_email:
-        plus_variant = normalized_email.replace(" ", "+")
-        user = db.query(User).filter(func.lower(User.email) == plus_variant).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if not is_supported_role(new_role):
-        raise HTTPException(status_code=400, detail="Invalid role")
-
-    previous_role = user.role
-    user.role = new_role
-    record_admin_audit_event(
-        db,
-        domain="permissions",
-        action="user_role_updated",
-        actor_user_id=current_user.id,
-        target_type="user",
-        target_id=user.id,
-        target_display=user.email,
-        source="auth.admin.users.by_email.role",
-        details={
-            "previous_role": previous_role,
-            "new_role": new_role,
-            "lookup_email": normalized_email,
-        },
-    )
-    db.commit()
-    db.refresh(user)
-
-    return user
-
-
 @router.put("/admin/users/by-email/role-body", response_model=UserResponse)
 def update_user_role_by_email_body(
     payload: UserRoleByEmailUpdateRequest,
@@ -278,6 +316,14 @@ def update_user_role_by_email_body(
 
     previous_role = user.role
     user.role = new_role
+
+    # Phase 3C Slice B11: keep PersonRole synchronized - see the
+    # matching comment in update_user_role() above.
+    person = db.query(Person).filter(Person.user_id == user.id).first()
+    if person is not None:
+        revoke_person_role(db, person=person, role_code=previous_role)
+        grant_person_role(db, person=person, role_code=new_role, granted_by_user_id=current_user.id)
+
     record_admin_audit_event(
         db,
         domain="permissions",
