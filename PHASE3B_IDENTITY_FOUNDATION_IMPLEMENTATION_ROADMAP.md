@@ -2,9 +2,9 @@
 
 ## Status
 Phase: 3B — **COMPLETE**
-Phase 3C — Identity Capability Transition: **B8, B9, B10, and B11 CLOSED**
-Production Baseline: `v1.43.0-phase3c-b11-person-role-issuance`
-Closed out: 2026-07-21 (3B); B8, B9, B10, and B11 closed out 2026-07-21
+Phase 3C — Identity Capability Transition: **B8 through B12 CLOSED**
+Production Baseline: `v1.44.0-phase3c-b12-participant-person-reconciliation`
+Closed out: 2026-07-21 (3B); B8-B11 closed out 2026-07-21, B12 closed out 2026-07-22
 
 This document is a roadmap, not an architecture document — the architecture was settled in [`PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md`](PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md), which this roadmap treats as accepted, with the refinements recorded in §0 below. Per project convention, Phase documents are historical record once written — this roadmap does not edit 3A, it amends and sequences it.
 
@@ -245,6 +245,8 @@ B10's review found `Participant.person_id` write-only in general; this slice's o
   **Implemented, deployed (`2024413`, tagged `v1.44.0-phase3c-b12-participant-person-reconciliation`), and validated live 2026-07-22.** Pre-implementation production baseline (`SELECT count(*) FROM participants WHERE user_id IS NOT NULL AND person_id IS NULL`): `0`. Deploy log confirmed the migration ran for real (`e1c4b7a9d2f6 -> f7b3d9a1c5e8`), `Schema status: MATCH`. Post-deploy, the same baseline query still returned `0` — confirming the migration was a true no-op against production data, exactly as predicted. `GET /api/participants/mine`, `GET /api/auth/me`, and anonymous access all regression-tested clean; admin dashboard/executive dashboard/communications unaffected; Application Logs showed nothing unusual. Full detail in [`PHASE3C_SLICE_B12_VERIFICATION_REPORT.md`](PHASE3C_SLICE_B12_VERIFICATION_REPORT.md). **Status: Production validated; observation window in progress** (expected to be the quietest of this rollout, since no application code changed).
 
 - **B13 (future, review not started)**: the actual read-path switch in `api/services/participant_identity.py`, gated on B12's clean production verification (now satisfied). Flagged as the highest-risk identity slice in this rollout so far — it changes *which rows* a caller sees, not just whether they're let in — and requires its own dedicated architecture review plus explicit query-level equivalence proof (legacy `user_id`-based query vs. canonical `person_id`-based query returning identical row sets across every ownership scenario) before implementation is authorized.
+
+**B12 – `Participant.person_id` Reconciliation: CLOSED (2026-07-22).** Observation window completed cleanly, no production anomalies. `v1.44.0-phase3c-b12-participant-person-reconciliation` is adopted as the new canonical production baseline for Phase 3C – Identity Capability Transition. `Participant.person_id` is now reconciled for every existing row; the gap this migration exists to close is permanently guarded against reopening. Next architectural focus (per the user, formally brought forward): **B13 — the `person_id`-based read-path switch**, with an explicit, elevated requirement for query-level equivalence proof given its higher risk profile.
 
 ### Future — Retirement of `User.role` / `Participant.user_id` (explicitly future, not part of this rollout)
 

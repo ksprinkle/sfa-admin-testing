@@ -97,4 +97,6 @@ Every check matches expected behavior exactly — as predicted, the quietest dep
 
 B12 closes the `Participant.person_id` gap the B12 architecture review found — the same shape of gap B10 found for `PersonRole`, one layer down — as a permanent, idempotent safeguard rather than a one-off patch, exactly mirroring B7's and B11's own backfills. The pre-implementation production count (`0`) means this migration is a true no-op against today's data; its value is in closing the gap permanently and giving B13 a clean, already-verified starting point rather than an unmeasured one.
 
-**Deployed to production 2026-07-22 and validated live** (§8). **Status: Production validated; observation window in progress.**
+**Deployed to production 2026-07-22 and validated live** (§8).
+
+**Status: CLOSED (2026-07-22).** The observation window completed cleanly, with no production anomalies. `v1.44.0-phase3c-b12-participant-person-reconciliation` is adopted as the new canonical production baseline for Phase 3C — Identity Capability Transition.
