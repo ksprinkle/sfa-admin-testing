@@ -107,4 +107,6 @@ Every check matches expected behavior exactly.
 
 B11 makes `PersonRole` issuance continuous for the first time since B3's one-time backfill: every new registration is capability-native from birth, every admin role change keeps both fields synchronized, and the reconciliation migration closes both known gaps (missing and stale grants) for every existing account in one pass. `api/services/capability_resolution.py` and `api/dependencies.py` required zero changes — the fifth slice in a row confirming B5's abstractions are sound. One unrelated, previously-undiscovered routing bug was found and fixed transparently within scope, per the user's explicit choice.
 
-**Deployed to production 2026-07-21 and validated live** (§10). **Status: Production validated; observation window in progress.**
+**Deployed to production 2026-07-21 and validated live** (§10).
+
+**Status: CLOSED (2026-07-21).** The observation window completed cleanly, with no production anomalies, matching the precedent set by B6 through B10. `v1.43.0-phase3c-b11-person-role-issuance` is adopted as the new canonical production baseline for Phase 3C — Identity Capability Transition.

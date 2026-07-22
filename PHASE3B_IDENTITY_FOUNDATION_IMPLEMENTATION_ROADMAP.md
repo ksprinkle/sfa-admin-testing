@@ -2,9 +2,9 @@
 
 ## Status
 Phase: 3B — **COMPLETE**
-Phase 3C — Identity Capability Transition: **B8, B9, and B10 CLOSED**
-Production Baseline: `v1.42.0-phase3c-b10-own-participant-capability`
-Closed out: 2026-07-21 (3B); B8, B9, and B10 closed out 2026-07-21
+Phase 3C — Identity Capability Transition: **B8, B9, B10, and B11 CLOSED**
+Production Baseline: `v1.43.0-phase3c-b11-person-role-issuance`
+Closed out: 2026-07-21 (3B); B8, B9, B10, and B11 closed out 2026-07-21
 
 This document is a roadmap, not an architecture document — the architecture was settled in [`PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md`](PHASE3A_UNIFIED_IDENTITY_AND_HOUSEHOLD_ARCHITECTURE_REVIEW.md), which this roadmap treats as accepted, with the refinements recorded in §0 below. Per project convention, Phase documents are historical record once written — this roadmap does not edit 3A, it amends and sequences it.
 
@@ -231,7 +231,7 @@ B10's architecture review found that `PersonRole` backfill has only ever run onc
 
 **Unrelated bug found and fixed within this slice** (user's explicit choice): `PUT /admin/users/by-email/role` was permanently unreachable, shadowed by `/admin/users/{user_id}/role` (registered first, identical path shape) — fixed by reordering route registration. See `KNOWN_TECHNICAL_DEBT.md`'s resolved postmortem entry.
 
-**Status: Production validated; observation window in progress.**
+**B11 – Continuous PersonRole Issuance: CLOSED (2026-07-21).** Observation window completed cleanly, no production anomalies. `v1.43.0-phase3c-b11-person-role-issuance` is adopted as the new canonical production baseline for Phase 3C – Identity Capability Transition. Every new account is now capability-native from registration; every admin role change keeps `PersonRole` and `User.role` synchronized; every existing account has been reconciled once. Next architectural focus (per the user, review not yet started): **B12 — `person_id`-based row-scoping migration**, the second and final prerequisite this review chain identified before legacy-field retirement becomes a true cleanup exercise.
 
 ### B12 — `person_id`-based row scoping (explicitly future, review not started)
 
