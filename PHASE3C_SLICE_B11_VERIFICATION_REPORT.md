@@ -71,10 +71,40 @@ Revert the single commit touching `api/routers/auth.py` and the new `api/service
 
 ---
 
-## 10. Production deployment
+## 10. Production deployment (2026-07-21)
 
-*Pending review and approval to commit, tag, and deploy.*
+Committed (`eabc808`), tagged `v1.43.0-phase3c-b11-person-role-issuance`, pushed to `origin/master`. Deploy log confirmed the reconciliation migration ran for real this time:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+INFO  [alembic.runtime.migration] Running upgrade d5a9e2c7f3b1 -> e1c4b7a9d2f6, reconcile PersonRole with legacy User.role (identity capability transition slice B11)
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: e1c4b7a9d2f6
+   Application migration head: e1c4b7a9d2f6
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live validation:**
+
+| Check | Method | Result |
+|---|---|---|
+| Clean startup | Deploy log | No errors, service live |
+| Reconciliation migration ran | Deploy log | `Running upgrade d5a9e2c7f3b1 -> e1c4b7a9d2f6` — real execution, not skipped |
+| Schema status | Deploy log | `MATCH` |
+| Registration grants a real `PersonRole` | Fresh throwaway participant account → `GET /api/auth/me` | `200`, `capabilities: ["participants.view_own","waivers.view_own"]` |
+| **`PersonRole` row actually exists (not just resolving via fallback)** | Direct Render Shell query on the new account | `[('participant', 'active', datetime(2026, 7, 21, 23, 52, 26, ...))]` — confirms continuous issuance is real, the one fact no API response could show |
+| `GET /api/participants/mine` unaffected | Same account | `200`, `[]` |
+| Route-ordering fix works | Admin changed a test account's role via the now-reachable `PUT /admin/users/by-email/role` | Role updated as expected — confirms the fix, previously silently broken |
+| Log check | Application Logs, this deploy window | No registration failures, role-update failures, migration anomalies, duplicate `PersonRole` rows, or integrity constraint violations |
+| Admin regression | Confirmed directly | Dashboard, Executive Dashboard, and Communications all load normally |
+
+Every check matches expected behavior exactly.
 
 ## 11. Conclusion
 
 B11 makes `PersonRole` issuance continuous for the first time since B3's one-time backfill: every new registration is capability-native from birth, every admin role change keeps both fields synchronized, and the reconciliation migration closes both known gaps (missing and stale grants) for every existing account in one pass. `api/services/capability_resolution.py` and `api/dependencies.py` required zero changes — the fifth slice in a row confirming B5's abstractions are sound. One unrelated, previously-undiscovered routing bug was found and fixed transparently within scope, per the user's explicit choice.
+
+**Deployed to production 2026-07-21 and validated live** (§10). **Status: Production validated; observation window in progress.**

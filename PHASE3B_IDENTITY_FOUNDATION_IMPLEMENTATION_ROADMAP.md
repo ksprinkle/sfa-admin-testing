@@ -219,11 +219,19 @@ A new, read-only endpoint (or an additive field on the existing `GET /auth/me`) 
 
 ### B10 — second capability migration: `GET /api/participants/{participant_id}`
 
-Migrates the sibling of B9's endpoint from `require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN)` to `require_capability(...)` — same permission, same file, same proven-equivalent engine, no schema change. Architecture reviewed and accepted 2026-07-21 (`PHASE3C_SLICE_B10_ARCHITECTURE_REVIEW.md`); implementation awaits the user's explicit authorization.
+Migrates the sibling of B9's endpoint from `require_permission(PERMISSION_PARTICIPANTS_VIEW_OWN)` to `require_capability(...)` — same permission, same file, same proven-equivalent engine, no schema change. Implemented, deployed, and closed 2026-07-21 (`v1.42.0-phase3c-b10-own-participant-capability`) — see the closeout section above.
 
-### B11 — Continuous `PersonRole` issuance (explicitly future, review not started)
+### B11 — Continuous `PersonRole` issuance
 
-B10's architecture review found that `PersonRole` backfill has only ever run once, at B3's deploy — every account created since then has no `PersonRole` at all and resolves entirely through the legacy `User.role` fallback. B11 would make `PersonRole` issuance continuous: grant one at registration time, and update it (rather than only the legacy field) whenever an admin changes a user's role. This is a prerequisite for legacy-field retirement, not the retirement itself, and needs its own dedicated architecture review — it changes what happens on every registration and every role change, exactly the kind of behavior change this project gates on review first.
+B10's architecture review found that `PersonRole` backfill has only ever run once, at B3's deploy — every account created since then has no `PersonRole` at all and resolves entirely through the legacy `User.role` fallback. Full review: [`PHASE3C_SLICE_B11_ARCHITECTURE_REVIEW.md`](PHASE3C_SLICE_B11_ARCHITECTURE_REVIEW.md).
+
+**Architecture approved 2026-07-21**: registration grants an initial `PersonRole` in the same commit as `Person` (new `api/services/person_role_management.py`, kept separate from `capability_resolution.py`'s read-only resolution and `authorization.py`'s pure mapping); the three admin role-mutation endpoints now revoke the previous `PersonRole` and grant the new one alongside their existing `User.role` write, closing the divergence bug B10's review flagged; a one-time, guarded, data-only reconciliation migration syncs every existing `Person`'s active `PersonRole` to their current `User.role`, treating `User.role` as ground truth. No schema changes.
+
+**Implemented, deployed (`eabc808`, tagged `v1.43.0-phase3c-b11-person-role-issuance`), and validated live 2026-07-21**: reconciliation migration ran for real (`d5a9e2c7f3b1 -> e1c4b7a9d2f6`), `Schema status: MATCH`; a fresh throwaway registration confirmed via direct Render Shell query to have a real, active `person_roles` row (`('participant', 'active', ...)`) — not just a working legacy fallback; an admin role change via the UI confirmed to actually update `PersonRole` now; admin dashboard/executive dashboard/communications unaffected; Application Logs clean of registration/role-update failures, migration anomalies, or integrity violations. Full detail in [`PHASE3C_SLICE_B11_VERIFICATION_REPORT.md`](PHASE3C_SLICE_B11_VERIFICATION_REPORT.md).
+
+**Unrelated bug found and fixed within this slice** (user's explicit choice): `PUT /admin/users/by-email/role` was permanently unreachable, shadowed by `/admin/users/{user_id}/role` (registered first, identical path shape) — fixed by reordering route registration. See `KNOWN_TECHNICAL_DEBT.md`'s resolved postmortem entry.
+
+**Status: Production validated; observation window in progress.**
 
 ### B12 — `person_id`-based row scoping (explicitly future, review not started)
 
