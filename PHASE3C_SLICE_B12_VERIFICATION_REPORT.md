@@ -61,10 +61,40 @@ Revert the single commit adding this migration file. No data implications — th
 
 ---
 
-## 8. Production deployment
+## 8. Production deployment (2026-07-22)
 
-*Pending review and approval to commit, tag, and deploy.*
+Committed (`2024413`), tagged `v1.44.0-phase3c-b12-participant-person-reconciliation`, pushed to `origin/master`. Deploy log confirmed the migration ran for real:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+INFO  [alembic.runtime.migration] Running upgrade e1c4b7a9d2f6 -> f7b3d9a1c5e8, reconcile Participant.person_id from Participant.user_id (identity capability transition slice B12)
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: f7b3d9a1c5e8
+   Application migration head: f7b3d9a1c5e8
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live validation:**
+
+| Check | Method | Result |
+|---|---|---|
+| Clean startup | Deploy log | No errors, service live |
+| Reconciliation migration ran | Deploy log | `Running upgrade e1c4b7a9d2f6 -> f7b3d9a1c5e8` — real execution |
+| Schema status | Deploy log | `MATCH` |
+| Baseline query, post-deploy | Direct Render Shell query | `0` — unchanged from the pre-implementation measurement, confirming the migration was a true no-op against production data |
+| `GET /api/participants/mine` regression | Fresh throwaway participant account | `200`, `[]` |
+| `GET /api/auth/me` regression | Same account | `200`, `capabilities: ["participants.view_own","waivers.view_own"]` |
+| Anonymous access regression | `GET /api/participants/{random-uuid}`, no token | `401` |
+| Admin regression | Confirmed directly | Dashboard, Executive Dashboard, and Communications all load normally |
+| Log check | Application Logs | Nothing unusual since this deploy |
+
+Every check matches expected behavior exactly — as predicted, the quietest deployment in this rollout so far.
 
 ## 9. Conclusion
 
 B12 closes the `Participant.person_id` gap the B12 architecture review found — the same shape of gap B10 found for `PersonRole`, one layer down — as a permanent, idempotent safeguard rather than a one-off patch, exactly mirroring B7's and B11's own backfills. The pre-implementation production count (`0`) means this migration is a true no-op against today's data; its value is in closing the gap permanently and giving B13 a clean, already-verified starting point rather than an unmeasured one.
+
+**Deployed to production 2026-07-22 and validated live** (§8). **Status: Production validated; observation window in progress.**
