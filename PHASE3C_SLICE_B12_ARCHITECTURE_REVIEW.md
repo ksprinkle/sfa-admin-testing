@@ -42,6 +42,8 @@ SELECT count(*) FROM participants WHERE user_id IS NOT NULL AND person_id IS NUL
 
 **Recommend running this now**, informationally, before implementation begins — not because the answer changes whether reconciliation is needed (it's needed either way, for the same reason B7 and B11's backfills were written unconditionally rather than skipped based on an assumed-empty gap), but because a non-zero count is concrete evidence of exactly how much a naive "just read `person_id` instead" change would have broken.
 
+**Result (2026-07-22, run by the user via Render Shell): `0`.** No production `Participant` row currently has `user_id` set with `person_id` null. This doesn't remove the need for the reconciliation migration (per the reasoning above — it's built as a permanent safeguard against this gap ever reopening, not a one-off patch for a known-populated gap), but it does mean B12 will be a true no-op against today's data, and B13's eventual read-path switch inherits a clean, already-verified starting point rather than an unknown one.
+
 ---
 
 ## 3. Recommendation: two slices, not one — reconciliation, then the read-path switch
