@@ -116,6 +116,7 @@ from api.routers.admin_volunteers import router as admin_volunteers_router
 from api.routers.admin_communications import router as admin_communications_router
 from api.routers.admin_event_operations import router as admin_event_operations_router
 from api.routers.admin_dashboard import router as admin_dashboard_router
+from api.routers.admin_person_relationships import router as admin_person_relationships_router
 from api.routers.notification_read_state import router as notification_read_state_router
 from api.routers.waivers import router as waivers_router
 from api.routers.participant_self import router as participant_self_router
@@ -167,6 +168,7 @@ app.include_router(admin_volunteers_router, prefix="/api")
 app.include_router(admin_communications_router, prefix="/api")
 app.include_router(admin_event_operations_router, prefix="/api")
 app.include_router(admin_dashboard_router, prefix="/api")
+app.include_router(admin_person_relationships_router, prefix="/api")
 app.include_router(notification_read_state_router, prefix="/api")
 app.include_router(waivers_router, prefix="/api")
 app.include_router(participant_self_router, prefix="/api")
