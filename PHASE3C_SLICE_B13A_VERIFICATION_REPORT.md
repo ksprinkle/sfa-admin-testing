@@ -83,4 +83,6 @@ Every check matches expected behavior exactly, including the one property this s
 
 B13a brings `PersonRelationship` creation into existence for the first time in this project's history — admin-only, immediately verified, fully audited — while proving directly (not just asserting) that the capability engine's Relationships layer remains completely inert even against a maximally-permissive real row. `capability_resolution.py` required zero changes. This is the first of the four proposed B13 sub-slices (`B13a` → `B13b` → `B13c` → `B13d`); each subsequent one still requires its own explicit authorization.
 
-**Deployed to production 2026-07-25 and validated live** (§7). **Status: Production validated; observation window in progress.**
+**Deployed to production 2026-07-25 and validated live** (§7).
+
+**Status: CLOSED (2026-07-25).** The observation window completed cleanly, with no production anomalies. `v1.45.0-phase3c-b13a-relationship-lifecycle` is adopted as the new canonical production baseline for Phase 3C — Identity Capability Transition.
