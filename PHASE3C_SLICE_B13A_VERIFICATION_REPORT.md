@@ -50,10 +50,37 @@ Revert the single commit adding these files and the `main.py` router mount. No d
 
 ---
 
-## 7. Production deployment
+## 7. Production deployment (2026-07-25)
 
-*Pending review and approval to commit, tag, and deploy.*
+Committed (`475c825`), tagged `v1.45.0-phase3c-b13a-relationship-lifecycle`, pushed to `origin/master`. Deploy log confirmed no migration ran (correct — no schema change) and:
+
+```
+==> Starting pre-deploy: alembic upgrade head
+✅ Database: PostgreSQL (production)
+==> Pre-deploy complete!
+==> Deploying...
+   Database schema revision: f7b3d9a1c5e8
+   Application migration head: f7b3d9a1c5e8
+   Schema status: MATCH
+==> Your service is live 🎉
+```
+
+**Live validation**, using two fresh throwaway accounts (`b13a-guardian-...@example.com`, `b13a-child-...@example.com`) and the user's own admin login:
+
+| Check | Method | Result |
+|---|---|---|
+| Clean startup | Deploy log | No errors, service live |
+| Schema status | Deploy log | `MATCH` (unchanged — no migration this slice) |
+| Anonymous access to the new endpoints | `POST`/`GET /admin/person-relationships`, no token | `401` for both |
+| Relationship creation | Admin `POST /admin/person-relationships` between the two real `Person` ids | `201`, `status: "active"`, `verified_at`/`verified_by_user_id` populated automatically, `can_register_for: true` as specified, other flags correctly defaulted `false` |
+| List/filter | `GET /admin/person-relationships?subject_person_id=...` | Returns exactly the one relationship just created |
+| Architectural dormancy, live | Guardian account (now the `subject` of a fully-active `can_register_for` relationship) → `GET /api/participants/mine` and `GET /api/auth/me` | `200`, `[]` and unchanged `capabilities` respectively — no relationship-derived effect, matching the local test proving the same property |
+| Admin regression | Confirmed directly | Dashboard, Executive Dashboard, and Communications all load normally |
+
+Every check matches expected behavior exactly, including the one property this slice is specifically scoped to prove — a real, maximally-permissive relationship in production has zero observable effect on participant access.
 
 ## 8. Conclusion
 
 B13a brings `PersonRelationship` creation into existence for the first time in this project's history — admin-only, immediately verified, fully audited — while proving directly (not just asserting) that the capability engine's Relationships layer remains completely inert even against a maximally-permissive real row. `capability_resolution.py` required zero changes. This is the first of the four proposed B13 sub-slices (`B13a` → `B13b` → `B13c` → `B13d`); each subsequent one still requires its own explicit authorization.
+
+**Deployed to production 2026-07-25 and validated live** (§7). **Status: Production validated; observation window in progress.**
