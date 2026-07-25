@@ -88,6 +88,15 @@ def claim_participants_for_user(db: Session, user: User) -> ClaimResult:
     db.flush()
 
     if person is not None:
+        # Known duplication (flagged at B13b review, api/services/
+        # capability_resolution.py::resolve_manageable_person_ids): this
+        # is a second, independent inline copy of relationship
+        # eligibility. That function additionally requires
+        # verified_at IS NOT NULL; this one doesn't. Currently
+        # unobservable since create_person_relationship() (B13a) always
+        # sets verified_at at creation - extract one shared predicate
+        # before B13d cuts any real read path over, so the two can't
+        # silently disagree if that assumption ever stops holding.
         relationship_matches = (
             db.query(Participant)
             .join(

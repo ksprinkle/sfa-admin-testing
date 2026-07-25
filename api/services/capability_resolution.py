@@ -135,6 +135,57 @@ def resolve_household_ids_for_person(db: Session, person: Person | None) -> set[
     return {row[0] for row in rows}
 
 
+def resolve_manageable_person_ids(db: Session, current_user: User) -> set[UUID]:
+    """Ownership Resolution Engine (Phase 3C, Slice B13b).
+
+    The single source of truth this rollout is building toward for
+    "which Person records may this caller manage" - per the B13
+    architecture review's canonical two-rule policy:
+
+        1. The caller's own Person is always manageable (direct/self).
+        2. Any Person reachable via an active, verified, `can_register_for`
+           PersonRelationship from the caller's Person is also manageable
+           (delegated) - mirroring the same gating condition
+           api/services/participant_claiming.py's Pass 2 already uses for
+           relationship-based claiming.
+
+    Known duplication (flagged at B13b review, not yet resolved): this
+    filter and participant_claiming.py's Pass 2 are two independent
+    inline copies of "is this relationship eligible," and they've
+    already diverged - this function additionally requires
+    verified_at IS NOT NULL, which Pass 2 does not check. Currently
+    unobservable, since create_person_relationship() (B13a) always sets
+    verified_at at creation - no code path produces an eligible row
+    without it today. Before B13d cuts any real read path over to this
+    engine, extract one shared eligibility predicate so the two call
+    sites can't silently disagree if that assumption ever stops holding.
+
+    Deliberately inert: nothing calls this yet. No endpoint, no
+    ownership query, and no other capability path is replaced by this
+    function in this slice - it exists so B13c can shadow-compare its
+    answers against today's user_id-based ownership signal before any
+    later slice considers reading through it for real.
+    """
+    person = resolve_person_for_user(db, current_user)
+    if person is None:
+        return set()
+
+    manageable_ids = {person.id}
+
+    delegated_rows = (
+        db.query(PersonRelationship.related_person_id)
+        .filter(
+            PersonRelationship.subject_person_id == person.id,
+            PersonRelationship.status == PersonRelationship.STATUS_ACTIVE,
+            PersonRelationship.can_register_for.is_(True),
+            PersonRelationship.verified_at.isnot(None),
+        )
+        .all()
+    )
+    manageable_ids.update(row[0] for row in delegated_rows)
+    return manageable_ids
+
+
 def resolve_capabilities_with_context(
     db: Session, *, user: User, target_person_id: UUID | None = None
 ) -> tuple[set[str], CapabilityContext]:
